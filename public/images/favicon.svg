@@ -1,0 +1,24 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .olho {
+      /* A animação 'piscar' dura 5s e repete infinitamente */
+      animation: piscar 5s infinite;
+      /* O centro da transformação é o meio do olho */
+      transform-origin: center;
+    }
+
+    @keyframes piscar {
+      /* O olho fica aberto na maior parte do tempo */
+      0%, 90%, 100% {
+        transform: scaleY(1);
+      }
+      /* Em 95% do tempo, ele fecha rapidamente */
+      95% {
+        transform: scaleY(0.1);
+      }
+    }
+  </style>
+
+  <circle class="olho" fill="#005A4B" cx="18" cy="32" r="12"/>
+  <circle class="olho" fill="#005A4B" cx="46" cy="32" r="12"/>
+</svg>
