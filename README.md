@@ -6,13 +6,15 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/status-em%20desenvolvimento-yellow" alt="Status do Projeto: Em Desenvolvimento"/>
-</p>
+  </p>
 
-## 🎯 Sobre o Projeto
+## 🎯 Sobre o Projeto OLLO
 
-OLLO é uma aplicação web moderna concebida como uma plataforma de mídia social interativa. O objetivo é permitir que usuários compartilhem conteúdo diversificado, interajam através de posts, comentários e curtidas, e construam conexões seguindo outros usuários. O projeto visa oferecer uma experiência de usuário fluida e um design visualmente atraente com a identidade "Ollo".
+OLLO é concebido como uma **aplicação web interativa com funcionalidades de mídia social**, com o objetivo primordial de criar uma plataforma vibrante onde os usuários possam não apenas compartilhar conteúdo diversificado, mas também interagir de maneira significativa. Através de um sistema de posts, comentários, curtidas e a funcionalidade de seguir outros usuários, OLLO busca fomentar a criação de comunidades e conexões autênticas.
 
-Este repositório contém o código-fonte do frontend do OLLO, desenvolvido como parte de um portfólio e processo de aprendizado.
+O desenvolvimento do frontend está sendo realizado com foco em **tecnologias web modernas**, como **React**, **Vite** e **Tailwind CSS**. Essa escolha visa proporcionar uma experiência de usuário excepcionalmente fluida, responsiva e um design visualmente atraente que reflita a identidade única "Ollo" – uma combinação de sofisticação tecnológica e interação amigável.
+
+Este repositório representa o protótipo interativo do frontend, que já conta com diversas funcionalidades chave implementadas e um polimento visual inicial aplicado a componentes importantes, demonstrando o progresso e a visão para a plataforma final. O projeto está em contínuo desenvolvimento, com o objetivo de alcançar um MVP (Produto Mínimo Viável) robusto e, posteriormente, uma aplicação completa com funcionalidades avançadas.
 
 ## 🚀 Tecnologias Utilizadas
 
