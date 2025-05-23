@@ -1,12 +1,31 @@
-# React + Vite
+<h1 align="center">✨ OLLO ✨</h1>
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+<p align="center">
+  <strong>Uma Plataforma Social Interativa para Conectar e Compartilhar</strong>
+</p>
 
-Currently, two official plugins are available:
+<p align="center">
+  <img src="https://img.shields.io/badge/status-em%20desenvolvimento-yellow" alt="Status do Projeto: Em Desenvolvimento"/>
+</p>
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## 🎯 Sobre o Projeto
 
-## Expanding the ESLint configuration
+OLLO é uma aplicação web moderna concebida como uma plataforma de mídia social interativa. O objetivo é permitir que usuários compartilhem conteúdo diversificado, interajam através de posts, comentários e curtidas, e construam conexões seguindo outros usuários. O projeto visa oferecer uma experiência de usuário fluida e um design visualmente atraente com a identidade "Ollo".
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Este repositório contém o código-fonte do frontend do OLLO, desenvolvido como parte de um portfólio e processo de aprendizado.
+
+## 🚀 Tecnologias Utilizadas
+
+O frontend do OLLO foi construído com as seguintes tecnologias e ferramentas:
+
+* **React**: Biblioteca JavaScript para construir interfaces de usuário ricas e componentizadas.
+* **Vite**: Ferramenta de build moderna que proporciona um desenvolvimento frontend extremamente rápido.
+* **Tailwind CSS**: Framework CSS utility-first para estilização ágil e customizável.
+* **JavaScript (ES6+)**: Linguagem de programação principal para a lógica do frontend.
+* **React Router DOM**: Para gerenciamento de rotas e navegação single-page.
+* **Heroicons**: Biblioteca de ícones SVG de alta qualidade.
+* **Git & GitHub**: Para versionamento de código e colaboração.
+
+*(Futuramente, serão integradas tecnologias de backend e banco de dados como Firebase/Supabase ou um backend customizado.)*
+
+---
