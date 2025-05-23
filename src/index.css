@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Animação OLLO Shimmer */
+body {
+  animation: olloShimmer 15s ease infinite;
+  background-size: 200% 200%; /* Necessário para a animação de gradiente */
+}
+
+@keyframes olloShimmer {
+  0% {
+    background-position: 0% 50%;
+    background-image: linear-gradient(45deg, #005A4B 0%, #304f74 50%, #005A4B 100%);
+  }
+  50% {
+    background-position: 100% 50%;
+    background-image: linear-gradient(45deg, #1a2723 0%, #4a4f52 50%, #A0D2DB 100%);
+  }
+  100% {
+    background-position: 0% 50%;
+    background-image: linear-gradient(45deg, #005A4B 0%, #3a363d 50%, #005A4B 100%);
+  }
+}
