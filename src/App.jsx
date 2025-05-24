@@ -9,16 +9,17 @@ import NotificationsPage from './pages/NotificationsPage';
 import CreatePostModal from './components/CreatePostModal';
 import MainLayout from './layouts/MainLayout';
 
-// --- COMPONENTES PLACEHOLDER PARA NOVAS ROTAS ---
-function PostDetailPagePlaceholder() {
+// --- COMPONENTES PLACEHOLDER PARA NOVAS ROTAS (MODIFICADOS) ---
+// Agora recebem darkMode como prop
+function PostDetailPagePlaceholder({ darkMode }) {
   const { postId } = useParams();
-  const [darkMode] = useState(localStorage.getItem('darkMode') === 'true');
-  
+  // const [darkMode] = useState(localStorage.getItem('darkMode') === 'true'); // Removido - agora usa a prop
+
   return (
     <div className={`text-center p-10 ${darkMode ? 'bg-gray-800 text-gray-300' : 'bg-white text-gray-800'} rounded-lg shadow-xl my-8 max-w-md mx-auto`}>
-      <h2 className={`text-2xl font-semibold ${darkMode ? 'text-ollo-accent-light' : 'text-ollo-accent'} mb-4`}>Página de Detalhes do Post</h2>
+      <h2 className={`text-2xl font-semibold ${darkMode ? 'text-ollo-accent-light' : 'text-ollo-deep'} mb-4`}>Página de Detalhes do Post</h2>
       <p>
-        O conteúdo completo do post com ID: <strong className={darkMode ? 'text-ollo-bg-light' : 'text-ollo-primary'}>{postId}</strong> apareceria aqui.
+        O conteúdo completo do post com ID: <strong className={darkMode ? 'text-ollo-bg-light' : 'text-ollo-deep'}>{postId}</strong> apareceria aqui.
       </p>
       <p className={`text-sm ${darkMode ? 'text-gray-500' : 'text-gray-400'} mt-6`}>
         (Esta é uma página placeholder. A funcionalidade completa precisa ser desenvolvida.)
@@ -27,12 +28,13 @@ function PostDetailPagePlaceholder() {
   );
 }
 
-function TermsPagePlaceholder() {
-  const [darkMode] = useState(localStorage.getItem('darkMode') === 'true');
-  
+// Agora recebem darkMode como prop
+function TermsPagePlaceholder({ darkMode }) {
+  // const [darkMode] = useState(localStorage.getItem('darkMode') === 'true'); // Removido - agora usa a prop
+
   return (
     <div className={`text-center p-10 ${darkMode ? 'bg-gray-800 text-gray-300' : 'bg-white text-gray-800'} rounded-lg shadow-xl my-8 max-w-md mx-auto`}>
-      <h2 className={`text-2xl font-semibold ${darkMode ? 'text-ollo-accent-light' : 'text-ollo-accent'} mb-4`}>Termos de Serviço</h2>
+      <h2 className={`text-2xl font-semibold ${darkMode ? 'text-ollo-accent-light' : 'text-ollo-deep'} mb-4`}>Termos de Serviço</h2>
       <p>
         O conteúdo detalhado dos Termos de Serviço do OLLO apareceria aqui.
       </p>
@@ -47,7 +49,7 @@ function TermsPagePlaceholder() {
 function App() {
   // Estado para controlar o tema (escuro/claro)
   const [darkMode, setDarkMode] = useState(localStorage.getItem('darkMode') === 'true');
-  
+
   // Posts de exemplo
   const [posts, setPosts] = useState([
     { id: 1, postId: 'bem-vindo-ollo', userName: "Gemini Auxiliar", timestamp: "Agora mesmo", content: "Bem-vindo ao OLLO! Uma nova plataforma para conectar e compartilhar. Explore, crie e divirta-se!", comments: [] },
@@ -63,6 +65,14 @@ function App() {
   // Salvar preferência de tema no localStorage quando mudar
   useEffect(() => {
     localStorage.setItem('darkMode', darkMode);
+    // Aplica a classe ao body para o gradiente de fundo global, se necessário
+    if (darkMode) {
+      document.body.classList.add('dark'); // Supondo que você tenha estilos globais para .dark
+      document.body.classList.remove('light');
+    } else {
+      document.body.classList.add('light');
+      document.body.classList.remove('dark');
+    }
   }, [darkMode]);
 
   // Função para alternar o tema
@@ -72,13 +82,13 @@ function App() {
 
   const handleAddPost = (newPostText) => {
     if (!newPostText.trim()) return;
-    const newPost = { 
-      id: Date.now(), 
+    const newPost = {
+      id: Date.now(),
       postId: `post-${Date.now()}`,
-      userName: "Usuário OLLO", 
-      timestamp: "Agora mesmo", 
-      content: newPostText, 
-      comments: [] 
+      userName: "Usuário OLLO", // Ou poderia ser o usuário logado
+      timestamp: "Agora mesmo",
+      content: newPostText,
+      comments: []
     };
     setPosts(prevPosts => [newPost, ...prevPosts]);
     if (isCreatePostModalOpen) {
@@ -89,10 +99,10 @@ function App() {
   const handleAddComment = (targetPostId, commentText) => {
     if (!commentText.trim()) return;
     setPosts(prevPosts => prevPosts.map(post => {
-      if (post.postId === targetPostId.toString()) { 
-        const newComment = { 
+      if (post.postId === targetPostId.toString()) {
+        const newComment = {
           commentId: `comment-${Date.now()}`,
-          user: "Eu Mesmo", 
+          user: "Eu Mesmo", // Ou o usuário logado
           text: commentText,
           likes: 0,
           dislikes: 0,
@@ -108,44 +118,47 @@ function App() {
   const closeCreatePostModal = () => setIsCreatePostModalOpen(false);
 
   return (
-    <div className={`min-h-screen flex flex-col font-sans ${darkMode ? 'bg-gray-950 text-white' : 'bg-gray-100 text-gray-900'}`}>      
-      <MainLayout 
-        openCreatePostModal={openCreatePostModal} 
+    // A classe de fundo principal agora é controlada pelo MainLayout ou pelo body via useEffect
+    <div className={`min-h-screen flex flex-col font-sans ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+      <MainLayout
+        openCreatePostModal={openCreatePostModal}
         darkMode={darkMode}
         toggleTheme={toggleTheme}
       >
         <Routes>
-          <Route 
-            path="/" 
-            element={<HomePage posts={posts} onAddPost={handleAddPost} onCommentSubmit={handleAddComment} darkMode={darkMode} />} 
+          <Route
+            path="/"
+            element={<HomePage posts={posts} onAddPost={handleAddPost} onCommentSubmit={handleAddComment} darkMode={darkMode} />}
           />
           <Route
             path="/explore"
             element={<ExplorePage allPosts={posts} onCommentSubmit={handleAddComment} darkMode={darkMode} />}
           />
-          <Route 
-            path="/profile/:profileId" 
-            element={<ProfilePage allPosts={posts} onCommentSubmit={handleAddComment} darkMode={darkMode} />} 
+          <Route
+            path="/profile/:profileId"
+            element={<ProfilePage allPosts={posts} onCommentSubmit={handleAddComment} darkMode={darkMode} />}
           />
-          <Route 
-            path="/profile" 
-            element={<ProfilePage allPosts={posts} onCommentSubmit={handleAddComment} darkMode={darkMode} />} 
+          <Route
+            path="/profile"
+            element={<ProfilePage allPosts={posts} onCommentSubmit={handleAddComment} darkMode={darkMode} />}
           />
-          <Route 
-            path="/notifications" 
-            element={<NotificationsPage darkMode={darkMode} />} 
+          <Route
+            path="/notifications"
+            element={<NotificationsPage darkMode={darkMode} />}
           />
-          <Route 
-            path="/posts/:postId" 
-            element={<PostDetailPagePlaceholder />} 
+          <Route
+            path="/posts/:postId"
+            // Passando darkMode para o placeholder
+            element={<PostDetailPagePlaceholder darkMode={darkMode} />}
           />
-          <Route 
-            path="/terms" 
-            element={<TermsPagePlaceholder />} 
+          <Route
+            path="/terms"
+            // Passando darkMode para o placeholder
+            element={<TermsPagePlaceholder darkMode={darkMode} />}
           />
         </Routes>
       </MainLayout>
-      
+
       <Footer darkMode={darkMode} />
 
       {isCreatePostModalOpen && (
