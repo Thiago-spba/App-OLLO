@@ -1,4 +1,5 @@
-// src/pages/ProfilePage.jsx
+// src/pages/ProfilePage.jsx (VERSÃO REFINADA)
+
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import PostCard from '../components/PostCard';
@@ -9,14 +10,12 @@ import {
     HeartIcon,
     UserPlusIcon,
     CheckIcon,
-    ArrowPathIcon // NOVO: Ícone para o spinner de carregamento
+    ArrowPathIcon
 } from '@heroicons/react/24/outline';
 
 function ProfilePage({ allPosts, onCommentSubmit, darkMode }) {
     const { profileId: profileIdFromUrl } = useParams();
-    // Mantenha "logged-in-user-123" para ver o botão Seguir no perfil "usuario-ollo-id"
-    // Mude para "usuario-ollo-id" se quiser testar a edição deste perfil
-    const loggedInUserId = "logged-in-user-123"; 
+    const loggedInUserId = "logged-in-user-123";
     const initialProfileBase = {
         id: "usuario-ollo-id",
         name: "Usuário OLLO",
@@ -39,15 +38,8 @@ function ProfilePage({ allPosts, onCommentSubmit, darkMode }) {
 
     const effectiveIsMyProfile = profileData.id === loggedInUserId;
     const [isFollowing, setIsFollowing] = useState(false);
-    const [isFollowLoading, setIsFollowLoading] = useState(false); // NOVO: Estado para o carregamento do botão seguir
+    const [isFollowLoading, setIsFollowLoading] = useState(false);
     const [followersCount, setFollowersCount] = useState(profileData.stats.followers);
-
-    useEffect(() => {
-        setFollowersCount(profileData.stats.followers);
-        setIsFollowing(false);
-        setIsFollowLoading(false); // NOVO: Reseta o estado de carregamento ao mudar de perfil
-    }, [profileData.id, profileData.stats.followers]);
-
     const [isEditing, setIsEditing] = useState(false);
     const [editableName, setEditableName] = useState('');
     const [editableBio, setEditableBio] = useState('');
@@ -59,6 +51,13 @@ function ProfilePage({ allPosts, onCommentSubmit, darkMode }) {
     const coverInputRef = useRef(null);
     const [activeTab, setActiveTab] = useState('posts');
     const [likedPostIds, setLikedPostIds] = useState([]);
+    const [userComments, setUserComments] = useState([]);
+
+    useEffect(() => {
+        setFollowersCount(profileData.stats.followers);
+        setIsFollowing(false);
+        setIsFollowLoading(false);
+    }, [profileData.id, profileData.stats.followers]);
 
     useEffect(() => {
         if (!editableAvatarPreview) {
@@ -77,12 +76,29 @@ function ProfilePage({ allPosts, onCommentSubmit, darkMode }) {
         }
     }, [profileData.id, allPosts]);
 
+    useEffect(() => {
+        if (allPosts && profileData.name) {
+            const commentsByThisUser = allPosts.flatMap(post =>
+                (post.comments || [])
+                .filter(comment => comment.user === profileData.name)
+                .map(comment => ({
+                    ...comment,
+                    originalPost: {
+                        id: post.postId,
+                        contentPreview: post.content.substring(0, 100) + '...'
+                    }
+                }))
+            );
+            setUserComments(commentsByThisUser);
+        }
+    }, [allPosts, profileData.name]);
+
     const currentAvatarDisplayUrl = editableAvatarPreview || profileData.avatarUrl;
     const currentCoverDisplayUrl = editableCoverPreview || profileData.coverUrl;
     const filteredPosts = allPosts.filter(post => post.userName === profileData.name);
     const actualLikedPosts = allPosts.filter(post => likedPostIds.includes(post.postId));
 
-    const handleImageChange = (event, imageType) => { /* implementação original */
+    const handleImageChange = (event, imageType) => {
         const file = event.target.files[0];
         if (file) {
             const previewUrl = URL.createObjectURL(file);
@@ -97,7 +113,7 @@ function ProfilePage({ allPosts, onCommentSubmit, darkMode }) {
             }
         }
     };
-    useEffect(() => { /* implementação original */
+    useEffect(() => {
         return () => {
             if (editableAvatarPreview && editableAvatarPreview.startsWith('blob:')) {
                 URL.revokeObjectURL(editableAvatarPreview);
@@ -108,7 +124,7 @@ function ProfilePage({ allPosts, onCommentSubmit, darkMode }) {
         };
     }, [editableAvatarPreview, editableCoverPreview]);
 
-    const handleEditToggle = () => { /* implementação original */
+    const handleEditToggle = () => {
         if (!isEditing) {
             setEditableName(profileData.name);
             setEditableBio(profileData.bio);
@@ -126,14 +142,15 @@ function ProfilePage({ allPosts, onCommentSubmit, darkMode }) {
         }
         setIsEditing(!isEditing);
     };
-    const handleSave = () => { /* implementação original */
+
+    const handleSave = () => {
         let newAvatarUrl = profileData.avatarUrl;
         let newCoverUrl = profileData.coverUrl;
 
         if (editableAvatarPreview && editableAvatarPreview.startsWith('blob:')) {
             newAvatarUrl = editableAvatarPreview;
-        } else if (editableName !== profileData.name || (profileData.avatarUrl && !profileData.avatarUrl.includes(encodeURIComponent(profileData.name))) || !profileData.avatarUrl ) {
-             newAvatarUrl = generateAvatarUrl(editableName, darkMode);
+        } else if (editableName !== profileData.name || (profileData.avatarUrl && !profileData.avatarUrl.includes(encodeURIComponent(profileData.name))) || !profileData.avatarUrl) {
+            newAvatarUrl = generateAvatarUrl(editableName, darkMode);
         }
 
         if (editableCoverPreview && editableCoverPreview.startsWith('blob:')) {
@@ -149,7 +166,8 @@ function ProfilePage({ allPosts, onCommentSubmit, darkMode }) {
         }));
         setIsEditing(false);
     };
-    const handleCancel = () => { /* implementação original */
+
+    const handleCancel = () => {
         if (editableAvatarPreview && editableAvatarPreview.startsWith('blob:')) {
             URL.revokeObjectURL(editableAvatarPreview);
         }
@@ -163,24 +181,38 @@ function ProfilePage({ allPosts, onCommentSubmit, darkMode }) {
         setIsEditing(false);
     };
 
-    // --- MODIFICADO: Lógica do botão Seguir ---
+    // ==================================================================
+    // INÍCIO DA ÁREA MODIFICADA: Lógica do Botão Seguir
+    // ==================================================================
     const handleFollowToggle = () => {
-        if (isFollowLoading) return; // Impede múltiplos cliques enquanto carrega
+        if (isFollowLoading) return;
 
-        if (!isFollowing) { // Usuário está prestes a SEGUIR
-            setIsFollowLoading(true);
+        setIsFollowLoading(true); // Ativa o estado de "carregando" para ambas as ações
+
+        if (!isFollowing) {
+            // Ação de Seguir: Atualiza o contador imediatamente (UI Otimista)
+            setFollowersCount(prevCount => prevCount + 1);
+            
+            // Simula a requisição e atualiza o estado do botão depois
             setTimeout(() => {
                 setIsFollowing(true);
-                setFollowersCount(prevCount => prevCount + 1);
                 setIsFollowLoading(false);
-            }, 1500); // Simula 1.5 segundos de "conexão"
-        } else { // Usuário está prestes a DEIXAR DE SEGUIR (ação instantânea)
-            setIsFollowing(false);
+            }, 1000); // Tempo de 1 segundo para uma boa fluidez
+        } else {
+            // Ação de Deixar de Seguir: Atualiza o contador imediatamente
             setFollowersCount(prevCount => prevCount - 1);
+
+            // Simula a requisição e atualiza o estado do botão
+            setTimeout(() => {
+                setIsFollowing(false);
+                setIsFollowLoading(false);
+            }, 500); // Um tempo menor, pois "unfollow" geralmente é mais rápido
         }
     };
+    // ==================================================================
+    // FIM DA ÁREA MODIFICADA
+    // ==================================================================
 
-    // --- Definições de Classes de Tema (sem alterações aqui, apenas para referência) ---
     const cardBgColor = darkMode ? 'bg-ollo-deep border-gray-700' : 'bg-ollo-bg-light/90 border-gray-200';
     const bioTextColor = darkMode ? 'text-gray-300' : 'text-ollo-deep';
     const statsTextColor = darkMode ? 'text-gray-400' : 'text-ollo-deep';
@@ -196,16 +228,13 @@ function ProfilePage({ allPosts, onCommentSubmit, darkMode }) {
     const saveButtonClasses = darkMode ? "px-6 py-2.5 bg-ollo-accent-light text-ollo-deep rounded-lg text-sm font-bold hover:opacity-90" : "px-6 py-2.5 bg-ollo-deep text-ollo-bg-light rounded-lg text-sm font-bold hover:opacity-90";
     const cancelButtonClasses = darkMode ? "px-5 py-2.5 bg-gray-600 text-gray-100 rounded-lg text-sm font-semibold hover:bg-gray-700" : "px-5 py-2.5 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-300";
     const placeholderCardClasses = darkMode ? "bg-gray-800/60 border-gray-700/50" : "bg-ollo-bg-light/90 border-gray-200";
-    const placeholderIconColor = darkMode ? "text-ollo-accent-light/80" : "text-ollo-deep/80";
     const placeholderSvgIconColor = darkMode ? "text-gray-600" : "text-gray-400";
-    const followButtonBaseClasses = "px-5 py-2.5 rounded-lg text-sm font-semibold transition-all duration-150 ease-in-out focus:outline-none focus:ring-4 shadow-md hover:shadow-lg flex items-center justify-center space-x-2 w-36"; // Adicionado justify-center e w-36 para tamanho consistente
+    const followButtonBaseClasses = "px-5 py-2.5 rounded-lg text-sm font-semibold transition-all duration-150 ease-in-out focus:outline-none focus:ring-4 shadow-md hover:shadow-lg flex items-center justify-center space-x-2 w-36";
     const followButtonClasses = darkMode ? `${followButtonBaseClasses} bg-ollo-accent-light text-ollo-deep hover:bg-opacity-90 focus:ring-ollo-accent-light/30` : `${followButtonBaseClasses} bg-ollo-deep text-ollo-bg-light hover:bg-opacity-90 focus:ring-ollo-deep/30`;
     const followingButtonClasses = darkMode ? `${followButtonBaseClasses} bg-transparent border-2 border-gray-500 text-gray-400 hover:border-gray-400 hover:text-gray-300 focus:ring-gray-500/30` : `${followButtonBaseClasses} bg-transparent border-2 border-gray-400 text-gray-500 hover:border-gray-500 hover:text-gray-700 focus:ring-gray-400/30`;
-    // NOVO: Classes para o botão de carregamento (baseado no followButtonClasses)
     const loadingButtonClasses = `${followButtonClasses} opacity-75 cursor-not-allowed`;
 
-
-    const getTabClassName = (tabName) => { /* implementação original */
+    const getTabClassName = (tabName) => {
         const isActive = activeTab === tabName;
         if (darkMode) {
             return `py-3 px-4 sm:px-6 font-semibold text-sm sm:text-base border-b-4 -mb-px transition-all duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-ollo-accent-light/50 focus:z-10
@@ -219,7 +248,6 @@ function ProfilePage({ allPosts, onCommentSubmit, darkMode }) {
     return (
         <div>
             <div className={`${cardBgColor} backdrop-blur-lg rounded-xl shadow-2xl overflow-hidden mb-6`}>
-                {/* ... (Conteúdo do cabeçalho do perfil, avatar, capa - sem alterações) ... */}
                 <div className={`h-52 md:h-72 ${darkMode ? 'bg-gradient-to-r from-ollo-deep via-teal-800 to-gray-900' : 'bg-gradient-to-r from-ollo-crystal-green via-ollo-sky-blue to-ollo-accent-light'} relative`}>
                     <img className="h-full w-full object-cover" src={currentCoverDisplayUrl} alt="Imagem de Capa" />
                     {isEditing && effectiveIsMyProfile && (
@@ -242,7 +270,6 @@ function ProfilePage({ allPosts, onCommentSubmit, darkMode }) {
                         </div>
                     </div>
 
-                    {/* --- MODIFICADO: Lógica de exibição do botão Editar/Seguir --- */}
                     <div className={`flex mt-4 ${isEditing && effectiveIsMyProfile ? 'justify-center' : 'justify-end'} mb-4`}>
                         {effectiveIsMyProfile ? (
                             isEditing ? (
@@ -253,25 +280,23 @@ function ProfilePage({ allPosts, onCommentSubmit, darkMode }) {
                             ) : (
                                 <button onClick={handleEditToggle} className={editProfileButtonClasses}>Editar Perfil</button>
                             )
-                        ) : isFollowLoading ? ( // NOVO: Botão de carregamento
+                        ) : isFollowLoading ? (
                             <button className={loadingButtonClasses} disabled >
                                 <ArrowPathIcon className="h-5 w-5 animate-spin mr-2" />
                                 <span>Conectando...</span>
                             </button>
                         ) : isFollowing ? (
                             <button onClick={handleFollowToggle} className={followingButtonClasses}>
-                                <CheckIcon className="h-5 w-5 mr-2" /> {/* Adicionado mr-2 para consistência */}
+                                <CheckIcon className="h-5 w-5 mr-2" />
                                 <span>Seguindo</span>
                             </button>
                         ) : (
                             <button onClick={handleFollowToggle} className={followButtonClasses}>
-                                <UserPlusIcon className="h-5 w-5 mr-2" /> {/* Adicionado mr-2 para consistência */}
+                                <UserPlusIcon className="h-5 w-5 mr-2" />
                                 <span>Seguir</span>
                             </button>
                         )}
                     </div>
-
-                    {/* ... (Conteúdo de nome, bio, estatísticas - sem alterações) ... */}
                     <div className={`mt-1 ${isEditing && effectiveIsMyProfile ? 'max-w-lg mx-auto' : 'max-w-xl mx-auto text-center sm:text-left'}`}>
                         {(!isEditing || !effectiveIsMyProfile) && (
                             <div className="text-center">
@@ -309,7 +334,6 @@ function ProfilePage({ allPosts, onCommentSubmit, darkMode }) {
                 </div>
             </div>
 
-            {/* ... (Abas e conteúdo das abas - sem alterações na estrutura, apenas o conteúdo da aba 'curtidas' já foi modificado antes) ... */}
             <div className={`mb-6 sm:mb-8 border-b ${darkMode ? 'border-gray-700/50' : 'border-gray-200'}`}>
                 <nav className="-mb-px flex justify-center sm:justify-start space-x-2 sm:space-x-6 lg:space-x-8" aria-label="Tabs">
                     <button onClick={() => setActiveTab('posts')} className={getTabClassName('posts')}>Posts</button>
@@ -317,37 +341,53 @@ function ProfilePage({ allPosts, onCommentSubmit, darkMode }) {
                     <button onClick={() => setActiveTab('likes')} className={getTabClassName('likes')}>Curtidas</button>
                 </nav>
             </div>
+            
             <div className="max-w-xl mx-auto">
-                {activeTab === 'posts' && ( /* ... conteúdo da aba posts ... */
+                {activeTab === 'posts' && (
                     <div className="space-y-8">
                         {filteredPosts.length > 0 ? (
-                            filteredPosts.map((post) => (<PostCard key={post.id} postData={post} onCommentSubmit={onCommentSubmit} darkMode={darkMode} />))
+                            filteredPosts.map((post) => (<PostCard key={post.postId} postData={post} onCommentSubmit={onCommentSubmit} darkMode={darkMode} />))
                         ) : (
                             <div className={`backdrop-blur-sm rounded-xl p-8 sm:p-10 text-center shadow-xl mt-4 ${placeholderCardClasses}`}>
                                 <svg className={`mx-auto h-16 w-16 ${placeholderSvgIconColor}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" /></svg>
                                 <h3 className={`mt-4 text-xl font-semibold ${textColorPrimary}`}>Sem posts por aqui ainda...</h3>
-                                <p className={`mt-2 text-base ${textColorSecondary}`}>Quando {profileData.name} compartilhar algo, seus posts aparecerão aqui.</p>
+                                <p className={`mt-2 text-base ${textColorSecondary}`}>Quando ${profileData.name} compartilhar algo, seus posts aparecerão aqui.</p>
                             </div>
                         )}
                     </div>
                 )}
-                {activeTab === 'comments' && ( /* ... conteúdo da aba comentários ... */
-                    <div className={`text-center py-12 px-6 backdrop-blur-md rounded-xl shadow-lg animate-fadeIn ${placeholderCardClasses}`}>
-                        <ChatBubbleLeftEllipsisIcon className={`mx-auto h-16 w-16 ${placeholderIconColor} mb-5`} />
-                        <h3 className={`mt-2 text-xl font-semibold ${darkMode ? 'text-ollo-accent-light' : 'text-ollo-deep'}`}>Comentários de {profileData.name}</h3>
-                        <p className={`mt-2 ${darkMode ? 'text-gray-300' : 'text-gray-600'} max-w-md mx-auto`}>Aqui você verá todas as conversas e opiniões que {profileData.name} compartilhou nos posts.</p>
-                        <p className={`mt-6 text-sm ${textColorSecondary}`}>Estamos preparando esta seção com carinho! 💬 <br /> (Funcionalidade em desenvolvimento)</p>
+
+                {activeTab === 'comments' && (
+                    <div className="space-y-6 animate-fadeIn">
+                        {userComments.length > 0 ? (
+                            userComments.map((comment) => (
+                                <div key={comment.id} className={`${cardBgColor} backdrop-blur-lg p-5 rounded-xl shadow-lg border`}>
+                                    <p className={`text-base ${textColorPrimary} mb-3`}>"{comment.text}"</p>
+                                    <div className={`text-xs ${textColorSecondary} border-t ${darkMode ? 'border-gray-700/50' : 'border-gray-200/80'} pt-3`}>
+                                        <p>Comentado em <span className="font-semibold">{comment.timestamp}</span></p>
+                                        <p className="mt-1">No post: <span className="italic">"{comment.originalPost.contentPreview}"</span></p>
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            <div className={`backdrop-blur-sm rounded-xl p-8 sm:p-10 text-center shadow-xl ${placeholderCardClasses}`}>
+                                <ChatBubbleLeftEllipsisIcon className={`mx-auto h-16 w-16 ${placeholderSvgIconColor}`} />
+                                <h3 className={`mt-4 text-xl font-semibold ${textColorPrimary}`}>Nenhum comentário encontrado.</h3>
+                                <p className={`mt-2 text-base ${textColorSecondary}`}>Quando ${profileData.name} comentar em algum post, seus comentários aparecerão aqui.</p>
+                            </div>
+                        )}
                     </div>
                 )}
-                {activeTab === 'likes' && ( /* ... conteúdo da aba curtidas (já modificado anteriormente) ... */
+
+                {activeTab === 'likes' && (
                     <div className="space-y-8">
                         {actualLikedPosts.length > 0 ? (
-                            actualLikedPosts.map((post) => (<PostCard key={post.id} postData={post} onCommentSubmit={onCommentSubmit} darkMode={darkMode} />))
+                            actualLikedPosts.map((post) => (<PostCard key={post.postId} postData={post} onCommentSubmit={onCommentSubmit} darkMode={darkMode} />))
                         ) : (
                             <div className={`backdrop-blur-sm rounded-xl p-8 sm:p-10 text-center shadow-xl mt-4 ${placeholderCardClasses}`}>
                                 <HeartIcon className={`mx-auto h-16 w-16 ${placeholderSvgIconColor}`} />
                                 <h3 className={`mt-4 text-xl font-semibold ${textColorPrimary}`}>Nenhuma curtida por aqui...</h3>
-                                <p className={`mt-2 text-base ${textColorSecondary}`}>Quando {profileData.name} curtir algum post, ele aparecerá aqui.</p>
+                                <p className={`mt-2 text-base ${textColorSecondary}`}>Quando ${profileData.name} curtir algum post, ele aparecerá aqui.</p>
                             </div>
                         )}
                     </div>
