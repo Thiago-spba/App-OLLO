@@ -1,6 +1,5 @@
-// src/App.jsx
 import { useState, useEffect } from 'react';
-import { Routes, Route, useParams } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import Footer from './components/Footer';
 import HomePage from './pages/HomePage';
 import ExplorePage from './pages/ExplorePage';
@@ -9,42 +8,9 @@ import NotificationsPage from './pages/NotificationsPage';
 import CreatePostModal from './components/CreatePostModal';
 import MainLayout from './layouts/MainLayout';
 
-// --- COMPONENTES PLACEHOLDER PARA NOVAS ROTAS (MODIFICADOS) ---
-// Agora recebem darkMode como prop
-function PostDetailPagePlaceholder({ darkMode }) {
-  const { postId } = useParams();
-  // const [darkMode] = useState(localStorage.getItem('darkMode') === 'true'); // Removido - agora usa a prop
-
-  return (
-    <div className={`text-center p-10 ${darkMode ? 'bg-gray-800 text-gray-300' : 'bg-white text-gray-800'} rounded-lg shadow-xl my-8 max-w-md mx-auto`}>
-      <h2 className={`text-2xl font-semibold ${darkMode ? 'text-ollo-accent-light' : 'text-ollo-deep'} mb-4`}>Página de Detalhes do Post</h2>
-      <p>
-        O conteúdo completo do post com ID: <strong className={darkMode ? 'text-ollo-bg-light' : 'text-ollo-deep'}>{postId}</strong> apareceria aqui.
-      </p>
-      <p className={`text-sm ${darkMode ? 'text-gray-500' : 'text-gray-400'} mt-6`}>
-        (Esta é uma página placeholder. A funcionalidade completa precisa ser desenvolvida.)
-      </p>
-    </div>
-  );
-}
-
-// Agora recebem darkMode como prop
-function TermsPagePlaceholder({ darkMode }) {
-  // const [darkMode] = useState(localStorage.getItem('darkMode') === 'true'); // Removido - agora usa a prop
-
-  return (
-    <div className={`text-center p-10 ${darkMode ? 'bg-gray-800 text-gray-300' : 'bg-white text-gray-800'} rounded-lg shadow-xl my-8 max-w-md mx-auto`}>
-      <h2 className={`text-2xl font-semibold ${darkMode ? 'text-ollo-accent-light' : 'text-ollo-deep'} mb-4`}>Termos de Serviço</h2>
-      <p>
-        O conteúdo detalhado dos Termos de Serviço do OLLO apareceria aqui.
-      </p>
-      <p className={`text-sm ${darkMode ? 'text-gray-500' : 'text-gray-400'} mt-6`}>
-        (Esta é uma página placeholder. A funcionalidade completa precisa ser desenvolvida.)
-      </p>
-    </div>
-  );
-}
-// --- FIM DOS COMPONENTES PLACEHOLDER ---
+// NOVOS IMPORTS
+import PostDetailPage from './pages/PostDetailPage';
+import TermsPage from './pages/TermsPage';
 
 function App() {
   // Estado para controlar o tema (escuro/claro)
@@ -65,9 +31,8 @@ function App() {
   // Salvar preferência de tema no localStorage quando mudar
   useEffect(() => {
     localStorage.setItem('darkMode', darkMode);
-    // Aplica a classe ao body para o gradiente de fundo global, se necessário
     if (darkMode) {
-      document.body.classList.add('dark'); // Supondo que você tenha estilos globais para .dark
+      document.body.classList.add('dark');
       document.body.classList.remove('light');
     } else {
       document.body.classList.add('light');
@@ -85,7 +50,7 @@ function App() {
     const newPost = {
       id: Date.now(),
       postId: `post-${Date.now()}`,
-      userName: "Usuário OLLO", // Ou poderia ser o usuário logado
+      userName: "Usuário OLLO",
       timestamp: "Agora mesmo",
       content: newPostText,
       comments: []
@@ -102,7 +67,7 @@ function App() {
       if (post.postId === targetPostId.toString()) {
         const newComment = {
           commentId: `comment-${Date.now()}`,
-          user: "Eu Mesmo", // Ou o usuário logado
+          user: "Eu Mesmo",
           text: commentText,
           likes: 0,
           dislikes: 0,
@@ -118,7 +83,6 @@ function App() {
   const closeCreatePostModal = () => setIsCreatePostModalOpen(false);
 
   return (
-    // A classe de fundo principal agora é controlada pelo MainLayout ou pelo body via useEffect
     <div className={`min-h-screen flex flex-col font-sans ${darkMode ? 'text-white' : 'text-gray-900'}`}>
       <MainLayout
         openCreatePostModal={openCreatePostModal}
@@ -146,16 +110,18 @@ function App() {
             path="/notifications"
             element={<NotificationsPage darkMode={darkMode} />}
           />
+          
+          {/* ROTA CORRIGIDA */}
           <Route
             path="/posts/:postId"
-            // Passando darkMode para o placeholder
-            element={<PostDetailPagePlaceholder darkMode={darkMode} />}
+            element={<PostDetailPage darkMode={darkMode} allPosts={posts} />}
           />
+          
           <Route
             path="/terms"
-            // Passando darkMode para o placeholder
-            element={<TermsPagePlaceholder darkMode={darkMode} />}
+            element={<TermsPage darkMode={darkMode} />}
           />
+
         </Routes>
       </MainLayout>
 
