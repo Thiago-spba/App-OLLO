@@ -1,7 +1,7 @@
-// src/pages/ProfilePage.jsx (VERSÃO REFINADA)
+// src/pages/ProfilePage.jsx
 
-import { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import PostCard from '../components/PostCard';
 import {
     CameraIcon,
@@ -10,36 +10,65 @@ import {
     HeartIcon,
     UserPlusIcon,
     CheckIcon,
-    ArrowPathIcon
-} from '@heroicons/react/24/outline';
+    ArrowPathIcon,
+    ExclamationTriangleIcon // Para perfil não encontrado
+} from '@heroicons/react/24/outline'; // Outline para consistência, exceto onde solid é necessário
 
-function ProfilePage({ allPosts, onCommentSubmit, darkMode }) {
+// --- DADOS SIMULADOS ---
+const usersProfileData = {
+  "usuario-ollo": {
+    id: "usuario-ollo",
+    name: "Usuário OLLO",
+    userNameForPosts: "Usuário OLLO", // Usado para filtrar posts/comentários do usuário
+    bio: "Este é o perfil do Usuário OLLO. Explorando o universo OLLO e compartilhando ideias!",
+    avatarName: "Usuário OLLO", // Nome base para ui-avatars
+    coverUrl: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80",
+    stats: { followers: 153, following: 88 }
+  },
+  "gemini-aux": {
+    id: "gemini-aux",
+    name: "Gemini Auxiliar",
+    userNameForPosts: "Gemini Auxiliar",
+    bio: "Assistente AI, sempre pronto para ajudar e conectar!",
+    avatarName: "Gemini Aux",
+    coverUrl: "https://images.unsplash.com/photo-1519681393784-d120267933ba?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80",
+    stats: { followers: 250, following: 10 }
+  },
+  "dev-entusiasta": {
+    id: "dev-entusiasta",
+    name: "Dev Entusiasta",
+    userNameForPosts: "Dev Entusiasta",
+    bio: "Apaixonado por código, React e novas tecnologias. #ReactDev",
+    avatarName: "Dev Entusiasta",
+    coverUrl: "https://images.unsplash.com/photo-1488590528505-98d2b5aba04b?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80",
+    stats: { followers: 120, following: 75 }
+  }
+};
+
+const likedPostsMap = {
+  'usuario-ollo': ['bem-vindo-ollo', 'usando-useState'],
+  'gemini-aux': ['componentizacao-react', 'meu-outro-post', 'bem-vindo-ollo'],
+  'dev-entusiasta': ['usando-useState'],
+};
+
+// Função utilitária para gerar avatar (fora do componente para ser estável)
+const generateAvatarUrl = (name, isDark) => {
+    if (!name) return ''; // Evitar erro se nome for undefined
+    const bgColor = isDark ? '005A4B' : 'A0D2DB'; // ollo-deep : ollo-accent-light
+    const textColor = isDark ? 'A0D2DB' : '005A4B'; // ollo-accent-light : ollo-deep
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=${bgColor}&color=${textColor}&size=128&bold=true&format=svg`;
+};
+
+// --- COMPONENTE ---
+function ProfilePage({ allPosts = [], onCommentSubmit, darkMode }) {
     const { profileId: profileIdFromUrl } = useParams();
-    const loggedInUserId = "logged-in-user-123";
-    const initialProfileBase = {
-        id: "usuario-ollo-id",
-        name: "Usuário OLLO",
-        bio: "Este é o perfil do Usuário OLLO. Explorando o universo OLLO e compartilhando ideias!",
-        avatarUrl: '',
-        coverUrl: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80",
-        stats: { followers: 153, following: 88 }
-    };
+    const navigate = useNavigate();
+    const loggedInUserId = "usuario-ollo"; // Simulação do ID do usuário logado
+    const effectiveProfileId = profileIdFromUrl || loggedInUserId;
 
-    const generateAvatarUrl = (name, isDark) => {
-        const bgColor = isDark ? '005A4B' : 'A0D2DB';
-        const textColor = isDark ? 'A0D2DB' : '005A4B';
-        return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=${bgColor}&color=${textColor}&size=128&bold=true`;
-    };
+    const [profileData, setProfileData] = useState(null); // Dados do perfil carregado
+    const [profileNotFound, setProfileNotFound] = useState(false);
 
-    const [profileData, setProfileData] = useState({
-        ...initialProfileBase,
-        avatarUrl: generateAvatarUrl(initialProfileBase.name, darkMode)
-    });
-
-    const effectiveIsMyProfile = profileData.id === loggedInUserId;
-    const [isFollowing, setIsFollowing] = useState(false);
-    const [isFollowLoading, setIsFollowLoading] = useState(false);
-    const [followersCount, setFollowersCount] = useState(profileData.stats.followers);
     const [isEditing, setIsEditing] = useState(false);
     const [editableName, setEditableName] = useState('');
     const [editableBio, setEditableBio] = useState('');
@@ -47,58 +76,95 @@ function ProfilePage({ allPosts, onCommentSubmit, darkMode }) {
     const [editableAvatarPreview, setEditableAvatarPreview] = useState('');
     const [editableCoverFile, setEditableCoverFile] = useState(null);
     const [editableCoverPreview, setEditableCoverPreview] = useState('');
+
     const avatarInputRef = useRef(null);
     const coverInputRef = useRef(null);
+
+    const [isFollowing, setIsFollowing] = useState(false); // Simulado
+    const [isFollowLoading, setIsFollowLoading] = useState(false);
+    const [followersCount, setFollowersCount] = useState(0);
+
     const [activeTab, setActiveTab] = useState('posts');
-    const [likedPostIds, setLikedPostIds] = useState([]);
     const [userComments, setUserComments] = useState([]);
 
+    // Carregar dados do perfil
     useEffect(() => {
-        setFollowersCount(profileData.stats.followers);
-        setIsFollowing(false);
-        setIsFollowLoading(false);
-    }, [profileData.id, profileData.stats.followers]);
+        const currentProfile = usersProfileData[effectiveProfileId];
+        if (currentProfile) {
+            setProfileData({
+                ...currentProfile,
+                avatarUrl: generateAvatarUrl(currentProfile.avatarName, darkMode)
+            });
+            setProfileNotFound(false);
+            setIsEditing(false); // Resetar modo de edição ao mudar de perfil
+            // Limpar previews de edição
+            if (editableAvatarPreview.startsWith('blob:')) URL.revokeObjectURL(editableAvatarPreview);
+            if (editableCoverPreview.startsWith('blob:')) URL.revokeObjectURL(editableCoverPreview);
+            setEditableAvatarPreview('');
+            setEditableCoverPreview('');
+            setEditableAvatarFile(null);
+            setEditableCoverFile(null);
+        } else {
+            setProfileData(null);
+            setProfileNotFound(true);
+        }
+    }, [effectiveProfileId, darkMode]); // Não incluir navigate aqui para evitar re-execuções indesejadas
 
+    // Atualizar avatar se for ui-avatars e darkMode mudar (e não houver preview de edição)
     useEffect(() => {
-        if (!editableAvatarPreview) {
+        if (profileData && !editableAvatarPreview && profileData.avatarUrl.includes('ui-avatars.com')) {
             setProfileData(prev => ({
                 ...prev,
-                avatarUrl: generateAvatarUrl(prev.name, darkMode)
+                avatarUrl: generateAvatarUrl(prev.avatarName, darkMode)
             }));
         }
-    }, [darkMode, editableAvatarPreview, profileData.name]);
+    }, [darkMode, profileData?.avatarName]); // Depender apenas de darkMode e avatarName (do profileData)
 
+    // Sincronizar estado de "seguir" e contagem de seguidores
     useEffect(() => {
-        if (profileData.id === "usuario-ollo-id") {
-            setLikedPostIds(['bem-vindo-ollo', 'componentizacao-react']);
-        } else {
-            setLikedPostIds([]);
+        if (profileData) {
+            setFollowersCount(profileData.stats.followers);
+            setIsFollowing(false); // Simulação: resetar sempre
+            setIsFollowLoading(false);
         }
-    }, [profileData.id, allPosts]);
+    }, [profileData]);
 
+    // Filtrar comentários do usuário
     useEffect(() => {
-        if (allPosts && profileData.name) {
+        if (allPosts && profileData?.userNameForPosts) {
             const commentsByThisUser = allPosts.flatMap(post =>
                 (post.comments || [])
-                .filter(comment => comment.user === profileData.name)
+                .filter(comment => comment.user === profileData.userNameForPosts)
                 .map(comment => ({
                     ...comment,
+                    id: comment.commentId || `comment-${Math.random()}`, // Garantir ID único
                     originalPost: {
                         id: post.postId,
-                        contentPreview: post.content.substring(0, 100) + '...'
+                        contentPreview: post.content.substring(0, 100) + (post.content.length > 100 ? '...' : '')
                     }
                 }))
             );
             setUserComments(commentsByThisUser);
+        } else {
+            setUserComments([]);
         }
-    }, [allPosts, profileData.name]);
+    }, [allPosts, profileData?.userNameForPosts]);
 
-    const currentAvatarDisplayUrl = editableAvatarPreview || profileData.avatarUrl;
-    const currentCoverDisplayUrl = editableCoverPreview || profileData.coverUrl;
-    const filteredPosts = allPosts.filter(post => post.userName === profileData.name);
-    const actualLikedPosts = allPosts.filter(post => likedPostIds.includes(post.postId));
+    // Limpeza de Object URLs de previews
+    useEffect(() => {
+        return () => {
+            if (editableAvatarPreview && editableAvatarPreview.startsWith('blob:')) {
+                URL.revokeObjectURL(editableAvatarPreview);
+            }
+            if (editableCoverPreview && editableCoverPreview.startsWith('blob:')) {
+                URL.revokeObjectURL(editableCoverPreview);
+            }
+        };
+    }, [editableAvatarPreview, editableCoverPreview]);
 
-    const handleImageChange = (event, imageType) => {
+    const effectiveIsMyProfile = profileData && profileData.id === loggedInUserId;
+
+    const handleImageChange = useCallback((event, imageType) => {
         const file = event.target.files[0];
         if (file) {
             const previewUrl = URL.createObjectURL(file);
@@ -112,107 +178,109 @@ function ProfilePage({ allPosts, onCommentSubmit, darkMode }) {
                 setEditableCoverPreview(previewUrl);
             }
         }
-    };
-    useEffect(() => {
-        return () => {
-            if (editableAvatarPreview && editableAvatarPreview.startsWith('blob:')) {
-                URL.revokeObjectURL(editableAvatarPreview);
-            }
-            if (editableCoverPreview && editableCoverPreview.startsWith('blob:')) {
-                URL.revokeObjectURL(editableCoverPreview);
-            }
-        };
     }, [editableAvatarPreview, editableCoverPreview]);
 
-    const handleEditToggle = () => {
+    const handleEditToggle = useCallback(() => {
+        if (!profileData) return;
         if (!isEditing) {
             setEditableName(profileData.name);
             setEditableBio(profileData.bio);
-            setEditableAvatarPreview('');
-            setEditableCoverPreview('');
-            setEditableAvatarFile(null);
-            setEditableCoverFile(null);
-        } else {
-            if (editableAvatarPreview && editableAvatarPreview.startsWith('blob:')) URL.revokeObjectURL(editableAvatarPreview);
-            if (editableCoverPreview && editableCoverPreview.startsWith('blob:')) URL.revokeObjectURL(editableCoverPreview);
+            // Limpar previews antigos ao entrar no modo de edição
+            if (editableAvatarPreview.startsWith('blob:')) URL.revokeObjectURL(editableAvatarPreview);
+            if (editableCoverPreview.startsWith('blob:')) URL.revokeObjectURL(editableCoverPreview);
             setEditableAvatarPreview('');
             setEditableCoverPreview('');
             setEditableAvatarFile(null);
             setEditableCoverFile(null);
         }
         setIsEditing(!isEditing);
-    };
+    }, [isEditing, profileData, editableAvatarPreview, editableCoverPreview]);
 
-    const handleSave = () => {
+    const handleSave = useCallback(() => {
+        if (!profileData) return;
+
         let newAvatarUrl = profileData.avatarUrl;
-        let newCoverUrl = profileData.coverUrl;
-
-        if (editableAvatarPreview && editableAvatarPreview.startsWith('blob:')) {
+        if (editableAvatarPreview) { // Se há um preview (blob), use-o
             newAvatarUrl = editableAvatarPreview;
-        } else if (editableName !== profileData.name || (profileData.avatarUrl && !profileData.avatarUrl.includes(encodeURIComponent(profileData.name))) || !profileData.avatarUrl) {
+        } else if (editableName !== profileData.name || editableName !== profileData.avatarName) { // Se não há preview E o nome mudou
             newAvatarUrl = generateAvatarUrl(editableName, darkMode);
         }
-
-        if (editableCoverPreview && editableCoverPreview.startsWith('blob:')) {
-            newCoverUrl = editableCoverPreview;
-        }
+        // Se nem preview nem nome mudou, mantém o avatarUrl original (que pode ter sido atualizado pelo darkMode)
 
         setProfileData(prevData => ({
             ...prevData,
             name: editableName,
+            avatarName: editableName, // Atualizar também o nome base para o avatar
             bio: editableBio,
             avatarUrl: newAvatarUrl,
-            coverUrl: newCoverUrl,
+            coverUrl: editableCoverPreview || prevData.coverUrl, // Usa preview da capa ou mantém a antiga
         }));
         setIsEditing(false);
-    };
+        // Não revogar ObjectURLs aqui, pois elas agora fazem parte de profileData.avatarUrl ou coverUrl
+        // A limpeza de blobs antigos que NÃO foram salvos é feita no useEffect de limpeza ou ao re-entrar no modo de edição.
+    }, [profileData, editableName, editableBio, editableAvatarPreview, editableCoverPreview, darkMode]);
 
-    const handleCancel = () => {
-        if (editableAvatarPreview && editableAvatarPreview.startsWith('blob:')) {
-            URL.revokeObjectURL(editableAvatarPreview);
-        }
-        if (editableCoverPreview && editableCoverPreview.startsWith('blob:')) {
-            URL.revokeObjectURL(editableCoverPreview);
-        }
+    const handleCancel = useCallback(() => {
+        // Limpa os previews que não foram salvos
+        if (editableAvatarPreview.startsWith('blob:')) URL.revokeObjectURL(editableAvatarPreview);
+        if (editableCoverPreview.startsWith('blob:')) URL.revokeObjectURL(editableCoverPreview);
         setEditableAvatarFile(null);
         setEditableAvatarPreview('');
         setEditableCoverFile(null);
         setEditableCoverPreview('');
         setIsEditing(false);
-    };
+    }, [editableAvatarPreview, editableCoverPreview]);
 
-    // ==================================================================
-    // INÍCIO DA ÁREA MODIFICADA: Lógica do Botão Seguir
-    // ==================================================================
-    const handleFollowToggle = () => {
+    const handleFollowToggle = useCallback(() => {
         if (isFollowLoading) return;
+        setIsFollowLoading(true);
+        setTimeout(() => {
+            if (isFollowing) {
+                setFollowersCount(prev => prev - 1);
+            } else {
+                setFollowersCount(prev => prev + 1);
+            }
+            setIsFollowing(prev => !prev);
+            setIsFollowLoading(false);
+        }, isFollowing ? 500 : 1000);
+    }, [isFollowing, isFollowLoading]);
 
-        setIsFollowLoading(true); // Ativa o estado de "carregando" para ambas as ações
 
-        if (!isFollowing) {
-            // Ação de Seguir: Atualiza o contador imediatamente (UI Otimista)
-            setFollowersCount(prevCount => prevCount + 1);
-            
-            // Simula a requisição e atualiza o estado do botão depois
-            setTimeout(() => {
-                setIsFollowing(true);
-                setIsFollowLoading(false);
-            }, 1000); // Tempo de 1 segundo para uma boa fluidez
-        } else {
-            // Ação de Deixar de Seguir: Atualiza o contador imediatamente
-            setFollowersCount(prevCount => prevCount - 1);
+    if (profileNotFound) {
+        return (
+            <div className={`min-h-[calc(100vh-200px)] flex flex-col items-center justify-center p-8 text-center ${darkMode ? 'text-ollo-bg-light' : 'text-ollo-deep'}`}>
+                <ExclamationTriangleIcon className={`mx-auto h-20 w-20 mb-6 ${darkMode ? 'text-red-400' : 'text-red-500'}`} />
+                <h1 className="text-3xl font-bold mb-2">Perfil Não Encontrado</h1>
+                <p className={`text-lg ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>O perfil que você está procurando não existe ou não pôde ser carregado.</p>
+                <button
+                    onClick={() => navigate('/')}
+                    className={`mt-8 px-6 py-2.5 rounded-lg font-semibold transition-colors
+                        ${darkMode ? 'bg-ollo-accent-light text-ollo-deep hover:bg-opacity-90' 
+                                   : 'bg-ollo-deep text-ollo-bg-light hover:bg-opacity-90'}`}
+                >
+                    Voltar para a Página Inicial
+                </button>
+            </div>
+        );
+    }
 
-            // Simula a requisição e atualiza o estado do botão
-            setTimeout(() => {
-                setIsFollowing(false);
-                setIsFollowLoading(false);
-            }, 500); // Um tempo menor, pois "unfollow" geralmente é mais rápido
-        }
-    };
-    // ==================================================================
-    // FIM DA ÁREA MODIFICADA
-    // ==================================================================
+    if (!profileData) {
+        return (
+            <div className={`min-h-[calc(100vh-200px)] flex items-center justify-center ${darkMode ? 'text-ollo-bg-light' : 'text-ollo-deep'}`}>
+                <ArrowPathIcon className="h-12 w-12 animate-spin mr-3" />
+                <p className="text-xl">Carregando perfil...</p>
+            </div>
+        );
+    }
 
+    // Dados derivados para exibição
+    const currentAvatarDisplayUrl = editableAvatarPreview || profileData.avatarUrl;
+    const currentCoverDisplayUrl = editableCoverPreview || profileData.coverUrl;
+    const filteredPosts = allPosts.filter(post => post.userName === profileData.userNameForPosts);
+    const likedPostIdsForCurrentProfile = likedPostsMap[effectiveProfileId] || [];
+    const actualLikedPosts = allPosts.filter(post => likedPostIdsForCurrentProfile.includes(post.postId));
+
+    // Estilos (mantidos da sua versão, para consistência)
     const cardBgColor = darkMode ? 'bg-ollo-deep border-gray-700' : 'bg-ollo-bg-light/90 border-gray-200';
     const bioTextColor = darkMode ? 'text-gray-300' : 'text-ollo-deep';
     const statsTextColor = darkMode ? 'text-gray-400' : 'text-ollo-deep';
