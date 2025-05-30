@@ -1,28 +1,26 @@
 // src/components/PostCard.jsx
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { 
     HandThumbUpIcon,
-    HandThumbDownIcon 
-} from '@heroicons/react/24/outline';
+    HandThumbDownIcon,
+    TrashIcon
+} from '@heroicons/react/24/outline'; 
 import { 
     HandThumbUpIcon as HandThumbUpSolid,
     HandThumbDownIcon as HandThumbDownSolid
 } from '@heroicons/react/24/solid';
-// Se você decidir usar o PaperAirplaneIcon no botão "Enviar Comentário" do PostCard,
-// você precisará importá-lo. No momento, o botão está sem ícone, conforme seu último código.
-// import { PaperAirplaneIcon } from '@heroicons/react/24/outline';
 
-function PostCard({ postData, onCommentSubmit, variant }) {
+function PostCard({ postData, onCommentSubmit, onDeletePost, darkMode, variant }) { 
   if (!postData) { return null; }
+  
+  const { id: numericId, postId: postIdString, userName, timestamp, content } = postData;
   const currentComments = postData.comments || [];
-  const { id: postId, userName, timestamp, content } = postData;
 
-  const [isLiked, setIsLiked] = useState(false); // Like do Post
+  const [isLiked, setIsLiked] = useState(false);
   const [currentLikeCount, setCurrentLikeCount] = useState(postData.likeCount || Math.floor(Math.random() * 100));
   const [showComments, setShowComments] = useState(false);
   const [newCommentText, setNewCommentText] = useState('');
 
-  // Lógica para "Continuar lendo"
   const [isExpanded, setIsExpanded] = useState(false);
   const contentRef = useRef(null); 
   const NUM_LINES_TO_CLAMP = 4;
@@ -30,11 +28,9 @@ function PostCard({ postData, onCommentSubmit, variant }) {
 
   const toggleExpand = () => setIsExpanded(!isExpanded);
 
-  // Estado para reações aos comentários e tooltip
   const [commentReactions, setCommentReactions] = useState({});
   const [activeTooltip, setActiveTooltip] = useState('');
 
-  // Inicializa/atualiza reações quando os comentários mudam
   useEffect(() => {
     const initialReactions = {};
     if (currentComments && currentComments.length > 0) {
@@ -50,18 +46,21 @@ function PostCard({ postData, onCommentSubmit, variant }) {
     setCommentReactions(initialReactions);
   }, [currentComments]); 
 
-  // Handlers para ações do post
   const handleLikeClick = () => { setIsLiked(!isLiked); setCurrentLikeCount(isLiked ? currentLikeCount - 1 : currentLikeCount + 1); };
   const handleCommentToggle = () => setShowComments(!showComments);
-  const handleCommentSubmit = () => { if (!newCommentText.trim()) return; onCommentSubmit(postId, newCommentText); setNewCommentText(''); };
+  
+  const handleCommentSubmit = () => { 
+    if (!newCommentText.trim()) return; 
+    onCommentSubmit(postIdString, newCommentText); 
+    setNewCommentText(''); 
+  };
   const handleShareClick = () => { alert('Compartilhar: Funcionalidade em desenvolvimento!'); };
 
-  // Handler para reações aos comentários
   const handleCommentReaction = (commentId, reactionType) => {
     setCommentReactions(prevReactions => {
       const currentReactionState = prevReactions[commentId];
       if (!currentReactionState) {
-        console.warn(`Estado de reação não encontrado para commentId: ${commentId}`);
+        // console.warn(`Estado de reação não encontrado para commentId: ${commentId}`); // Removido também, mas pode ser útil manter se houver problemas com reações.
         return prevReactions; 
       }
       let newLikes = currentReactionState.likes;
@@ -96,6 +95,12 @@ function PostCard({ postData, onCommentSubmit, variant }) {
     });
   };
 
+  const handleDeleteClick = () => {
+    if (onDeletePost) { 
+        onDeletePost(postIdString);
+    }
+  };
+
   let cardSpecificStyles = "";
   if (variant === "explore") {
     cardSpecificStyles = "min-h-[400px] flex flex-col"; 
@@ -115,16 +120,29 @@ function PostCard({ postData, onCommentSubmit, variant }) {
       <div className="p-4 sm:p-5 md:p-6 flex flex-col h-full"> 
         <div className={`${variant === "explore" ? 'flex-grow' : ''}`}>
           {/* Header */}
-          <div className="flex items-center mb-4">
-            <img 
-              className="h-10 w-10 sm:h-11 sm:w-11 rounded-full mr-3 sm:mr-3.5 object-cover ring-2 ring-offset-2 ring-offset-white ring-ollo-accent-light/80"
-              src={`https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=005A4B&color=A0D2DB&bold=true&size=128`} 
-              alt={`Avatar de ${userName}`} 
-            />
-            <div className="min-w-0">
-              <p className="font-semibold text-sm sm:text-base text-ollo-deep leading-tight truncate">{userName}</p>
-              <p className="text-xs text-gray-500 hover:text-gray-700 cursor-pointer transition-colors">{timestamp}</p>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center min-w-0"> 
+                <img 
+                  className="h-10 w-10 sm:h-11 sm:w-11 rounded-full mr-3 sm:mr-3.5 object-cover ring-2 ring-offset-2 ring-offset-white ring-ollo-accent-light/80 flex-shrink-0"
+                  src={`https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=005A4B&color=A0D2DB&bold=true&size=128`} 
+                  alt={`Avatar de ${userName}`} 
+                />
+                <div className="min-w-0"> 
+                  <p className="font-semibold text-sm sm:text-base text-ollo-deep leading-tight truncate">{userName}</p>
+                  <p className="text-xs text-gray-500 hover:text-gray-700 cursor-pointer transition-colors">{timestamp}</p>
+                </div>
             </div>
+
+            {/* BOTÃO DE EXCLUIR */}
+            {userName === "Usuário OLLO" && onDeletePost && (
+              <button
+                onClick={handleDeleteClick}
+                title="Excluir este post"
+                className="p-1.5 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-100/50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition-colors duration-150 ease-in-out ml-2" 
+              >
+                <TrashIcon className="h-5 w-5" />
+              </button>
+            )}
           </div>
 
           {/* Content e "Continuar lendo" */}
