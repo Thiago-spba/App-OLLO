@@ -8,20 +8,15 @@ import ProfilePage from './pages/ProfilePage';
 import NotificationsPage from './pages/NotificationsPage';
 import CreatePostModal from './components/CreatePostModal';
 import MainLayout from './layouts/MainLayout';
-
-// NOVOS IMPORTS (já existentes no seu código)
 import PostDetailPage from './pages/PostDetailPage';
 import TermsPage from './pages/TermsPage';
+import LoginPage from './pages/LoginPage'; // <-- 1. IMPORTAR LoginPage
 
 function App() {
-    // Estado para controlar o tema (escuro/claro)
     const [darkMode, setDarkMode] = useState(localStorage.getItem('darkMode') === 'true');
-
-    // Estado para gerenciar quem está sendo seguido na sessão atual (ELEVADO PARA O APP)
     const [sessionFollowStatus, setSessionFollowStatus] = useState({});
-
-    // Posts de exemplo
     const [posts, setPosts] = useState([
+        // ... seus posts de exemplo (mantidos como estavam)
         { id: 1, postId: 'bem-vindo-ollo', userName: "Gemini Auxiliar", timestamp: "Agora mesmo", content: "Bem-vindo ao OLLO! Uma nova plataforma para conectar e compartilhar. Explore, crie e divirta-se!", comments: [], likeCount: Math.floor(Math.random() * 101) },
         { id: 2, postId: 'usando-useState', userName: "Usuário OLLO", timestamp: "Há 10 minutos", content: "Aprendendo a usar o useState no React para gerenciar o estado dos meus posts. Muito interessante!", comments: [], likeCount: Math.floor(Math.random() * 101) },
         { id: 3, postId: 'componentizacao-react', userName: "Dev Entusiasta", timestamp: "Há 1 hora", content: "A componentização no React realmente facilita a organização do código e a reutilização. #ReactDev", comments: [], likeCount: Math.floor(Math.random() * 101) },
@@ -29,10 +24,8 @@ function App() {
         { id: 'ollo-exploration', postId: 'ollo-exploration', userName: "Usuário OLLO", timestamp: "Há 2 dias", content: "Post original 'Explorando OLLO' que recebeu interações.", comments: [], likeCount: Math.floor(Math.random() * 101) },
         { id: 'my-ideas-post', postId: 'my-ideas-post', userName: "Usuário OLLO", timestamp: "Há 1 dia", content: "Post 'Minhas Ideias' onde o Dev Entusiasta comentou.", comments: [], likeCount: Math.floor(Math.random() * 101) }
     ]);
-
     const [isCreatePostModalOpen, setIsCreatePostModalOpen] = useState(false);
 
-    // Salvar preferência de tema no localStorage quando mudar
     useEffect(() => {
         localStorage.setItem('darkMode', darkMode);
         if (darkMode) {
@@ -44,7 +37,6 @@ function App() {
         }
     }, [darkMode]);
 
-    // Função para alternar o tema
     const toggleTheme = () => {
         setDarkMode(!darkMode);
     };
@@ -52,13 +44,13 @@ function App() {
     const handleAddPost = (newPostText) => {
         if (!newPostText.trim()) return;
         const newPost = {
-            id: Date.now(), 
+            id: Date.now(),
             postId: `post-${Date.now()}`,
-            userName: "Usuário OLLO", 
+            userName: "Usuário OLLO", // Idealmente, viria do usuário autenticado
             timestamp: "Agora mesmo",
             content: newPostText,
             comments: [],
-            likeCount: 0 
+            likeCount: 0
         };
         setPosts(prevPosts => [newPost, ...prevPosts]);
         if (isCreatePostModalOpen) {
@@ -69,10 +61,10 @@ function App() {
     const handleAddComment = (targetPostId, commentText) => {
         if (!commentText.trim()) return;
         setPosts(prevPosts => prevPosts.map(post => {
-            if (post.postId === targetPostId.toString()) { 
+            if (post.postId === targetPostId.toString()) {
                 const newComment = {
                     commentId: `comment-${Date.now()}`,
-                    user: "Usuário OLLO", 
+                    user: "Usuário OLLO", // Idealmente, viria do usuário autenticado
                     text: commentText,
                     likes: 0,
                     dislikes: 0,
@@ -84,7 +76,6 @@ function App() {
         }));
     };
 
-    // NOVA FUNÇÃO ADICIONADA AQUI
     const handleDeletePost = (targetPostId) => {
         if (window.confirm("Tem certeza que deseja excluir este post? Esta ação não pode ser desfeita.")) {
             setPosts(prevPosts => prevPosts.filter(post => post.postId !== targetPostId));
@@ -95,71 +86,108 @@ function App() {
     const openCreatePostModal = () => setIsCreatePostModalOpen(true);
     const closeCreatePostModal = () => setIsCreatePostModalOpen(false);
 
+    // Layout Props para passar ao MainLayout
+    const mainLayoutProps = {
+        openCreatePostModal,
+        darkMode,
+        toggleTheme
+    };
+
     return (
-        <div className={`min-h-screen flex flex-col font-sans ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-            <MainLayout
-                openCreatePostModal={openCreatePostModal}
-                darkMode={darkMode}
-                toggleTheme={toggleTheme}
-            >
-                <Routes>
-                    <Route
-                        path="/"
-                        element={<HomePage
-                                    posts={posts}
-                                    onAddPost={handleAddPost}
-                                    onCommentSubmit={handleAddComment}
-                                    onDeletePost={handleDeletePost} // <-- PROP ADICIONADA AQUI
-                                    darkMode={darkMode}
-                                 />}
-                    />
-                    <Route
-                        path="/explore"
-                        element={<ExplorePage allPosts={posts} onCommentSubmit={handleAddComment} darkMode={darkMode} />}
-                    />
-                    <Route
-                        path="/profile/:profileId"
-                        element={
+        <div className={`min-h-screen flex flex-col font-sans ${darkMode ? 'text-ollo-bg-light' : 'text-gray-900'}`}> {/* Ajustei text-white para text-ollo-bg-light no dark mode para consistência */}
+            <Routes>
+                {/* Rotas que UTILIZAM MainLayout */}
+                <Route
+                    path="/"
+                    element={
+                        <MainLayout {...mainLayoutProps}>
+                            <HomePage
+                                posts={posts}
+                                onAddPost={handleAddPost}
+                                onCommentSubmit={handleAddComment}
+                                onDeletePost={handleDeletePost}
+                                darkMode={darkMode}
+                            />
+                        </MainLayout>
+                    }
+                />
+                <Route
+                    path="/explore"
+                    element={
+                        <MainLayout {...mainLayoutProps}>
+                            <ExplorePage
+                                allPosts={posts}
+                                onCommentSubmit={handleAddComment}
+                                darkMode={darkMode}
+                            />
+                        </MainLayout>
+                    }
+                />
+                <Route
+                    path="/profile/:profileId"
+                    element={
+                        <MainLayout {...mainLayoutProps}>
                             <ProfilePage
                                 allPosts={posts}
                                 onCommentSubmit={handleAddComment}
                                 darkMode={darkMode}
-                                sessionFollowStatus={sessionFollowStatus} 
-                                setSessionFollowStatus={setSessionFollowStatus} 
+                                sessionFollowStatus={sessionFollowStatus}
+                                setSessionFollowStatus={setSessionFollowStatus}
                             />
-                        }
-                    />
-                    <Route
-                        path="/profile" 
-                        element={
+                        </MainLayout>
+                    }
+                />
+                <Route
+                    path="/profile"
+                    element={
+                        <MainLayout {...mainLayoutProps}>
                             <ProfilePage
                                 allPosts={posts}
                                 onCommentSubmit={handleAddComment}
                                 darkMode={darkMode}
-                                sessionFollowStatus={sessionFollowStatus} 
-                                setSessionFollowStatus={setSessionFollowStatus} 
+                                sessionFollowStatus={sessionFollowStatus}
+                                setSessionFollowStatus={setSessionFollowStatus}
                             />
-                        }
-                    />
-                    <Route
-                        path="/notifications"
-                        element={<NotificationsPage darkMode={darkMode} />}
-                    />
-                    
-                    <Route
-                        path="/posts/:postId"
-                        element={<PostDetailPage darkMode={darkMode} allPosts={posts} />}
-                    />
-                    
-                    <Route
-                        path="/terms"
-                        element={<TermsPage darkMode={darkMode} />}
-                    />
+                        </MainLayout>
+                    }
+                />
+                <Route
+                    path="/notifications"
+                    element={
+                        <MainLayout {...mainLayoutProps}>
+                            <NotificationsPage darkMode={darkMode} />
+                        </MainLayout>
+                    }
+                />
+                <Route
+                    path="/posts/:postId"
+                    element={
+                        <MainLayout {...mainLayoutProps}>
+                            <PostDetailPage darkMode={darkMode} allPosts={posts} />
+                        </MainLayout>
+                    }
+                />
+                <Route
+                    path="/terms"
+                    element={
+                        <MainLayout {...mainLayoutProps}>
+                            <TermsPage darkMode={darkMode} />
+                        </MainLayout>
+                    }
+                />
 
-                </Routes>
-            </MainLayout>
+                {/* Rotas que NÃO UTILIZAM MainLayout */}
+                <Route path="/login" element={<LoginPage darkMode={darkMode} />} /> {/* <-- 2. ROTA ADICIONADA */}
+                {/* <Route path="/register" element={<RegisterPage darkMode={darkMode} />} /> // Espaço para a futura página de cadastro */}
 
-            <Footer darkMode={darkMode} />
+            </Routes>
+
+            {/* Footer e Modal de Criação de Post são renderizados fora do MainLayout no seu código original.
+                A visibilidade deles na página /login pode precisar de ajuste futuro.
+                Por exemplo, o LoginPage já tem seu próprio footer.
+                Se MainLayout tivesse o Footer, ele não apareceria na LoginPage com esta estrutura.
+            */}
+            <Footer darkMode={darkMode} /> {/* Este Footer aparecerá em TODAS as páginas, incluindo /login. Podemos ajustar depois. */}
 
             {isCreatePostModalOpen && (
                 <CreatePostModal

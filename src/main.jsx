@@ -1,14 +1,17 @@
-import React from 'react'
-import ReactDOM from 'react-dom/client'
-import App from './App.jsx'
-import './index.css'
-import { BrowserRouter } from 'react-router-dom'; // <-- PASSO 1: Importar
+// src/main.jsx
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App.jsx';
+import './index.css';
+import { BrowserRouter } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext'; // <-- IMPORTADO AuthProvider
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    {/* // <-- PASSO 2: Envolver App com BrowserRouter --> */}
     <BrowserRouter>
-      <App />
+      <AuthProvider> {/* <-- AuthProvider envolvendo App */}
+        <App />
+      </AuthProvider>
     </BrowserRouter>
-  </React.StrictMode>,
-)
+  </React.StrictMode>
+);
