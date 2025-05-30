@@ -10,13 +10,12 @@ import CreatePostModal from './components/CreatePostModal';
 import MainLayout from './layouts/MainLayout';
 import PostDetailPage from './pages/PostDetailPage';
 import TermsPage from './pages/TermsPage';
-import LoginPage from './pages/LoginPage'; // <-- 1. IMPORTAR LoginPage
+import LoginPage from './pages/LoginPage';
 
 function App() {
     const [darkMode, setDarkMode] = useState(localStorage.getItem('darkMode') === 'true');
     const [sessionFollowStatus, setSessionFollowStatus] = useState({});
     const [posts, setPosts] = useState([
-        // ... seus posts de exemplo (mantidos como estavam)
         { id: 1, postId: 'bem-vindo-ollo', userName: "Gemini Auxiliar", timestamp: "Agora mesmo", content: "Bem-vindo ao OLLO! Uma nova plataforma para conectar e compartilhar. Explore, crie e divirta-se!", comments: [], likeCount: Math.floor(Math.random() * 101) },
         { id: 2, postId: 'usando-useState', userName: "Usuário OLLO", timestamp: "Há 10 minutos", content: "Aprendendo a usar o useState no React para gerenciar o estado dos meus posts. Muito interessante!", comments: [], likeCount: Math.floor(Math.random() * 101) },
         { id: 3, postId: 'componentizacao-react', userName: "Dev Entusiasta", timestamp: "Há 1 hora", content: "A componentização no React realmente facilita a organização do código e a reutilização. #ReactDev", comments: [], likeCount: Math.floor(Math.random() * 101) },
@@ -64,7 +63,7 @@ function App() {
             if (post.postId === targetPostId.toString()) {
                 const newComment = {
                     commentId: `comment-${Date.now()}`,
-                    user: "Usuário OLLO", // Idealmente, viria do usuário autenticado
+                    user: "Usuário OLLO", 
                     text: commentText,
                     likes: 0,
                     dislikes: 0,
@@ -86,7 +85,6 @@ function App() {
     const openCreatePostModal = () => setIsCreatePostModalOpen(true);
     const closeCreatePostModal = () => setIsCreatePostModalOpen(false);
 
-    // Layout Props para passar ao MainLayout
     const mainLayoutProps = {
         openCreatePostModal,
         darkMode,
@@ -94,16 +92,21 @@ function App() {
     };
 
     return (
-        <div className={`min-h-screen flex flex-col font-sans ${darkMode ? 'text-ollo-bg-light' : 'text-gray-900'}`}> {/* Ajustei text-white para text-ollo-bg-light no dark mode para consistência */}
+        <div className={`min-h-screen flex flex-col font-sans ${darkMode ? 'text-ollo-bg-light' : 'text-gray-900'}`}>
             <Routes>
-                {/* Rotas que UTILIZAM MainLayout */}
                 <Route
                     path="/"
                     element={
                         <MainLayout {...mainLayoutProps}>
                             <HomePage
                                 posts={posts}
-                                onAddPost={handleAddPost}
+                                // AQUI ESTÁ A MUDANÇA PRINCIPAL:
+                                // Passando openCreatePostModal para a prop que HomePage usará para abrir o modal.
+                                // No HomePage.jsx que te enviei, a prop se chama 'onTriggerCreatePost'.
+                                // Se você manteve 'onAddPost' no HomePage.jsx para essa finalidade,
+                                // então 'onAddPost={openCreatePostModal}' estaria correto.
+                                // Vou usar 'onTriggerCreatePost' para ser consistente com o HomePage.jsx mais recente.
+                                onTriggerCreatePost={openCreatePostModal} 
                                 onCommentSubmit={handleAddComment}
                                 onDeletePost={handleDeletePost}
                                 darkMode={darkMode}
@@ -175,24 +178,16 @@ function App() {
                         </MainLayout>
                     }
                 />
-
-                {/* Rotas que NÃO UTILIZAM MainLayout */}
-                <Route path="/login" element={<LoginPage darkMode={darkMode} />} /> {/* <-- 2. ROTA ADICIONADA */}
+                <Route path="/login" element={<LoginPage darkMode={darkMode} />} />
                 {/* <Route path="/register" element={<RegisterPage darkMode={darkMode} />} /> // Espaço para a futura página de cadastro */}
-
             </Routes>
 
-            {/* Footer e Modal de Criação de Post são renderizados fora do MainLayout no seu código original.
-                A visibilidade deles na página /login pode precisar de ajuste futuro.
-                Por exemplo, o LoginPage já tem seu próprio footer.
-                Se MainLayout tivesse o Footer, ele não apareceria na LoginPage com esta estrutura.
-            */}
-            <Footer darkMode={darkMode} /> {/* Este Footer aparecerá em TODAS as páginas, incluindo /login. Podemos ajustar depois. */}
+            <Footer darkMode={darkMode} />
 
             {isCreatePostModalOpen && (
                 <CreatePostModal
                     onClose={closeCreatePostModal}
-                    onAddPost={handleAddPost}
+                    onAddPost={handleAddPost} // O Modal usa handleAddPost para efetivamente criar o post
                     darkMode={darkMode}
                 />
             )}
