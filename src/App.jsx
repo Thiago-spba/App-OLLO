@@ -22,12 +22,12 @@ function App() {
 
     // Posts de exemplo
     const [posts, setPosts] = useState([
-        { id: 1, postId: 'bem-vindo-ollo', userName: "Gemini Auxiliar", timestamp: "Agora mesmo", content: "Bem-vindo ao OLLO! Uma nova plataforma para conectar e compartilhar. Explore, crie e divirta-se!", comments: [] },
-        { id: 2, postId: 'usando-useState', userName: "Usuário OLLO", timestamp: "Há 10 minutos", content: "Aprendendo a usar o useState no React para gerenciar o estado dos meus posts. Muito interessante!", comments: [] },
-        { id: 3, postId: 'componentizacao-react', userName: "Dev Entusiasta", timestamp: "Há 1 hora", content: "A componentização no React realmente facilita a organização do código e a reutilização. #ReactDev", comments: [] },
-        { id: 4, postId: 'meu-outro-post', userName: "Usuário OLLO", timestamp: "Há 5 minutos", content: "Outro post meu para testar a plataforma OLLO! A interface está ficando ótima.", comments: [] },
-        { id: 'ollo-exploration', postId: 'ollo-exploration', userName: "Usuário OLLO", timestamp: "Há 2 dias", content: "Post original 'Explorando OLLO' que recebeu interações.", comments: [] },
-        { id: 'my-ideas-post', postId: 'my-ideas-post', userName: "Usuário OLLO", timestamp: "Há 1 dia", content: "Post 'Minhas Ideias' onde o Dev Entusiasta comentou.", comments: [] }
+        { id: 1, postId: 'bem-vindo-ollo', userName: "Gemini Auxiliar", timestamp: "Agora mesmo", content: "Bem-vindo ao OLLO! Uma nova plataforma para conectar e compartilhar. Explore, crie e divirta-se!", comments: [], likeCount: Math.floor(Math.random() * 101) },
+        { id: 2, postId: 'usando-useState', userName: "Usuário OLLO", timestamp: "Há 10 minutos", content: "Aprendendo a usar o useState no React para gerenciar o estado dos meus posts. Muito interessante!", comments: [], likeCount: Math.floor(Math.random() * 101) },
+        { id: 3, postId: 'componentizacao-react', userName: "Dev Entusiasta", timestamp: "Há 1 hora", content: "A componentização no React realmente facilita a organização do código e a reutilização. #ReactDev", comments: [], likeCount: Math.floor(Math.random() * 101) },
+        { id: 4, postId: 'meu-outro-post', userName: "Usuário OLLO", timestamp: "Há 5 minutos", content: "Outro post meu para testar a plataforma OLLO! A interface está ficando ótima.", comments: [], likeCount: Math.floor(Math.random() * 101) },
+        { id: 'ollo-exploration', postId: 'ollo-exploration', userName: "Usuário OLLO", timestamp: "Há 2 dias", content: "Post original 'Explorando OLLO' que recebeu interações.", comments: [], likeCount: Math.floor(Math.random() * 101) },
+        { id: 'my-ideas-post', postId: 'my-ideas-post', userName: "Usuário OLLO", timestamp: "Há 1 dia", content: "Post 'Minhas Ideias' onde o Dev Entusiasta comentou.", comments: [], likeCount: Math.floor(Math.random() * 101) }
     ]);
 
     const [isCreatePostModalOpen, setIsCreatePostModalOpen] = useState(false);
@@ -52,12 +52,13 @@ function App() {
     const handleAddPost = (newPostText) => {
         if (!newPostText.trim()) return;
         const newPost = {
-            id: Date.now(),
+            id: Date.now(), 
             postId: `post-${Date.now()}`,
-            userName: "Usuário OLLO", // Ou o usuário logado dinamicamente
+            userName: "Usuário OLLO", 
             timestamp: "Agora mesmo",
             content: newPostText,
-            comments: []
+            comments: [],
+            likeCount: 0 
         };
         setPosts(prevPosts => [newPost, ...prevPosts]);
         if (isCreatePostModalOpen) {
@@ -71,7 +72,7 @@ function App() {
             if (post.postId === targetPostId.toString()) { 
                 const newComment = {
                     commentId: `comment-${Date.now()}`,
-                    user: "Eu Mesmo", // Idealmente, seria o usuário logado dinamicamente
+                    user: "Usuário OLLO", 
                     text: commentText,
                     likes: 0,
                     dislikes: 0,
@@ -81,6 +82,14 @@ function App() {
             }
             return post;
         }));
+    };
+
+    // NOVA FUNÇÃO ADICIONADA AQUI
+    const handleDeletePost = (targetPostId) => {
+        if (window.confirm("Tem certeza que deseja excluir este post? Esta ação não pode ser desfeita.")) {
+            setPosts(prevPosts => prevPosts.filter(post => post.postId !== targetPostId));
+            console.log(`Post com postId: ${targetPostId} foi marcado para exclusão.`);
+        }
     };
 
     const openCreatePostModal = () => setIsCreatePostModalOpen(true);
@@ -96,7 +105,13 @@ function App() {
                 <Routes>
                     <Route
                         path="/"
-                        element={<HomePage posts={posts} onAddPost={handleAddPost} onCommentSubmit={handleAddComment} darkMode={darkMode} />}
+                        element={<HomePage
+                                    posts={posts}
+                                    onAddPost={handleAddPost}
+                                    onCommentSubmit={handleAddComment}
+                                    onDeletePost={handleDeletePost} // <-- PROP ADICIONADA AQUI
+                                    darkMode={darkMode}
+                                 />}
                     />
                     <Route
                         path="/explore"
@@ -109,8 +124,8 @@ function App() {
                                 allPosts={posts}
                                 onCommentSubmit={handleAddComment}
                                 darkMode={darkMode}
-                                sessionFollowStatus={sessionFollowStatus} // Passando o estado
-                                setSessionFollowStatus={setSessionFollowStatus} // Passando a função de atualização
+                                sessionFollowStatus={sessionFollowStatus} 
+                                setSessionFollowStatus={setSessionFollowStatus} 
                             />
                         }
                     />
@@ -121,8 +136,8 @@ function App() {
                                 allPosts={posts}
                                 onCommentSubmit={handleAddComment}
                                 darkMode={darkMode}
-                                sessionFollowStatus={sessionFollowStatus} // Passando o estado
-                                setSessionFollowStatus={setSessionFollowStatus} // Passando a função de atualização
+                                sessionFollowStatus={sessionFollowStatus} 
+                                setSessionFollowStatus={setSessionFollowStatus} 
                             />
                         }
                     />

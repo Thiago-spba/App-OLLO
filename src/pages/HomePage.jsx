@@ -2,7 +2,8 @@
 import PostCard from '../components/PostCard';
 import CreatePost from '../components/CreatePost';
 
-function HomePage({ posts, onAddPost, onCommentSubmit, darkMode }) { // Adicionada a prop darkMode se você for usá-la aqui
+// MODIFICADO: Adicionado 'onDeletePost' aos parâmetros da função
+function HomePage({ posts, onAddPost, onCommentSubmit, onDeletePost, darkMode }) {
 
   return (
     <div className="max-w-xl mx-auto">
@@ -20,9 +21,10 @@ function HomePage({ posts, onAddPost, onCommentSubmit, darkMode }) { // Adiciona
         <div className="space-y-8"> {/* Ou mantenha o map direto se não quiser um div extra */}
           {posts.map((post) => (
             <PostCard
-              key={post.id}
+              key={post.id} // Mantido post.id como chave, certifique-se que é único.
               postData={post}
               onCommentSubmit={onCommentSubmit}
+              onDeletePost={onDeletePost} // <-- PROP ADICIONADA AQUI
               darkMode={darkMode} // Passando darkMode para o PostCard
               // variant="explore" // Remova ou ajuste a variant se não for para a HomePage
             />
