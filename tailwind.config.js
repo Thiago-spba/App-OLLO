@@ -5,7 +5,11 @@ export default {
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
-    extend: {},
+    extend: {}, // Mantendo EXATAMENTE como você forneceu (sem cores Ollo aqui)
   },
-  plugins: [],
+  plugins: [
+    // Adicionando APENAS os plugins
+    require('tailwind-scrollbar-hide'),
+    require('@tailwindcss/line-clamp'), // Adicionado conforme plano do projeto
+  ],
 }
