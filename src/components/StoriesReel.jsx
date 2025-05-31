@@ -2,12 +2,12 @@
 import React from 'react';
 
 const mockStories = [
-    { id: 1, userName: "Seu Story", avatarText: "Sua Foto", isOwn: true, imageUrl: 'https://via.placeholder.com/150/A0D2DB/005A4B?text=+' },
-    { id: 2, userName: "Gemini", avatarText: "GA", imageUrl: 'https://via.placeholder.com/150/005A4B/FFFFFF?text=GA' },
-    { id: 3, userName: "Dev Ent.", avatarText: "DE", imageUrl: 'https://via.placeholder.com/150/87CEEB/000000?text=DE' },
-    { id: 4, userName: "Usuário C", avatarText: "UC", imageUrl: 'https://via.placeholder.com/150/CCCCCC/000000?text=UC' },
-    { id: 5, userName: "Usuário D", avatarText: "UD", imageUrl: 'https://via.placeholder.com/150/A0D2DB/005A4B?text=UD' },
-    { id: 6, userName: "Usuário E", avatarText: "UE", imageUrl: 'https://via.placeholder.com/150/005A4B/FFFFFF?text=UE' },
+    { id: 1, userName: "Seu Story", avatarText: "Sua Foto", isOwn: true, imageUrl: 'https://placehold.co/150x240/A0D2DB/005A4B?text=+' },
+    { id: 2, userName: "Gemini", avatarText: "GA", imageUrl: 'https://placehold.co/150x240/005A4B/FFFFFF?text=GA' },
+    { id: 3, userName: "Dev Ent.", avatarText: "DE", imageUrl: 'https://placehold.co/150x240/87CEEB/000000?text=DE' },
+    { id: 4, userName: "Usuário C", avatarText: "UC", imageUrl: 'https://placehold.co/150x240/CCCCCC/000000?text=UC' },
+    { id: 5, userName: "Usuário D", avatarText: "UD", imageUrl: 'https://placehold.co/150x240/A0D2DB/005A4B?text=UD' },
+    { id: 6, userName: "Usuário E", avatarText: "UE", imageUrl: 'https://placehold.co/150x240/005A4B/FFFFFF?text=UE' },
 ];
 
 const StoryCard = ({ story, darkMode }) => {
