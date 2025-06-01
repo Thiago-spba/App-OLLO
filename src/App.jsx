@@ -11,6 +11,8 @@ import MainLayout from './layouts/MainLayout';
 import PostDetailPage from './pages/PostDetailPage';
 import TermsPage from './pages/TermsPage';
 import LoginPage from './pages/LoginPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage'; // Importação já existente
+import RegisterPage from './pages/RegisterPage';
 
 function App() {
     const [darkMode, setDarkMode] = useState(localStorage.getItem('darkMode') === 'true');
@@ -63,7 +65,7 @@ function App() {
             if (post.postId === targetPostId.toString()) {
                 const newComment = {
                     commentId: `comment-${Date.now()}`,
-                    user: "Usuário OLLO", 
+                    user: "Usuário OLLO",
                     text: commentText,
                     likes: 0,
                     dislikes: 0,
@@ -100,13 +102,7 @@ function App() {
                         <MainLayout {...mainLayoutProps}>
                             <HomePage
                                 posts={posts}
-                                // AQUI ESTÁ A MUDANÇA PRINCIPAL:
-                                // Passando openCreatePostModal para a prop que HomePage usará para abrir o modal.
-                                // No HomePage.jsx que te enviei, a prop se chama 'onTriggerCreatePost'.
-                                // Se você manteve 'onAddPost' no HomePage.jsx para essa finalidade,
-                                // então 'onAddPost={openCreatePostModal}' estaria correto.
-                                // Vou usar 'onTriggerCreatePost' para ser consistente com o HomePage.jsx mais recente.
-                                onTriggerCreatePost={openCreatePostModal} 
+                                onTriggerCreatePost={openCreatePostModal}
                                 onCommentSubmit={handleAddComment}
                                 onDeletePost={handleDeletePost}
                                 darkMode={darkMode}
@@ -141,7 +137,7 @@ function App() {
                     }
                 />
                 <Route
-                    path="/profile"
+                    path="/profile" // Rota para o perfil do próprio usuário (sem ID)
                     element={
                         <MainLayout {...mainLayoutProps}>
                             <ProfilePage
@@ -178,8 +174,11 @@ function App() {
                         </MainLayout>
                     }
                 />
+                {/* Rotas sem MainLayout (geralmente para autenticação, etc.) */}
                 <Route path="/login" element={<LoginPage darkMode={darkMode} />} />
-                {/* <Route path="/register" element={<RegisterPage darkMode={darkMode} />} /> // Espaço para a futura página de cadastro */}
+                <Route path="/register" element={<RegisterPage darkMode={darkMode} />} />
+                {/* NOVA ROTA ADICIONADA ABAIXO */}
+                <Route path="/forgot-password" element={<ForgotPasswordPage darkMode={darkMode} />} />
             </Routes>
 
             <Footer darkMode={darkMode} />
@@ -187,7 +186,7 @@ function App() {
             {isCreatePostModalOpen && (
                 <CreatePostModal
                     onClose={closeCreatePostModal}
-                    onAddPost={handleAddPost} // O Modal usa handleAddPost para efetivamente criar o post
+                    onAddPost={handleAddPost}
                     darkMode={darkMode}
                 />
             )}
