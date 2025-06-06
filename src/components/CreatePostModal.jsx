@@ -1,12 +1,14 @@
 // src/components/CreatePostModal.jsx
-import { useEffect, useRef } from 'react';
-import CreatePost from './CreatePost'; // Importa o componente de criação de post
-import { XMarkIcon } from '@heroicons/react/24/solid'; // Ícone para o botão de fechar
 
-function CreatePostModal({ onClose, onAddPost, darkMode }) {
+import { useEffect, useRef } from 'react';
+import CreatePost from './CreatePost';
+import { XMarkIcon } from '@heroicons/react/24/solid';
+
+// Prop 'darkMode' removido
+function CreatePostModal({ onClose, onAddPost }) {
   const modalRef = useRef();
 
-  // Efeito para fechar o modal ao clicar fora dele
+  // Efeitos para fechar o modal (lógica mantida)
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (modalRef.current && !modalRef.current.contains(event.target)) {
@@ -19,7 +21,6 @@ function CreatePostModal({ onClose, onAddPost, darkMode }) {
     };
   }, [onClose]);
 
-  // Efeito para fechar o modal com a tecla Escape
   useEffect(() => {
     const handleEsc = (event) => {
       if (event.key === 'Escape') {
@@ -32,16 +33,6 @@ function CreatePostModal({ onClose, onAddPost, darkMode }) {
     };
   }, [onClose]);
 
-  // --- Definições de Estilo com Base no Tema ---
-  const modalBgColor = darkMode ? 'bg-ollo-deep' : 'bg-ollo-bg-light';
-  const modalBorderColor = darkMode ? 'border-gray-700' : 'border-gray-300';
-  const modalTextColor = darkMode ? 'text-gray-200' : 'text-ollo-deep';
-
-  const titleTextColor = darkMode ? 'text-ollo-accent-light' : 'text-ollo-deep';
-  
-  const closeButtonTextColor = darkMode ? 'text-gray-400 hover:text-ollo-accent-light' : 'text-gray-500 hover:text-ollo-deep';
-  const closeButtonHoverBg = darkMode ? 'hover:bg-gray-700/50' : 'hover:bg-gray-200/50';
-
   return (
     <div
       className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-opacity duration-300 ease-in-out"
@@ -49,35 +40,34 @@ function CreatePostModal({ onClose, onAddPost, darkMode }) {
       aria-modal="true"
       aria-labelledby="create-post-modal-title"
     >
-      {/* ESTE É O DIV DO CONTEÚDO DO MODAL */}
       <div
         ref={modalRef}
-        // CORRIGIDO: Classes de animação problemáticas removidas para garantir visibilidade
-        className={`
-          ${modalBgColor} ${modalBorderColor} ${modalTextColor}
-          rounded-xl shadow-2xl p-6 w-full max-w-lg relative border
-        `}
+        className="w-full max-w-lg relative rounded-xl shadow-2xl p-6 
+                   bg-ollo-light dark:bg-ollo-deep 
+                   border border-gray-300 dark:border-gray-700 
+                   text-ollo-deep dark:text-gray-200"
       >
-        {/* Cabeçalho do Modal */}
         <div className="flex items-center justify-between mb-4">
-          <h2 id="create-post-modal-title" className={`text-2xl font-bold ${titleTextColor}`}>
+          <h2
+            id="create-post-modal-title"
+            className="text-2xl font-bold text-ollo-deep dark:text-ollo-accent-light"
+          >
             Criar Nova Postagem
           </h2>
           <button
             onClick={onClose}
-            className={`
-              p-1.5 rounded-full transition-colors duration-150 ease-in-out
-              ${closeButtonTextColor} ${closeButtonHoverBg}
-              focus:outline-none focus-visible:ring-2 ${darkMode ? 'focus-visible:ring-ollo-accent-light' : 'focus-visible:ring-ollo-deep'}
-            `}
+            className="p-1.5 rounded-full transition-colors duration-150 ease-in-out
+                       text-gray-500 hover:text-ollo-deep hover:bg-gray-200/50
+                       dark:text-gray-400 dark:hover:text-ollo-accent-light dark:hover:bg-gray-700/50
+                       focus:outline-none focus-visible:ring-2 focus-visible:ring-ollo-deep dark:focus-visible:ring-ollo-accent-light"
             aria-label="Fechar modal"
           >
             <XMarkIcon className="h-6 w-6" />
           </button>
         </div>
 
-        {/* Conteúdo do Modal - O formulário de CreatePost */}
-        <CreatePost onAddPost={onAddPost} darkMode={darkMode} />
+        {/* Passa os props para CreatePost, mas sem 'darkMode' */}
+        <CreatePost onAddPost={onAddPost} />
       </div>
     </div>
   );

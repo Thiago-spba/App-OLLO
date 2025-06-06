@@ -1,367 +1,676 @@
 // src/pages/ProfilePage.jsx
-// (Refatorado para atender aos requisitos da funcionalidade "Seguir" e corrigir loop)
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import PostCard from '../components/PostCard';
 import {
-    CameraIcon,
-    PencilSquareIcon,
-    ChatBubbleLeftEllipsisIcon,
-    HeartIcon,
-    UserPlusIcon,       // Ícone para "Seguir"
-    CheckIcon,          // Ícone para "Seguindo"
-    ArrowPathIcon,      // Ícone para "Carregando"
-    ExclamationTriangleIcon // Para perfil não encontrado
+  CameraIcon,
+  PencilSquareIcon,
+  ChatBubbleLeftEllipsisIcon,
+  HeartIcon,
+  UserPlusIcon,
+  CheckIcon,
+  ArrowPathIcon,
+  ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
 
-// --- DADOS SIMULADOS (Mantidos como no seu original) ---
+// --- DADOS SIMULADOS (Mantidos) ---
 const usersProfileData = {
-    "usuario-ollo": {
-        id: "usuario-ollo",
-        name: "Usuário OLLO",
-        userNameForPosts: "Usuário OLLO",
-        bio: "Este é o perfil do Usuário OLLO. Explorando o universo OLLO e compartilhando ideias!",
-        avatarName: "Usuário OLLO",
-        coverUrl: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80",
-        stats: { followers: 153, following: 88 } 
-    },
-    "gemini-aux": {
-        id: "gemini-aux",
-        name: "Gemini Auxiliar",
-        userNameForPosts: "Gemini Auxiliar",
-        bio: "Assistente AI, sempre pronto para ajudar e conectar!",
-        avatarName: "Gemini Aux",
-        coverUrl: "https://images.unsplash.com/photo-1519681393784-d120267933ba?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80",
-        stats: { followers: 250, following: 10 } 
-    },
-    "dev-entusiasta": {
-        id: "dev-entusiasta",
-        name: "Dev Entusiasta",
-        userNameForPosts: "Dev Entusiasta",
-        bio: "Apaixonado por código, React e novas tecnologias. #ReactDev",
-        avatarName: "Dev Entusiasta",
-        coverUrl: "https://images.unsplash.com/photo-1488590528505-98d2b5aba04b?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80",
-        stats: { followers: 120, following: 75 } 
-    }
+  'usuario-ollo': {
+    id: 'usuario-ollo',
+    name: 'Usuário OLLO',
+    userNameForPosts: 'Usuário OLLO',
+    bio: 'Este é o perfil do Usuário OLLO. Explorando o universo OLLO e compartilhando ideias!',
+    avatarName: 'Usuário OLLO',
+    coverUrl:
+      'https://images.unsplash.com/photo-1506744038136-46273834b3fb?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80',
+    stats: { followers: 153, following: 88 },
+  },
+  'gemini-aux': {
+    id: 'gemini-aux',
+    name: 'Gemini Auxiliar',
+    userNameForPosts: 'Gemini Auxiliar',
+    bio: 'Assistente AI, sempre pronto para ajudar e conectar!',
+    avatarName: 'Gemini Aux',
+    coverUrl:
+      'https://images.unsplash.com/photo-1519681393784-d120267933ba?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80',
+    stats: { followers: 250, following: 10 },
+  },
+  'dev-entusiasta': {
+    id: 'dev-entusiasta',
+    name: 'Dev Entusiasta',
+    userNameForPosts: 'Dev Entusiasta',
+    bio: 'Apaixonado por código, React e novas tecnologias. #ReactDev',
+    avatarName: 'Dev Entusiasta',
+    coverUrl:
+      'https://images.unsplash.com/photo-1488590528505-98d2b5aba04b?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80',
+    stats: { followers: 120, following: 75 },
+  },
 };
-
 const likedPostsMap = {
-    'usuario-ollo': ['bem-vindo-ollo', 'usando-useState'],
-    'gemini-aux': ['componentizacao-react', 'meu-outro-post', 'bem-vindo-ollo'],
-    'dev-entusiasta': ['usando-useState'],
+  'usuario-ollo': ['bem-vindo-ollo', 'usando-useState'],
+  'gemini-aux': ['componentizacao-react', 'meu-outro-post', 'bem-vindo-ollo'],
+  'dev-entusiasta': ['usando-useState'],
 };
 
 const generateAvatarUrl = (name, isDark) => {
-    if (!name) return '';
-    const bgColor = isDark ? '005A4B' : 'A0D2DB';
-    const textColor = isDark ? 'A0D2DB' : '005A4B';
-    return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=${bgColor}&color=${textColor}&size=128&bold=true&format=svg`;
+  if (!name) return '';
+  const bgColor = isDark ? '00A896' : '0D1B2A';
+  const textColor = isDark ? '0D1B2A' : 'E0E1DD';
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=${bgColor}&color=${textColor}&size=128&bold=true&format=svg`;
 };
 
-// --- COMPONENTE ProfilePage ---
-// ALTERADO: Definição da função para receber props do App.jsx
+// Removido o prop 'darkMode'
 function ProfilePage({
-    allPosts = [],
-    onCommentSubmit,
-    darkMode,
-    sessionFollowStatus = {}, // Default para segurança, App.jsx deve passar
-    setSessionFollowStatus
+  allPosts = [],
+  onCommentSubmit,
+  sessionFollowStatus = {},
+  setSessionFollowStatus,
 }) {
-    const { profileId: profileIdFromUrl } = useParams();
-    const navigate = useNavigate();
-    const loggedInUserId = "usuario-ollo"; 
-    const effectiveProfileId = profileIdFromUrl || loggedInUserId;
+  const { profileId: profileIdFromUrl } = useParams();
+  const navigate = useNavigate();
+  const loggedInUserId = 'usuario-ollo';
+  const effectiveProfileId = profileIdFromUrl || loggedInUserId;
 
-    const [profileData, setProfileData] = useState(null);
-    const [profileNotFound, setProfileNotFound] = useState(false);
+  // Seus estados...
+  const [profileData, setProfileData] = useState(null);
+  const [profileNotFound, setProfileNotFound] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editableName, setEditableName] = useState('');
+  const [editableBio, setEditableBio] = useState('');
+  const [editableAvatarPreview, setEditableAvatarPreview] = useState('');
+  const [editableCoverPreview, setEditableCoverPreview] = useState('');
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [isFollowLoading, setIsFollowLoading] = useState(false);
+  const [followersCount, setFollowersCount] = useState(0);
+  const [baseFollowersCount, setBaseFollowersCount] = useState(0);
+  const [activeTab, setActiveTab] = useState('posts');
+  const [userComments, setUserComments] = useState([]);
 
-    const [isEditing, setIsEditing] = useState(false);
-    const [editableName, setEditableName] = useState('');
-    const [editableBio, setEditableBio] = useState('');
-    const [editableAvatarFile, setEditableAvatarFile] = useState(null);
-    const [editableAvatarPreview, setEditableAvatarPreview] = useState('');
-    const [editableCoverFile, setEditableCoverFile] = useState(null);
-    const [editableCoverPreview, setEditableCoverPreview] = useState('');
+  // Seus refs...
+  const avatarInputRef = useRef(null);
+  const coverInputRef = useRef(null);
 
-    const avatarInputRef = useRef(null);
-    const coverInputRef = useRef(null);
+  // --- LÓGICA DE ESTADO E EFEITOS (Mantida e corrigida) ---
+  useEffect(() => {
+    const currentProfileToLoad = usersProfileData[effectiveProfileId];
+    if (currentProfileToLoad) {
+      const isDarkModeInitially =
+        document.documentElement.classList.contains('dark');
+      setProfileData({
+        ...currentProfileToLoad,
+        avatarUrl: generateAvatarUrl(
+          currentProfileToLoad.avatarName,
+          isDarkModeInitially
+        ),
+      });
+      setProfileNotFound(false);
+      setIsEditing(false);
+      if (editableAvatarPreview.startsWith('blob:'))
+        URL.revokeObjectURL(editableAvatarPreview);
+      if (editableCoverPreview.startsWith('blob:'))
+        URL.revokeObjectURL(editableCoverPreview);
+      setEditableAvatarPreview('');
+      setEditableCoverPreview('');
 
-    const [isFollowing, setIsFollowing] = useState(false); 
-    const [isFollowLoading, setIsFollowLoading] = useState(false); 
-    const [followersCount, setFollowersCount] = useState(0); 
-    // NOVO ESTADO: Para armazenar a contagem de seguidores original (base) do perfil visitado
-    const [baseFollowersCount, setBaseFollowersCount] = useState(0); 
-
-    // REMOVIDO: O estado local `sessionFollowStatus` que estava no seu código anterior foi removido.
-    // A linha `const [sessionFollowStatus, setSessionFollowStatus] = useState({});` foi removida.
-
-    const [activeTab, setActiveTab] = useState('posts');
-    const [userComments, setUserComments] = useState([]);
-
-    // --- Efeito para carregar dados do perfil e inicializar estado de "seguir" ---
-    useEffect(() => {
-        const currentProfileToLoad = usersProfileData[effectiveProfileId];
-        if (currentProfileToLoad) {
-            const initialProfileData = {
-                ...currentProfileToLoad,
-                avatarUrl: generateAvatarUrl(currentProfileToLoad.avatarName, darkMode)
-            };
-            setProfileData(initialProfileData);
-            setProfileNotFound(false);
-            setIsEditing(false); 
-
-            // Limpeza dos previews (mantida do seu código, mas não deve causar loop com deps corretas)
-            if (editableAvatarPreview && editableAvatarPreview.startsWith('blob:')) URL.revokeObjectURL(editableAvatarPreview);
-            if (editableCoverPreview && editableCoverPreview.startsWith('blob:')) URL.revokeObjectURL(editableCoverPreview);
-            setEditableAvatarPreview('');
-            setEditableCoverPreview('');
-            setEditableAvatarFile(null);
-            setEditableCoverFile(null);
-            
-            const initialStaticFollowers = initialProfileData.stats.followers;
-            setBaseFollowersCount(initialStaticFollowers); // Define a contagem base
-
-            let isCurrentlyFollowingInitial = false;
-            if (effectiveProfileId !== loggedInUserId) {
-                // Usa a PROP sessionFollowStatus vinda do App.jsx
-                isCurrentlyFollowingInitial = sessionFollowStatus[effectiveProfileId] || false;
-            }
-            setIsFollowing(isCurrentlyFollowingInitial); 
-            setFollowersCount(initialStaticFollowers + (isCurrentlyFollowingInitial ? 1 : 0));
-            setIsFollowLoading(false); 
-        } else {
-            setProfileData(null);
-            setProfileNotFound(true);
-        }
-    // ALTERADO E CRUCIAL: Array de dependências CORRIGIDO para evitar o loop infinito.
-    // Removemos editableAvatarPreview e editableCoverPreview daqui.
-    }, [effectiveProfileId, darkMode, loggedInUserId, sessionFollowStatus]);
-
-
-    // Efeito para atualizar avatar se for ui-avatars e darkMode mudar
-    useEffect(() => {
-        if (profileData && !editableAvatarPreview && profileData.avatarUrl && profileData.avatarUrl.includes('ui-avatars.com')) {
-            const newAvatarUrl = generateAvatarUrl(profileData.avatarName, darkMode);
-            if (newAvatarUrl !== profileData.avatarUrl) {
-                setProfileData(prev => ({
-                    ...prev,
-                    avatarUrl: newAvatarUrl
-                }));
-            }
-        }
-    }, [darkMode, profileData, editableAvatarPreview]);
-
-    // Efeito para filtrar comentários do usuário
-    useEffect(() => {
-        if (allPosts && profileData?.userNameForPosts) {
-            const commentsByThisUser = allPosts.flatMap(post =>
-                (post.comments || [])
-                .filter(comment => comment.user === profileData.userNameForPosts)
-                .map(comment => ({
-                    ...comment,
-                    id: comment.commentId || `comment-${Date.now()}-${Math.random()}`,
-                    originalPost: {
-                        id: post.postId,
-                        contentPreview: post.content.substring(0, 100) + (post.content.length > 100 ? '...' : '')
-                    }
-                }))
-            );
-            setUserComments(commentsByThisUser);
-        } else {
-            setUserComments([]);
-        }
-    }, [allPosts, profileData?.userNameForPosts]);
-
-    // Efeito para limpeza de Object URLs de previews
-    useEffect(() => {
-        return () => {
-            if (editableAvatarPreview && editableAvatarPreview.startsWith('blob:')) {
-                URL.revokeObjectURL(editableAvatarPreview);
-            }
-            if (editableCoverPreview && editableCoverPreview.startsWith('blob:')) {
-                URL.revokeObjectURL(editableCoverPreview);
-            }
-        };
-    }, [editableAvatarPreview, editableCoverPreview]);
-
-    const effectiveIsMyProfile = profileData && profileData.id === loggedInUserId;
-
-    // Funções de manipulação de imagem e edição (mantidas do seu código)
-    const handleImageChange = useCallback((event, imageType) => {
-        const file = event.target.files[0];
-        if (file) {
-            const previewUrl = URL.createObjectURL(file);
-            if (imageType === 'avatar') {
-                if (editableAvatarPreview && editableAvatarPreview.startsWith('blob:')) URL.revokeObjectURL(editableAvatarPreview);
-                setEditableAvatarFile(file);
-                setEditableAvatarPreview(previewUrl);
-            } else if (imageType === 'cover') {
-                if (editableCoverPreview && editableCoverPreview.startsWith('blob:')) URL.revokeObjectURL(editableCoverPreview);
-                setEditableCoverFile(file);
-                setEditableCoverPreview(previewUrl);
-            }
-            event.target.value = null;
-        }
-    }, [editableAvatarPreview, editableCoverPreview]);
-
-    const handleEditToggle = useCallback(() => {
-        if (!profileData) return;
-        if (!isEditing) {
-            setEditableName(profileData.name);
-            setEditableBio(profileData.bio);
-            if (editableAvatarPreview && editableAvatarPreview.startsWith('blob:')) URL.revokeObjectURL(editableAvatarPreview);
-            if (editableCoverPreview && editableCoverPreview.startsWith('blob:')) URL.revokeObjectURL(editableCoverPreview);
-            setEditableAvatarPreview('');
-            setEditableCoverPreview('');
-            setEditableAvatarFile(null);
-            setEditableCoverFile(null);
-        }
-        setIsEditing(!isEditing);
-    }, [isEditing, profileData, editableAvatarPreview, editableCoverPreview]);
-
-    const handleSave = useCallback(() => {
-        if (!profileData) return;
-        let newAvatarUrl = profileData.avatarUrl;
-        if (editableAvatarPreview) {
-            newAvatarUrl = editableAvatarPreview;
-        } else if (editableName !== profileData.name || (profileData.avatarName && editableName !== profileData.avatarName)) {
-             newAvatarUrl = generateAvatarUrl(editableName, darkMode);
-        }
-        setProfileData(prevData => ({
-            ...prevData,
-            name: editableName,
-            avatarName: editableName, 
-            bio: editableBio,
-            avatarUrl: newAvatarUrl, 
-            coverUrl: editableCoverPreview || prevData.coverUrl, 
-        }));
-        setIsEditing(false);
-    }, [profileData, editableName, editableBio, editableAvatarPreview, editableCoverPreview, darkMode]);
-
-    const handleCancel = useCallback(() => {
-        if (editableAvatarPreview && editableAvatarPreview.startsWith('blob:')) URL.revokeObjectURL(editableAvatarPreview);
-        if (editableCoverPreview && editableCoverPreview.startsWith('blob:')) URL.revokeObjectURL(editableCoverPreview);
-        setEditableAvatarFile(null);
-        setEditableAvatarPreview('');
-        setEditableCoverFile(null);
-        setEditableCoverPreview('');
-        setIsEditing(false);
-    }, [editableAvatarPreview, editableCoverPreview]);
-
-    // --- FUNÇÃO handleFollowToggle --- REVISADA E OTIMIZADA ---
-    const handleFollowToggle = useCallback(() => {
-        if (isFollowLoading || effectiveIsMyProfile || typeof setSessionFollowStatus !== 'function') return;
-
-        setIsFollowLoading(true);
-        const newFollowingState = !isFollowing; 
-
-        setTimeout(() => {
-            setIsFollowing(newFollowingState);
-            // ALTERADO: Atualiza o estado GLOBAL da sessão no App.jsx usando a prop
-            setSessionFollowStatus(prevStatus => ({
-                ...prevStatus,
-                [effectiveProfileId]: newFollowingState 
-            }));
-            // ALTERADO: Atualiza a contagem de seguidores exibida usando a contagem BASE
-            setFollowersCount(baseFollowersCount + (newFollowingState ? 1 : 0));
-            setIsFollowLoading(false);
-        }, newFollowingState ? 800 : 500); 
-    }, [
-        isFollowing,               
-        isFollowLoading,           
-        effectiveIsMyProfile,      
-        effectiveProfileId,        
-        baseFollowersCount,        
-        setSessionFollowStatus    // PROP do App.jsx
-    ]);
-
-    // --- Renderização Condicional --- (Mantido do seu código)
-    if (profileNotFound) {
-        return ( <div className={`min-h-[calc(100vh-200px)] flex flex-col items-center justify-center p-8 text-center ${darkMode ? 'text-ollo-bg-light' : 'text-ollo-deep'}`}> <ExclamationTriangleIcon className={`mx-auto h-20 w-20 mb-6 ${darkMode ? 'text-red-400' : 'text-red-500'}`} /> <h1 className="text-3xl font-bold mb-2">Perfil Não Encontrado</h1> <p className={`text-lg ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>O perfil que você está procurando não existe ou não pôde ser carregado.</p> <button onClick={() => navigate('/')} className={`mt-8 px-6 py-2.5 rounded-lg font-semibold transition-colors ${darkMode ? 'bg-ollo-accent-light text-ollo-deep hover:bg-opacity-90' : 'bg-ollo-deep text-ollo-bg-light hover:bg-opacity-90'}`} > Voltar para a Página Inicial </button> </div> );
+      const initialStaticFollowers = currentProfileToLoad.stats.followers;
+      setBaseFollowersCount(initialStaticFollowers);
+      const isCurrentlyFollowingInitial =
+        effectiveProfileId !== loggedInUserId
+          ? sessionFollowStatus[effectiveProfileId] || false
+          : false;
+      setIsFollowing(isCurrentlyFollowingInitial);
+      setFollowersCount(
+        initialStaticFollowers + (isCurrentlyFollowingInitial ? 1 : 0)
+      );
+      setIsFollowLoading(false);
+    } else {
+      setProfileData(null);
+      setProfileNotFound(true);
     }
+  }, [effectiveProfileId, loggedInUserId, sessionFollowStatus]);
 
-    if (!profileData) {
-        return ( <div className={`min-h-[calc(100vh-200px)] flex items-center justify-center ${darkMode ? 'text-ollo-bg-light' : 'text-ollo-deep'}`}> <ArrowPathIcon className="h-12 w-12 animate-spin mr-3" /> <p className="text-xl">Carregando perfil...</p> </div> );
-    }
-
-    // --- Variáveis de Estilo Dinâmico (Mantidas do seu código) ---
-    const currentAvatarDisplayUrl = editableAvatarPreview || profileData.avatarUrl;
-    const currentCoverDisplayUrl = editableCoverPreview || profileData.coverUrl;
-    const filteredPosts = allPosts.filter(post => post.userName === profileData.userNameForPosts);
-    const likedPostIdsForCurrentProfile = likedPostsMap[effectiveProfileId] || [];
-    const actualLikedPosts = allPosts.filter(post => likedPostIdsForCurrentProfile.includes(post.postId));
-
-    const cardBgColor = darkMode ? 'bg-ollo-deep/80 border border-gray-700/50 backdrop-blur-md' : 'bg-ollo-bg-light/80 border border-gray-200/50 backdrop-blur-md';
-    const bioTextColor = darkMode ? 'text-gray-300' : 'text-gray-700';
-    const statsTextColor = darkMode ? 'text-gray-400' : 'text-gray-600';
-    const statsNumbersColor = darkMode ? 'text-ollo-accent-light' : 'text-ollo-deep';
-    const textColorPrimary = darkMode ? 'text-gray-100' : 'text-gray-900';
-    const textColorSecondary = darkMode ? 'text-gray-400' : 'text-gray-500';
-    const accentColor = darkMode ? 'text-ollo-accent-light' : 'text-ollo-deep';
-    const accentRingOffsetColor = darkMode ? 'ring-offset-ollo-deep' : 'ring-offset-ollo-bg-light';
-    const accentRingColor = darkMode ? 'ring-ollo-accent-light' : 'ring-ollo-deep';
-    const inputBgColor = darkMode ? 'bg-gray-800/70 border-gray-600/80 text-gray-100 placeholder-gray-500 focus:ring-ollo-accent-light focus:border-ollo-accent-light' : 'bg-white/70 border-gray-300 text-gray-900 placeholder-gray-400 focus:ring-ollo-deep focus:border-ollo-deep';
-    const buttonIconEditBg = darkMode ? 'bg-black/60 hover:bg-black/80 text-white' : 'bg-white/70 hover:bg-gray-50/90 text-ollo-deep';
-    const editProfileButtonClasses = darkMode ? "px-5 py-2.5 border-2 border-ollo-accent-light text-ollo-accent-light rounded-lg text-sm font-semibold hover:bg-ollo-accent-light hover:text-ollo-deep transition-colors duration-150" : "px-5 py-2.5 border-2 border-ollo-deep text-ollo-deep rounded-lg text-sm font-semibold hover:bg-ollo-deep hover:text-ollo-bg-light transition-colors duration-150";
-    const saveButtonClasses = darkMode ? "px-6 py-2.5 bg-ollo-accent-light text-ollo-deep rounded-lg text-sm font-bold hover:opacity-90 transition-opacity" : "px-6 py-2.5 bg-ollo-deep text-ollo-bg-light rounded-lg text-sm font-bold hover:opacity-90 transition-opacity";
-    const cancelButtonClasses = darkMode ? "px-5 py-2.5 bg-gray-600 text-gray-100 rounded-lg text-sm font-semibold hover:bg-gray-700 transition-colors" : "px-5 py-2.5 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-300 transition-colors";
-    const placeholderCardClasses = darkMode ? "bg-gray-800/60 border border-gray-700/50" : "bg-ollo-bg-light/90 border border-gray-200/80";
-    const placeholderSvgIconColor = darkMode ? "text-gray-600" : "text-gray-400";
-    const followButtonBaseClasses = "px-5 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 ease-in-out focus:outline-none focus:ring-4 shadow-md hover:shadow-lg flex items-center justify-center space-x-2 w-36 disabled:opacity-60 disabled:cursor-not-allowed";
-    const followButtonActiveClasses = darkMode ? `${followButtonBaseClasses} bg-ollo-accent-light text-ollo-deep hover:bg-opacity-90 focus:ring-ollo-accent-light/30` : `${followButtonBaseClasses} bg-ollo-deep text-ollo-bg-light hover:bg-opacity-90 focus:ring-ollo-deep/30`;
-    const followingButtonClasses = darkMode ? `${followButtonBaseClasses} bg-transparent border-2 border-gray-500 text-gray-400 hover:border-gray-400 hover:text-gray-300 focus:ring-gray-500/30` : `${followButtonBaseClasses} bg-transparent border-2 border-gray-400 text-gray-500 hover:border-gray-500 hover:text-gray-700 focus:ring-gray-400/30`;
-    const loadingButtonClasses = `${followButtonActiveClasses} ${followButtonBaseClasses}`; 
-
-    const getTabClassName = (tabName) => {
-        const isActive = activeTab === tabName;
-        const baseClasses = "py-3 px-4 sm:px-6 font-semibold text-sm sm:text-base border-b-4 -mb-px transition-all duration-150 ease-in-out focus:outline-none focus:ring-2 focus:z-10";
-        if (darkMode) {
-            return `${baseClasses} ${isActive ? 'border-ollo-accent-light text-ollo-accent-light' : 'border-transparent text-gray-500 hover:text-gray-300 hover:border-gray-600'} focus:ring-ollo-accent-light/50`;
-        } else {
-            return `${baseClasses} ${isActive ? 'border-ollo-deep text-ollo-deep' : 'border-transparent text-gray-500 hover:text-ollo-deep hover:border-gray-300'} focus:ring-ollo-deep/50`;
+  useEffect(() => {
+    const updateAvatarTheme = () => {
+      if (
+        profileData &&
+        !editableAvatarPreview &&
+        profileData.avatarUrl.includes('ui-avatars.com')
+      ) {
+        const isDarkMode = document.documentElement.classList.contains('dark');
+        const newAvatarUrl = generateAvatarUrl(
+          profileData.avatarName,
+          isDarkMode
+        );
+        if (newAvatarUrl !== profileData.avatarUrl) {
+          setProfileData((prev) => ({ ...prev, avatarUrl: newAvatarUrl }));
         }
+      }
     };
+    updateAvatarTheme();
+    const observer = new MutationObserver(updateAvatarTheme);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+    });
+    return () => observer.disconnect();
+  }, [profileData, editableAvatarPreview]);
 
-    // --- JSX de Renderização --- (Completo, baseado no seu último fornecimento)
-    return (
-        <div>
-            <div className={`${cardBgColor} rounded-xl shadow-2xl overflow-hidden mb-6`}>
-                <div className={`h-52 md:h-72 ${darkMode ? 'bg-gradient-to-r from-ollo-deep via-teal-800 to-gray-900' : 'bg-gradient-to-r from-ollo-crystal-green via-ollo-sky-blue to-ollo-accent-light'} relative`}>
-                    <img className="h-full w-full object-cover" src={currentCoverDisplayUrl} alt="Imagem de Capa" />
-                    {isEditing && effectiveIsMyProfile && ( <button onClick={() => coverInputRef.current?.click()} className={`absolute top-4 right-4 p-2.5 rounded-full transition-all duration-150 ease-in-out shadow-lg z-10 ${buttonIconEditBg}`} title="Alterar imagem de capa" > <CameraIcon className="h-5 w-5 sm:h-6 sm:w-6" /> <input type="file" ref={coverInputRef} accept="image/*" onChange={(e) => handleImageChange(e, 'cover')} className="hidden" /> </button> )}
-                </div>
-                <div className="relative px-4 sm:px-6 lg:px-8 pb-8 pt-3">
-                    <div className="-mt-20 sm:-mt-24 flex justify-center">
-                        <div className="relative">
-                            <img className={`h-28 w-28 sm:h-36 sm:w-36 rounded-full ring-4 ${accentRingOffsetColor} ${accentRingColor} object-cover ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} shadow-md`} src={currentAvatarDisplayUrl} alt={profileData ? `Avatar de ${profileData.name}`: 'Avatar'} />
-                            {isEditing && effectiveIsMyProfile && ( <button onClick={() => avatarInputRef.current?.click()} className={`absolute bottom-1 right-1 p-2 rounded-full transition-all duration-150 ease-in-out shadow-lg ${buttonIconEditBg}`} title="Alterar avatar" > <PencilSquareIcon className="h-4 w-4 sm:h-5 sm:w-5" /> <input type="file" ref={avatarInputRef} accept="image/*" onChange={(e) => handleImageChange(e, 'avatar')} className="hidden" /> </button> )}
-                        </div>
-                    </div>
-                    <div className={`flex mt-4 ${isEditing && effectiveIsMyProfile ? 'justify-center' : 'justify-end'} mb-4 min-h-[44px]`}>
-                        {effectiveIsMyProfile ? ( isEditing ? ( <div className="flex space-x-4"> <button onClick={handleSave} className={saveButtonClasses}>Salvar Alterações</button> <button onClick={handleCancel} className={cancelButtonClasses}>Cancelar</button> </div> ) : ( <button onClick={handleEditToggle} className={editProfileButtonClasses}>Editar Perfil</button> )
-                        ) : ( <button onClick={handleFollowToggle} disabled={isFollowLoading} className={isFollowLoading ? loadingButtonClasses : (isFollowing ? followingButtonClasses : followButtonActiveClasses)} > {isFollowLoading ? ( <> <ArrowPathIcon className="h-5 w-5 animate-spin mr-2" /> <span>{isFollowing ? 'Deixando...' : 'Seguindo...'}</span> </> ) : isFollowing ? ( <> <CheckIcon className="h-5 w-5 mr-2" /> <span>Seguindo</span> </> ) : ( <> <UserPlusIcon className="h-5 w-5 mr-2" /> <span>Seguir</span> </> )} </button> )}
-                    </div>
-                    <div className={`mt-1 ${isEditing && effectiveIsMyProfile ? 'max-w-lg mx-auto' : 'max-w-xl mx-auto text-center'}`}>
-                        {(!isEditing || !effectiveIsMyProfile) && profileData && ( <div className="text-center mb-6"> <h1 className={`text-3xl sm:text-4xl font-bold ${accentColor} mb-2 tracking-tight`}>{profileData.name}</h1> <p className={`text-base ${bioTextColor} mt-2 max-w-lg mx-auto leading-relaxed`}>{profileData.bio}</p> </div> )}
-                        {isEditing && effectiveIsMyProfile && ( <div className="space-y-5 mb-8"> <div> <label htmlFor="profileName" className={`block text-sm font-medium ${textColorSecondary} mb-1.5`}>Nome</label> <input type="text" id="profileName" value={editableName} onChange={(e) => setEditableName(e.target.value)} className={`w-full p-3 rounded-lg text-base shadow-sm transition-colors ${inputBgColor}`} /> </div> <div> <label htmlFor="profileBio" className={`block text-sm font-medium ${textColorSecondary} mb-1.5`}>Bio</label> <textarea id="profileBio" rows="5" value={editableBio} onChange={(e) => setEditableBio(e.target.value)} className={`w-full p-3 rounded-lg text-base shadow-sm transition-colors ${inputBgColor}`} /> </div> </div> )}
-                        {profileData && ( <div className={`flex flex-wrap justify-center gap-x-6 sm:gap-x-10 gap-y-3 text-sm ${isEditing && effectiveIsMyProfile ? 'mt-4' : ''}`}>
-                            <div className="text-center"> <span className={`block font-bold text-xl sm:text-2xl ${statsNumbersColor}`}>{filteredPosts.length}</span> <span className={statsTextColor}>Posts</span> </div>
-                            <div className="text-center"> <span className={`block font-bold text-xl sm:text-2xl ${statsNumbersColor}`}>{followersCount}</span> <span className={statsTextColor}>Seguidores</span> </div>
-                            <div className="text-center"> <span className={`block font-bold text-xl sm:text-2xl ${statsNumbersColor}`}>{profileData.stats.following}</span> <span className={statsTextColor}>Seguindo</span> </div>
-                        </div> )}
-                    </div>
-                </div>
-            </div>
-            <div className={`mb-6 sm:mb-8 border-b ${darkMode ? 'border-gray-700/50' : 'border-gray-200/80'}`}>
-                <nav className="-mb-px flex justify-center sm:justify-start space-x-2 sm:space-x-6 lg:space-x-8" aria-label="Tabs"> <button onClick={() => setActiveTab('posts')} className={getTabClassName('posts')}>Posts</button> <button onClick={() => setActiveTab('comments')} className={getTabClassName('comments')}>Comentários</button> <button onClick={() => setActiveTab('likes')} className={getTabClassName('likes')}>Curtidas</button> </nav>
-            </div>
-            <div className="max-w-xl mx-auto pb-12">
-                {activeTab === 'posts' && ( <div className="space-y-8"> {filteredPosts.length > 0 ? ( filteredPosts.map((post) => (<PostCard key={post.postId} postData={post} onCommentSubmit={onCommentSubmit} darkMode={darkMode} />)) ) : ( profileData && ( <div className={`rounded-xl p-8 sm:p-10 text-center shadow-xl mt-4 ${placeholderCardClasses}`}> <svg className={`mx-auto h-16 w-16 ${placeholderSvgIconColor}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" /></svg> <h3 className={`mt-4 text-xl font-semibold ${textColorPrimary}`}>Sem posts por aqui ainda...</h3> <p className={`mt-2 text-base ${textColorSecondary}`}>Quando {profileData.name} compartilhar algo, seus posts aparecerão aqui.</p> </div> ) )} </div> )}
-                {activeTab === 'comments' && ( <div className="space-y-6 animate-fadeIn"> {userComments.length > 0 ? ( userComments.map((comment) => ( <div key={comment.id} className={`${cardBgColor} p-5 rounded-xl shadow-lg border`}> <p className={`text-base ${textColorPrimary} mb-3`}>"{comment.text}"</p> <div className={`text-xs ${textColorSecondary} border-t ${darkMode ? 'border-gray-700/50' : 'border-gray-200/80'} pt-3`}> <p>Comentado em <span className="font-semibold">{comment.timestamp || 'data indisponível'}</span></p> <p className="mt-1">No post: <span className="italic">"{comment.originalPost.contentPreview}"</span></p> </div> </div> )) ) : ( profileData && ( <div className={`rounded-xl p-8 sm:p-10 text-center shadow-xl ${placeholderCardClasses}`}> <ChatBubbleLeftEllipsisIcon className={`mx-auto h-16 w-16 ${placeholderSvgIconColor}`} /> <h3 className={`mt-4 text-xl font-semibold ${textColorPrimary}`}>Nenhum comentário encontrado.</h3> <p className={`mt-2 text-base ${textColorSecondary}`}>Quando {profileData.name} comentar em algum post, seus comentários aparecerão aqui.</p> </div> ) )} </div> )}
-                {activeTab === 'likes' && ( <div className="space-y-8"> {actualLikedPosts.length > 0 ? ( actualLikedPosts.map((post) => (<PostCard key={post.postId} postData={post} onCommentSubmit={onCommentSubmit} darkMode={darkMode} />)) ) : ( profileData && ( <div className={`rounded-xl p-8 sm:p-10 text-center shadow-xl mt-4 ${placeholderCardClasses}`}> <HeartIcon className={`mx-auto h-16 w-16 ${placeholderSvgIconColor}`} /> <h3 className={`mt-4 text-xl font-semibold ${textColorPrimary}`}>Nenhuma curtida por aqui...</h3> <p className={`mt-2 text-base ${textColorSecondary}`}>Quando {profileData.name} curtir algum post, ele aparecerá aqui.</p> </div> ) )} </div> )}
-            </div>
-        </div>
+  useEffect(() => {
+    if (allPosts && profileData?.userNameForPosts) {
+      const commentsByThisUser = allPosts.flatMap((post) =>
+        (post.comments || [])
+          .filter((comment) => comment.user === profileData.userNameForPosts)
+          .map((comment) => ({
+            ...comment,
+            id: comment.commentId || `c-${Math.random()}`,
+            originalPost: {
+              id: post.postId,
+              contentPreview: post.content.substring(0, 100) + '...',
+            },
+          }))
+      );
+      setUserComments(commentsByThisUser);
+    } else {
+      setUserComments([]);
+    }
+  }, [allPosts, profileData?.userNameForPosts]);
+
+  useEffect(() => {
+    return () => {
+      if (editableAvatarPreview.startsWith('blob:'))
+        URL.revokeObjectURL(editableAvatarPreview);
+      if (editableCoverPreview.startsWith('blob:'))
+        URL.revokeObjectURL(editableCoverPreview);
+    };
+  }, [editableAvatarPreview, editableCoverPreview]);
+
+  // *** FUNÇÕES COM A LÓGICA RESTAURADA ***
+  const handleImageChange = useCallback(
+    (event, imageType) => {
+      const file = event.target.files[0];
+      if (file) {
+        const previewUrl = URL.createObjectURL(file);
+        if (imageType === 'avatar') {
+          if (editableAvatarPreview.startsWith('blob:'))
+            URL.revokeObjectURL(editableAvatarPreview);
+          setEditableAvatarPreview(previewUrl);
+        } else if (imageType === 'cover') {
+          if (editableCoverPreview.startsWith('blob:'))
+            URL.revokeObjectURL(editableCoverPreview);
+          setEditableCoverPreview(previewUrl);
+        }
+        event.target.value = null;
+      }
+    },
+    [editableAvatarPreview, editableCoverPreview]
+  );
+
+  const handleEditToggle = useCallback(() => {
+    if (!profileData) return;
+    if (!isEditing) {
+      setEditableName(profileData.name);
+      setEditableBio(profileData.bio);
+      if (editableAvatarPreview.startsWith('blob:'))
+        URL.revokeObjectURL(editableAvatarPreview);
+      if (editableCoverPreview.startsWith('blob:'))
+        URL.revokeObjectURL(editableCoverPreview);
+      setEditableAvatarPreview('');
+      setEditableCoverPreview('');
+    }
+    setIsEditing(!isEditing);
+  }, [isEditing, profileData, editableAvatarPreview, editableCoverPreview]);
+
+  const handleSave = useCallback(() => {
+    if (!profileData) return;
+    const isDarkMode = document.documentElement.classList.contains('dark');
+    let newAvatarUrl = profileData.avatarUrl;
+    if (editableAvatarPreview) {
+      newAvatarUrl = editableAvatarPreview;
+    } else if (
+      editableName !== profileData.name ||
+      (profileData.avatarName && editableName !== profileData.avatarName)
+    ) {
+      newAvatarUrl = generateAvatarUrl(editableName, isDarkMode);
+    }
+    setProfileData((prevData) => ({
+      ...prevData,
+      name: editableName,
+      avatarName: editableName,
+      bio: editableBio,
+      avatarUrl: newAvatarUrl,
+      coverUrl: editableCoverPreview || prevData.coverUrl,
+    }));
+    setIsEditing(false);
+  }, [
+    profileData,
+    editableName,
+    editableBio,
+    editableAvatarPreview,
+    editableCoverPreview,
+  ]);
+
+  const handleCancel = useCallback(() => {
+    if (editableAvatarPreview.startsWith('blob:'))
+      URL.revokeObjectURL(editableAvatarPreview);
+    if (editableCoverPreview.startsWith('blob:'))
+      URL.revokeObjectURL(editableCoverPreview);
+    setEditableAvatarPreview('');
+    setEditableCoverPreview('');
+    setIsEditing(false);
+  }, [editableAvatarPreview, editableCoverPreview]);
+
+  const handleFollowToggle = useCallback(() => {
+    if (
+      isFollowLoading ||
+      (profileData && profileData.id === loggedInUserId) ||
+      typeof setSessionFollowStatus !== 'function'
+    )
+      return;
+    setIsFollowLoading(true);
+    const newFollowingState = !isFollowing;
+    setTimeout(
+      () => {
+        setIsFollowing(newFollowingState);
+        setSessionFollowStatus((prevStatus) => ({
+          ...prevStatus,
+          [effectiveProfileId]: newFollowingState,
+        }));
+        setFollowersCount(baseFollowersCount + (newFollowingState ? 1 : 0));
+        setIsFollowLoading(false);
+      },
+      newFollowingState ? 800 : 500
     );
+  }, [
+    isFollowing,
+    isFollowLoading,
+    profileData,
+    loggedInUserId,
+    effectiveProfileId,
+    baseFollowersCount,
+    setSessionFollowStatus,
+  ]);
+
+  // --- RENDERIZAÇÃO ---
+  if (profileNotFound) {
+    return (
+      <div className="min-h-[calc(100vh-200px)] flex flex-col items-center justify-center p-8 text-center text-ollo-deep dark:text-ollo-light">
+        {' '}
+        <ExclamationTriangleIcon className="mx-auto h-20 w-20 mb-6 text-red-500 dark:text-red-400" />{' '}
+        <h1 className="text-3xl font-bold mb-2">Perfil Não Encontrado</h1>{' '}
+        <p className="text-lg text-gray-600 dark:text-gray-400">
+          O perfil que você está procurando não existe ou não pôde ser
+          carregado.
+        </p>{' '}
+        <button
+          onClick={() => navigate('/')}
+          className="mt-8 px-6 py-2.5 rounded-lg font-semibold transition-colors bg-ollo-deep text-ollo-light hover:bg-opacity-90 dark:bg-ollo-accent-light dark:text-ollo-deep dark:hover:bg-opacity-90"
+        >
+          {' '}
+          Voltar para a Página Inicial{' '}
+        </button>{' '}
+      </div>
+    );
+  }
+
+  if (!profileData) {
+    return (
+      <div className="min-h-[calc(100vh-200px)] flex items-center justify-center text-ollo-deep dark:text-ollo-light">
+        {' '}
+        <ArrowPathIcon className="h-12 w-12 animate-spin mr-3" />{' '}
+        <p className="text-xl">Carregando perfil...</p>{' '}
+      </div>
+    );
+  }
+
+  const effectiveIsMyProfile = profileData.id === loggedInUserId;
+  const currentAvatarDisplayUrl =
+    editableAvatarPreview || profileData.avatarUrl;
+  const currentCoverDisplayUrl = editableCoverPreview || profileData.coverUrl;
+  const filteredPosts = allPosts.filter(
+    (post) => post.userName === profileData.userNameForPosts
+  );
+  const likedPostIdsForCurrentProfile = likedPostsMap[effectiveProfileId] || [];
+  const actualLikedPosts = allPosts.filter((post) =>
+    likedPostIdsForCurrentProfile.includes(post.postId)
+  );
+
+  const getTabClassName = (tabName) => {
+    const isActive = activeTab === tabName;
+    return `py-3 px-4 sm:px-6 font-semibold text-sm sm:text-base border-b-4 -mb-px transition-all duration-150 ease-in-out focus:outline-none focus:ring-2 focus:z-10 ${
+      isActive
+        ? 'border-ollo-deep dark:border-ollo-accent-light text-ollo-deep dark:text-ollo-accent-light'
+        : 'border-transparent text-gray-500 hover:text-ollo-deep dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
+    } focus:ring-ollo-deep/50 dark:focus:ring-ollo-accent-light/50`;
+  };
+
+  return (
+    <div>
+      <div className="bg-white/80 dark:bg-ollo-slate/90 border border-gray-200/50 dark:border-gray-700/50 backdrop-blur-md rounded-xl shadow-2xl overflow-hidden mb-6">
+        <div className="h-52 md:h-72 bg-gradient-to-r from-ollo-accent/30 to-ollo-steel/30 dark:from-ollo-deep via-teal-900 to-gray-900 relative">
+          <img
+            className="h-full w-full object-cover"
+            src={currentCoverDisplayUrl}
+            alt="Imagem de Capa"
+          />
+          {isEditing && effectiveIsMyProfile && (
+            <button
+              onClick={() => coverInputRef.current?.click()}
+              className="absolute top-4 right-4 p-2.5 rounded-full transition-all duration-150 ease-in-out shadow-lg z-10 bg-white/70 hover:bg-white/90 text-ollo-deep dark:bg-black/60 dark:hover:bg-black/80 dark:text-white"
+              title="Alterar imagem de capa"
+            >
+              {' '}
+              <CameraIcon className="h-5 w-5 sm:h-6 sm:w-6" />{' '}
+              <input
+                type="file"
+                ref={coverInputRef}
+                accept="image/*"
+                onChange={(e) => handleImageChange(e, 'cover')}
+                className="hidden"
+              />{' '}
+            </button>
+          )}
+        </div>
+        <div className="relative px-4 sm:px-6 lg:px-8 pb-8 pt-3">
+          <div className="-mt-20 sm:-mt-24 flex justify-center">
+            <div className="relative">
+              <img
+                className="h-28 w-28 sm:h-36 sm:w-36 rounded-full ring-4 ring-offset-4 ring-offset-white dark:ring-offset-ollo-slate ring-ollo-deep dark:ring-ollo-accent-light object-cover bg-gray-200 dark:bg-gray-700 shadow-md"
+                src={currentAvatarDisplayUrl}
+                alt={`Avatar de ${profileData.name}`}
+              />
+              {isEditing && effectiveIsMyProfile && (
+                <button
+                  onClick={() => avatarInputRef.current?.click()}
+                  className="absolute bottom-1 right-1 p-2 rounded-full transition-all duration-150 ease-in-out shadow-lg bg-white/70 hover:bg-white/90 text-ollo-deep dark:bg-black/60 dark:hover:bg-black/80 dark:text-white"
+                  title="Alterar avatar"
+                >
+                  {' '}
+                  <PencilSquareIcon className="h-4 w-4 sm:h-5 sm:w-5" />{' '}
+                  <input
+                    type="file"
+                    ref={avatarInputRef}
+                    accept="image/*"
+                    onChange={(e) => handleImageChange(e, 'avatar')}
+                    className="hidden"
+                  />{' '}
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="flex mt-4 justify-center md:justify-end mb-4 min-h-[44px]">
+            {effectiveIsMyProfile ? (
+              isEditing ? (
+                <div className="flex space-x-4">
+                  <button
+                    onClick={handleSave}
+                    className="px-6 py-2.5 bg-ollo-deep text-white rounded-lg text-sm font-bold hover:opacity-90 transition-opacity dark:bg-ollo-accent-light dark:text-ollo-deep"
+                  >
+                    Salvar
+                  </button>
+                  <button
+                    onClick={handleCancel}
+                    className="px-5 py-2.5 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-300 transition-colors dark:bg-gray-600 dark:text-gray-100 dark:hover:bg-gray-700"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={handleEditToggle}
+                  className="px-5 py-2.5 border-2 border-ollo-deep text-ollo-deep rounded-lg text-sm font-semibold hover:bg-ollo-deep hover:text-white transition-colors duration-150 dark:border-ollo-accent-light dark:text-ollo-accent-light dark:hover:bg-ollo-accent-light dark:hover:text-ollo-deep"
+                >
+                  Editar Perfil
+                </button>
+              )
+            ) : (
+              <button
+                onClick={handleFollowToggle}
+                disabled={isFollowLoading}
+                className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 ease-in-out focus:outline-none focus:ring-4 shadow-md hover:shadow-lg flex items-center justify-center space-x-2 w-36 disabled:opacity-60 disabled:cursor-not-allowed 
+                                ${
+                                  isFollowLoading
+                                    ? 'bg-ollo-deep text-white dark:bg-ollo-accent-light dark:text-ollo-deep'
+                                    : isFollowing
+                                      ? 'bg-transparent border-2 border-gray-400 text-gray-500 hover:border-gray-500 hover:text-gray-700 focus:ring-gray-400/30 dark:border-gray-500 dark:text-gray-400 dark:hover:border-gray-400 dark:hover:text-gray-300 dark:focus:ring-gray-500/30'
+                                      : 'bg-ollo-deep text-white hover:bg-opacity-90 focus:ring-ollo-deep/30 dark:bg-ollo-accent-light dark:text-ollo-deep dark:hover:bg-opacity-90 dark:focus:ring-ollo-accent-light/30'
+                                }`}
+              >
+                {isFollowLoading ? (
+                  <ArrowPathIcon className="h-5 w-5 animate-spin" />
+                ) : isFollowing ? (
+                  <>
+                    <CheckIcon className="h-5 w-5" /> <span>Seguindo</span>
+                  </>
+                ) : (
+                  <>
+                    <UserPlusIcon className="h-5 w-5" /> <span>Seguir</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+
+          <div
+            className={`mt-1 ${isEditing ? 'max-w-lg mx-auto' : 'max-w-xl mx-auto text-center'}`}
+          >
+            {(!isEditing || !effectiveIsMyProfile) && (
+              <div className="text-center mb-6">
+                <h1 className="text-3xl sm:text-4xl font-bold text-ollo-deep dark:text-ollo-accent-light mb-2 tracking-tight">
+                  {profileData.name}
+                </h1>
+                <p className="text-base text-gray-700 dark:text-gray-300 mt-2 max-w-lg mx-auto leading-relaxed">
+                  {profileData.bio}
+                </p>
+              </div>
+            )}
+            {isEditing && effectiveIsMyProfile && (
+              <div className="space-y-5 mb-8">
+                <div>
+                  <label
+                    htmlFor="profileName"
+                    className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1.5"
+                  >
+                    Nome
+                  </label>
+                  <input
+                    type="text"
+                    id="profileName"
+                    value={editableName}
+                    onChange={(e) => setEditableName(e.target.value)}
+                    className="w-full p-3 rounded-lg text-base shadow-sm transition-colors bg-white/70 border-gray-300 text-gray-900 focus:ring-ollo-deep focus:border-ollo-deep dark:bg-gray-800/70 dark:border-gray-600 dark:text-white focus:dark:ring-ollo-accent-light focus:dark:border-ollo-accent-light"
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor="profileBio"
+                    className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1.5"
+                  >
+                    Bio
+                  </label>
+                  <textarea
+                    id="profileBio"
+                    rows="5"
+                    value={editableBio}
+                    onChange={(e) => setEditableBio(e.target.value)}
+                    className="w-full p-3 rounded-lg text-base shadow-sm transition-colors bg-white/70 border-gray-300 text-gray-900 focus:ring-ollo-deep focus:border-ollo-deep dark:bg-gray-800/70 dark:border-gray-600 dark:text-white focus:dark:ring-ollo-accent-light focus:dark:border-ollo-accent-light"
+                  />
+                </div>
+              </div>
+            )}
+            <div className="flex flex-wrap justify-center gap-x-6 sm:gap-x-10 gap-y-3 text-sm">
+              <div className="text-center">
+                {' '}
+                <span className="block font-bold text-xl sm:text-2xl text-ollo-deep dark:text-ollo-accent-light">
+                  {filteredPosts.length}
+                </span>{' '}
+                <span className="text-gray-600 dark:text-gray-400">
+                  Posts
+                </span>{' '}
+              </div>
+              <div className="text-center">
+                {' '}
+                <span className="block font-bold text-xl sm:text-2xl text-ollo-deep dark:text-ollo-accent-light">
+                  {followersCount}
+                </span>{' '}
+                <span className="text-gray-600 dark:text-gray-400">
+                  Seguidores
+                </span>{' '}
+              </div>
+              <div className="text-center">
+                {' '}
+                <span className="block font-bold text-xl sm:text-2xl text-ollo-deep dark:text-ollo-accent-light">
+                  {profileData.stats.following}
+                </span>{' '}
+                <span className="text-gray-600 dark:text-gray-400">
+                  Seguindo
+                </span>{' '}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mb-6 sm:mb-8 border-b border-gray-200/80 dark:border-gray-700/50">
+        <nav
+          className="-mb-px flex justify-center sm:justify-start space-x-2 sm:space-x-6 lg:space-x-8"
+          aria-label="Tabs"
+        >
+          <button
+            onClick={() => setActiveTab('posts')}
+            className={getTabClassName('posts')}
+          >
+            Posts
+          </button>
+          <button
+            onClick={() => setActiveTab('comments')}
+            className={getTabClassName('comments')}
+          >
+            Comentários
+          </button>
+          <button
+            onClick={() => setActiveTab('likes')}
+            className={getTabClassName('likes')}
+          >
+            Curtidas
+          </button>
+        </nav>
+      </div>
+
+      <div className="max-w-xl mx-auto w-full px-4 sm:px-0 pb-12">
+        {activeTab === 'posts' && (
+          <div className="space-y-8">
+            {' '}
+            {filteredPosts.length > 0 ? (
+              filteredPosts.map((post) => (
+                <PostCard
+                  key={post.postId}
+                  postData={post}
+                  onCommentSubmit={onCommentSubmit}
+                />
+              ))
+            ) : (
+              <div className="rounded-xl p-8 sm:p-10 text-center shadow-xl mt-4 bg-white/60 dark:bg-ollo-slate/70">
+                {' '}
+                <svg
+                  className="mx-auto h-16 w-16 text-gray-400 dark:text-gray-600"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    vectorEffect="non-scaling-stroke"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="1.5"
+                    d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"
+                  />
+                </svg>{' '}
+                <h3 className="mt-4 text-xl font-semibold text-ollo-deep dark:text-white">
+                  Sem posts por aqui ainda...
+                </h3>{' '}
+                <p className="mt-2 text-base text-gray-500 dark:text-gray-400">
+                  Quando {profileData.name} compartilhar algo, seus posts
+                  aparecerão aqui.
+                </p>{' '}
+              </div>
+            )}{' '}
+          </div>
+        )}
+        {activeTab === 'comments' && (
+          <div className="space-y-6">
+            {' '}
+            {userComments.length > 0 ? (
+              userComments.map((comment) => (
+                <div
+                  key={comment.id}
+                  className="bg-white/80 dark:bg-ollo-slate/90 p-5 rounded-xl shadow-lg border border-gray-200/50 dark:border-gray-700/50"
+                >
+                  {' '}
+                  <p className="text-base text-ollo-deep dark:text-white mb-3">
+                    "{comment.text}"
+                  </p>{' '}
+                  <div className="text-xs text-gray-500 dark:text-gray-400 border-t border-gray-200/80 dark:border-gray-700/50 pt-3">
+                    {' '}
+                    <p>
+                      Comentado em{' '}
+                      <span className="font-semibold">
+                        {comment.timestamp || 'data indisponível'}
+                      </span>
+                    </p>{' '}
+                    <p className="mt-1">
+                      No post:{' '}
+                      <span className="italic">
+                        "{comment.originalPost.contentPreview}"
+                      </span>
+                    </p>{' '}
+                  </div>{' '}
+                </div>
+              ))
+            ) : (
+              <div className="rounded-xl p-8 sm:p-10 text-center shadow-xl bg-white/60 dark:bg-ollo-slate/70">
+                {' '}
+                <ChatBubbleLeftEllipsisIcon className="mx-auto h-16 w-16 text-gray-400 dark:text-gray-600" />{' '}
+                <h3 className="mt-4 text-xl font-semibold text-ollo-deep dark:text-white">
+                  Nenhum comentário encontrado.
+                </h3>{' '}
+                <p className="mt-2 text-base text-gray-500 dark:text-gray-400">
+                  Quando {profileData.name} comentar, seus comentários
+                  aparecerão aqui.
+                </p>{' '}
+              </div>
+            )}{' '}
+          </div>
+        )}
+        {activeTab === 'likes' && (
+          <div className="space-y-8">
+            {' '}
+            {actualLikedPosts.length > 0 ? (
+              actualLikedPosts.map((post) => (
+                <PostCard
+                  key={post.postId}
+                  postData={post}
+                  onCommentSubmit={onCommentSubmit}
+                />
+              ))
+            ) : (
+              <div className="rounded-xl p-8 sm:p-10 text-center shadow-xl mt-4 bg-white/60 dark:bg-ollo-slate/70">
+                {' '}
+                <HeartIcon className="mx-auto h-16 w-16 text-gray-400 dark:text-gray-600" />{' '}
+                <h3 className="mt-4 text-xl font-semibold text-ollo-deep dark:text-white">
+                  Nenhuma curtida por aqui...
+                </h3>{' '}
+                <p className="mt-2 text-base text-gray-500 dark:text-gray-400">
+                  Quando {profileData.name} curtir algo, aparecerá aqui.
+                </p>{' '}
+              </div>
+            )}{' '}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
+
 export default ProfilePage;
