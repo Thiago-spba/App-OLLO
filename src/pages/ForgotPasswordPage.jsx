@@ -1,18 +1,17 @@
+// src/pages/ForgotPasswordPage.jsx
+
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { EnvelopeIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 
-const ForgotPasswordPage = ({ darkMode }) => {
+// Removido o prop `darkMode`, não é mais necessário
+const ForgotPasswordPage = () => {
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
 
-  const handleChange = (e) => {
-    setEmail(e.target.value);
-  };
-
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
     setError('');
 
@@ -33,74 +32,59 @@ const ForgotPasswordPage = ({ darkMode }) => {
       setIsSubmitted(true);
     }, 1500);
   };
-
-  const pageClasses = darkMode
-    ? 'bg-gradient-to-br from-ollo-deep to-gray-900'
-    : 'bg-gradient-to-br from-white via-ollo-bg-light to-ollo-crystal-green/40';
-  const cardClasses = darkMode
-    ? 'bg-gray-800/90 backdrop-blur-md text-ollo-bg-light shadow-2xl'
-    : 'bg-ollo-bg-light/80 backdrop-blur-lg text-slate-800 shadow-2xl';
   
-  // Estilo para o logo "OLLO"
-  const logoTextClasses = darkMode
-    ? 'text-5xl font-bold text-ollo-accent-light tracking-wider'
-    : 'text-5xl font-bold text-ollo-deep tracking-wider';
+  // Classe de input reutilizável com modificadores `dark:`
+  const inputClasses = `
+    mt-1 block w-full px-3 py-2.5 border rounded-md shadow-sm focus:outline-none sm:text-sm transition-colors duration-150
+    bg-white dark:bg-slate-700
+    border-slate-300 dark:border-slate-600
+    text-slate-900 dark:text-ollo-light
+    placeholder-slate-400 dark:placeholder-slate-400
+    focus:border-ollo-deep dark:focus:border-ollo-accent-light
+    focus:ring-1 focus:ring-ollo-deep dark:focus:ring-ollo-accent-light
+  `;
 
-  const titleClasses = `text-2xl sm:text-3xl font-bold text-center ${darkMode ? 'text-ollo-accent-light' : 'text-ollo-deep'}`;
-  const textMutedClasses = darkMode ? 'text-slate-400' : 'text-slate-600';
-  const labelClasses = darkMode ? 'text-gray-300 font-medium' : 'text-slate-700 font-medium';
-  const inputBaseClasses = 'mt-1 block w-full px-3 py-2.5 border rounded-md shadow-sm focus:outline-none sm:text-sm';
-  const inputClasses = darkMode
-    ? `${inputBaseClasses} bg-slate-700 border-slate-600 text-ollo-bg-light placeholder-slate-400 focus:border-ollo-accent-light focus:ring-1 focus:ring-ollo-accent-light`
-    : `${inputBaseClasses} bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:border-ollo-deep focus:ring-1 focus:ring-ollo-deep`;
-
-  const buttonClasses = `w-full flex items-center justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-    loading
-      ? (darkMode ? 'bg-slate-600 text-slate-400 cursor-not-allowed' : 'bg-slate-300 text-slate-500 cursor-not-allowed' )
-      : (darkMode 
-          ? 'bg-ollo-accent-light text-ollo-deep hover:bg-ollo-accent-light/90 focus:ring-ollo-accent-light focus:ring-offset-gray-800' 
-          : 'bg-ollo-deep text-ollo-bg-light hover:bg-opacity-90 focus:ring-ollo-deep focus:ring-offset-ollo-bg-light'
-        )
-  }`;
-  
-  const errorClasses = darkMode
-    ? 'bg-red-900/50 text-red-200 border border-red-700/70'
-    : 'bg-red-50 text-red-700 border border-red-200';
-
-  const linkClasses = darkMode
-    ? `font-medium text-ollo-accent-light hover:text-opacity-80 underline`
-    : `font-medium text-ollo-deep hover:text-opacity-80 underline`;
-
-  const successIconClasses = darkMode ? 'text-green-400' : 'text-green-500';
+  // Classe de botão reutilizável com modificadores `dark:`
+  const buttonClasses = `
+    w-full flex items-center justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors duration-150
+    ${loading
+      ? 'bg-slate-300 text-slate-500 dark:bg-slate-600 dark:text-slate-400 cursor-not-allowed'
+      : 'bg-ollo-deep text-ollo-light hover:bg-opacity-90 focus:ring-ollo-deep focus:ring-offset-white dark:bg-ollo-accent-light dark:text-ollo-deep dark:hover:bg-opacity-90 dark:focus:ring-ollo-accent-light dark:focus:ring-offset-gray-800'
+    }
+  `;
 
   return (
-    <div className={`min-h-screen flex flex-col items-center justify-center p-4 ${pageClasses} selection:bg-ollo-deep/30 selection:text-ollo-deep`}>
-      <div className={`w-full max-w-md p-7 sm:p-10 space-y-6 rounded-xl ${cardClasses}`}>
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 selection:bg-ollo-deep/30 selection:text-ollo-deep">
+      <div className="w-full max-w-md p-7 sm:p-10 space-y-6 rounded-xl
+                      bg-ollo-light/80 dark:bg-gray-800/90
+                      text-slate-800 dark:text-ollo-light
+                      backdrop-blur-lg shadow-2xl">
         
         {!isSubmitted ? (
           // --------- VISTA DO FORMULÁRIO INICIAL ---------
           <>
             <div className="text-center">
-              {/* LOGO OLLO ADICIONADO AQUI */}
-              <div className={`mb-6 ${logoTextClasses}`}>
+              <div className="mb-6 text-5xl font-bold tracking-wider text-ollo-deep dark:text-ollo-accent-light">
                 OLLO
               </div>
-              <EnvelopeIcon className={`w-12 h-12 mx-auto mb-3 ${darkMode ? 'text-ollo-accent-light' : 'text-ollo-deep'}`} />
-              <h2 className={titleClasses}>Recuperar Senha</h2>
-              <p className={`mt-2 text-sm ${textMutedClasses}`}>
+              <EnvelopeIcon className="w-12 h-12 mx-auto mb-3 text-ollo-deep dark:text-ollo-accent-light" />
+              <h2 className="text-2xl sm:text-3xl font-bold text-center text-ollo-deep dark:text-ollo-accent-light">Recuperar Senha</h2>
+              <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
                 Sem problemas! Digite seu email abaixo e enviaremos um link para você voltar a acessar sua conta Ollo.
               </p>
             </div>
 
             {error && (
-              <div className={`p-3.5 rounded-lg text-sm ${errorClasses}`}>
+              <div className="p-3.5 rounded-lg text-sm
+                            bg-red-50 text-red-700 border border-red-200
+                            dark:bg-red-900/50 dark:text-red-200 dark:border-red-700/70">
                 {error}
               </div>
             )}
 
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
-                <label htmlFor="email" className={labelClasses}>Email</label>
+                <label htmlFor="email" className="text-slate-700 dark:text-gray-300 font-medium">Email</label>
                 <input
                   id="email"
                   name="email"
@@ -108,7 +92,7 @@ const ForgotPasswordPage = ({ darkMode }) => {
                   autoComplete="email"
                   required
                   value={email}
-                  onChange={handleChange}
+                  onChange={(e) => setEmail(e.target.value)}
                   className={inputClasses}
                   placeholder="seu.email@exemplo.com"
                 />
@@ -133,26 +117,25 @@ const ForgotPasswordPage = ({ darkMode }) => {
 
             <p className="mt-8 text-sm text-center">
               Lembrou a senha?{' '}
-              <Link to="/login" className={linkClasses}>
+              <Link to="/login" className="font-medium text-ollo-deep hover:text-opacity-80 underline dark:text-ollo-accent-light dark:hover:text-opacity-80">
                 Voltar para o Login
               </Link>
             </p>
           </>
         ) : (
-          // --------- VISTA DA MENSAGEM DE SUCESSO/INSTRUÇÃO (PÓS-SUBMISSÃO) ---------
+          // --------- VISTA DA MENSAGEM DE SUCESSO ---------
           <div className="text-center space-y-4 py-4">
-            {/* LOGO OLLO ADICIONADO AQUI TAMBÉM PARA CONSISTÊNCIA (OPCIONAL) */}
-            <div className={`mb-6 ${logoTextClasses}`}>
+            <div className="mb-6 text-5xl font-bold tracking-wider text-ollo-deep dark:text-ollo-accent-light">
                 OLLO
             </div>
-            <CheckCircleIcon className={`w-16 h-16 mx-auto ${successIconClasses}`} />
-            <h2 className={titleClasses}>Link Enviado!</h2>
-            <p className={`text-sm ${textMutedClasses}`}>
-              Se o email <strong className={darkMode ? 'text-ollo-accent-light/90' : 'text-ollo-deep/90'}>{email}</strong> estiver cadastrado em nosso sistema, 
-              você receberá as instruções para redefinir sua senha em breve.
+            <CheckCircleIcon className="w-16 h-16 mx-auto text-green-500 dark:text-green-400" />
+            <h2 className="text-2xl sm:text-3xl font-bold text-center text-ollo-deep dark:text-ollo-accent-light">Link Enviado!</h2>
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              Se o email <strong className="text-ollo-deep/90 dark:text-ollo-accent-light/90">{email}</strong> estiver cadastrado, 
+              você receberá as instruções em breve.
             </p>
-            <p className={`text-xs ${textMutedClasses}`}>
-              (Não se esqueça de verificar sua pasta de spam ou lixo eletrônico).
+            <p className="text-xs text-slate-600 dark:text-slate-400">
+              (Verifique sua pasta de spam).
             </p>
             <div className="pt-4">
               <Link to="/login" className={buttonClasses}>
