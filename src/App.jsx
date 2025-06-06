@@ -1,4 +1,5 @@
 // src/App.jsx
+
 import { useState, useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import Footer from './components/Footer';
@@ -11,11 +12,16 @@ import MainLayout from './layouts/MainLayout';
 import PostDetailPage from './pages/PostDetailPage';
 import TermsPage from './pages/TermsPage';
 import LoginPage from './pages/LoginPage';
-import ForgotPasswordPage from './pages/ForgotPasswordPage'; // Importação já existente
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import RegisterPage from './pages/RegisterPage';
 
 function App() {
-    const [darkMode, setDarkMode] = useState(localStorage.getItem('darkMode') === 'true');
+    const [darkMode, setDarkMode] = useState(() => {
+        // Lógica aprimorada para ler o localStorage com segurança
+        const savedMode = localStorage.getItem('darkMode');
+        return savedMode === 'true';
+    });
+
     const [sessionFollowStatus, setSessionFollowStatus] = useState({});
     const [posts, setPosts] = useState([
         { id: 1, postId: 'bem-vindo-ollo', userName: "Gemini Auxiliar", timestamp: "Agora mesmo", content: "Bem-vindo ao OLLO! Uma nova plataforma para conectar e compartilhar. Explore, crie e divirta-se!", comments: [], likeCount: Math.floor(Math.random() * 101) },
@@ -29,12 +35,13 @@ function App() {
 
     useEffect(() => {
         localStorage.setItem('darkMode', darkMode);
+        const root = window.document.documentElement;
         if (darkMode) {
-            document.body.classList.add('dark');
-            document.body.classList.remove('light');
+            root.classList.add('dark');
+            root.classList.remove('light');
         } else {
-            document.body.classList.add('light');
-            document.body.classList.remove('dark');
+            root.classList.add('light');
+            root.classList.remove('dark');
         }
     }, [darkMode]);
 
@@ -47,7 +54,7 @@ function App() {
         const newPost = {
             id: Date.now(),
             postId: `post-${Date.now()}`,
-            userName: "Usuário OLLO", // Idealmente, viria do usuário autenticado
+            userName: "Usuário OLLO",
             timestamp: "Agora mesmo",
             content: newPostText,
             comments: [],
@@ -93,8 +100,15 @@ function App() {
         toggleTheme
     };
 
+    // *** AQUI ESTÁ A MUDANÇA PRINCIPAL ***
+    // Definimos o fundo e o texto para ambos os temas na div raiz.
+    // Isso garante que toda a aplicação herde um fundo e uma cor de texto padrão.
+    const themeClasses = darkMode
+        ? 'bg-ollo-deep text-ollo-light'
+        : 'bg-ollo-light text-ollo-deep';
+
     return (
-        <div className={`min-h-screen flex flex-col font-sans ${darkMode ? 'text-ollo-bg-light' : 'text-gray-900'}`}>
+        <div className={`min-h-screen flex flex-col font-sans transition-colors duration-300 ${themeClasses}`}>
             <Routes>
                 <Route
                     path="/"
@@ -137,7 +151,7 @@ function App() {
                     }
                 />
                 <Route
-                    path="/profile" // Rota para o perfil do próprio usuário (sem ID)
+                    path="/profile"
                     element={
                         <MainLayout {...mainLayoutProps}>
                             <ProfilePage
@@ -174,10 +188,9 @@ function App() {
                         </MainLayout>
                     }
                 />
-                {/* Rotas sem MainLayout (geralmente para autenticação, etc.) */}
+                {/* Rotas sem MainLayout */}
                 <Route path="/login" element={<LoginPage darkMode={darkMode} />} />
                 <Route path="/register" element={<RegisterPage darkMode={darkMode} />} />
-                {/* NOVA ROTA ADICIONADA ABAIXO */}
                 <Route path="/forgot-password" element={<ForgotPasswordPage darkMode={darkMode} />} />
             </Routes>
 

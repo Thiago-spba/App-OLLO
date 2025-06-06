@@ -1,7 +1,8 @@
-import js from '@eslint/js'
-import globals from 'globals'
-import reactHooks from 'eslint-plugin-react-hooks'
-import reactRefresh from 'eslint-plugin-react-refresh'
+import js from '@eslint/js';
+import globals from 'globals';
+import reactHooks from 'eslint-plugin-react-hooks';
+import reactRefresh from 'eslint-plugin-react-refresh';
+import eslintConfigPrettier from 'eslint-config-prettier'; // <-- 1. IMPORTE O PACOTE
 
 export default [
   { ignores: ['dist'] },
@@ -23,11 +24,13 @@ export default [
     rules: {
       ...js.configs.recommended.rules,
       ...reactHooks.configs.recommended.rules,
-      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+      'no-unused-vars': ['warn', { varsIgnorePattern: '^[A-Z_]' }], // Mudei para 'warn' para não ser tão agressivo durante o dev
       'react-refresh/only-export-components': [
         'warn',
         { allowConstantExport: true },
       ],
+      // Adicionar aqui futuras regras que não sejam de formatação
     },
   },
-]
+  eslintConfigPrettier, // <-- 2. ADICIONE AQUI NO FINAL
+];

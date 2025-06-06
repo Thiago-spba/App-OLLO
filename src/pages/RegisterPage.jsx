@@ -1,9 +1,12 @@
+// src/pages/RegisterPage.jsx
+
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 import ReactConfetti from 'react-confetti';
 
-const RegisterPage = ({ darkMode }) => {
+// Removido o prop `darkMode`, pois o Tailwind agora gerencia isso com a classe 'dark'
+const RegisterPage = () => {
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
@@ -20,11 +23,7 @@ const RegisterPage = ({ darkMode }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
-  const [windowSize, setWindowSize] = useState({
-    width: undefined,
-    height: undefined,
-  });
-
+  const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -52,7 +51,6 @@ const RegisterPage = ({ darkMode }) => {
     e.preventDefault();
     setError('');
 
-    // ... (validações como antes) ...
     if (formData.email !== formData.confirmEmail) {
       setError('Os emails não coincidem.');
       return;
@@ -61,7 +59,7 @@ const RegisterPage = ({ darkMode }) => {
       setError('As senhas não coincidem.');
       return;
     }
-    if (!formData.firstName || !formData.lastName || !formData.age || !formData.email || !formData.confirmEmail || !formData.password || !formData.confirmPassword) {
+    if (!formData.firstName || !formData.lastName || !formData.age || !formData.email || !formData.password) {
       setError('Por favor, preencha todos os campos obrigatórios.');
       return;
     }
@@ -76,138 +74,120 @@ const RegisterPage = ({ darkMode }) => {
     setTimeout(() => {
       setLoading(false);
       setShowConfetti(true); 
-
-      // Aumentando o tempo para os confetes serem visíveis
-      const navigationTimer = setTimeout(() => {
-        setShowConfetti(false); 
+      setTimeout(() => {
         navigate('/');      
-      }, 5000); // <<---- TEMPO AUMENTADO PARA 5 SEGUNDOS de confetes visíveis
-
-      return () => clearTimeout(navigationTimer);
+      }, 5000); 
     }, 1000); 
   };
 
-  // --- Definições de Estilo OLLO (sem alterações aqui) ---
-  const pageClasses = darkMode
-    ? 'bg-gradient-to-br from-ollo-deep to-gray-900'
-    : 'bg-gradient-to-br from-white via-ollo-bg-light to-ollo-crystal-green/40';
-  const cardClasses = darkMode
-    ? 'bg-gray-800/90 backdrop-blur-md text-ollo-bg-light shadow-2xl'
-    : 'bg-ollo-bg-light/70 backdrop-blur-lg text-slate-800 shadow-2xl';
-  const titleMainTextClasses = darkMode ? 'text-ollo-accent-light' : 'text-ollo-deep';
-  const titleOLLOTextClasses = darkMode ? 'text-ollo-accent-light font-semibold' : 'text-ollo-deep font-semibold';
-  const labelClasses = darkMode ? 'text-gray-300 font-medium' : 'text-slate-700 font-medium';
-  const inputBaseClasses = 'mt-1 block w-full px-3 py-2.5 border rounded-md shadow-sm focus:outline-none sm:text-sm';
-  const inputClasses = darkMode
-    ? `${inputBaseClasses} bg-slate-700 border-slate-600 text-ollo-bg-light placeholder-slate-400 focus:border-ollo-accent-light focus:ring-1 focus:ring-ollo-accent-light`
-    : `${inputBaseClasses} bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:border-ollo-deep focus:ring-1 focus:ring-ollo-deep`;
-  const passwordInputWrapperClasses = "relative";
-  const passwordInputIconClasses = `absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer ${darkMode ? 'text-gray-400 hover:text-ollo-accent-light' : 'text-gray-500 hover:text-ollo-deep'}`;
-  const buttonClasses = `w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-    loading
-      ? (darkMode ? 'bg-slate-600 text-slate-400 cursor-not-allowed' : 'bg-slate-300 text-slate-500 cursor-not-allowed' )
-      : (darkMode 
-          ? 'bg-ollo-accent-light text-ollo-deep hover:bg-ollo-accent-light/90 focus:ring-ollo-accent-light focus:ring-offset-gray-800' 
-          : 'bg-ollo-deep text-ollo-bg-light hover:bg-opacity-90 focus:ring-ollo-deep focus:ring-offset-ollo-bg-light'
-        )
-  }`;
-  const errorClasses = darkMode
-    ? 'bg-red-900/50 text-red-200 border border-red-700/70'
-    : 'bg-red-50 text-red-700 border border-red-200';
-  const linkClasses = darkMode
-    ? `font-medium text-ollo-accent-light hover:text-opacity-80 underline`
-    : `font-medium text-ollo-deep hover:text-opacity-80 underline`;
-  // --- Fim das Definições de Estilo OLLO ---
-
+  const inputClasses = `
+    mt-1 block w-full px-3 py-2.5 border rounded-md shadow-sm focus:outline-none sm:text-sm transition-colors duration-150
+    bg-white/70 dark:bg-slate-700
+    border-slate-300 dark:border-slate-600
+    text-slate-900 dark:text-ollo-light
+    placeholder-slate-400 dark:placeholder-slate-400
+    focus:border-ollo-deep dark:focus:border-ollo-accent-light
+    focus:ring-1 focus:ring-ollo-deep dark:focus:ring-ollo-accent-light
+  `;
+  
   return (
-    <div className={`min-h-screen flex flex-col items-center justify-center p-4 overflow-hidden ${pageClasses} selection:bg-ollo-deep/30 selection:text-ollo-deep`}>
-      {showConfetti && windowSize.width && windowSize.height && (
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 overflow-hidden selection:bg-ollo-deep/30 selection:text-ollo-deep">
+      {showConfetti && (
         <ReactConfetti
           width={windowSize.width}
           height={windowSize.height}
           recycle={false}
-          numberOfPieces={600} // <<---- MAIS PARTÍCULAS
-          gravity={0.08}     // <<---- GRAVIDADE MENOR (MAIS LENTA A QUEDA)
-          wind={0.01}        // <<---- VENTO SUTIL PARA ESPALHAR UM POUCO
-          initialVelocityX={{ min: -8, max: 8 }} // Ajusta dispersão horizontal
-          initialVelocityY={{ min: -12, max: 8 }}  // Algumas sobem um pouco mais
-          confettiSource={{ // Para espalhar mais a origem dos confetes
-            x: windowSize.width / 2,
-            y: -50, // Começa um pouco acima da tela
-            w: windowSize.width, // Usa toda a largura como área de origem
-            h: 0
-          }}
-          tweenDuration={10000} // Tempo de vida individual das partículas (ms)
+          numberOfPieces={600}
+          gravity={0.08}
+          wind={0.01}
+          initialVelocityX={{ min: -8, max: 8 }}
+          initialVelocityY={{ min: -12, max: 8 }}
+          confettiSource={{ x: windowSize.width / 2, y: -50, w: windowSize.width, h: 0 }}
+          tweenDuration={10000}
         />
       )}
-      <div className={`w-full max-w-lg p-7 sm:p-10 space-y-6 rounded-xl ${cardClasses}`}>
+      <div className="w-full max-w-lg p-7 sm:p-10 space-y-6 rounded-xl 
+                    bg-ollo-light/70 dark:bg-gray-800/90 
+                    text-slate-800 dark:text-ollo-light 
+                    backdrop-blur-lg shadow-2xl">
+        
         <h2 className="text-3xl sm:text-4xl font-bold text-center">
-          <span className={titleMainTextClasses}>Criar Conta</span> <span className={titleOLLOTextClasses}>OLLO</span>
+          <span className="text-ollo-deep dark:text-ollo-accent-light">Criar Conta </span> 
+          <span className="font-semibold text-ollo-deep dark:text-ollo-accent-light">OLLO</span>
         </h2>
 
         {error && (
-          <div className={`p-3.5 rounded-lg text-sm ${errorClasses}`}>
+          <div className="p-3.5 rounded-lg text-sm 
+                        bg-red-50 text-red-700 border border-red-200
+                        dark:bg-red-900/50 dark:text-red-200 dark:border-red-700/70">
             {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* ... (campos do formulário como antes) ... */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-5">
             <div>
-              <label htmlFor="firstName" className={labelClasses}>Nome</label>
+              <label htmlFor="firstName" className="text-slate-700 dark:text-gray-300 font-medium">Nome</label>
               <input id="firstName" name="firstName" type="text" required value={formData.firstName} onChange={handleChange} className={inputClasses} placeholder="Seu nome" />
             </div>
             <div>
-              <label htmlFor="lastName" className={labelClasses}>Sobrenome</label>
+              <label htmlFor="lastName" className="text-slate-700 dark:text-gray-300 font-medium">Sobrenome</label>
               <input id="lastName" name="lastName" type="text" required value={formData.lastName} onChange={handleChange} className={inputClasses} placeholder="Seu sobrenome" />
             </div>
           </div>
 
           <div>
-            <label htmlFor="age" className={labelClasses}>Idade</label>
+            <label htmlFor="age" className="text-slate-700 dark:text-gray-300 font-medium">Idade</label>
             <input id="age" name="age" type="number" required value={formData.age} onChange={handleChange} className={inputClasses} placeholder="Sua idade" />
           </div>
 
           <div>
-            <label htmlFor="email" className={labelClasses}>Email</label>
+            <label htmlFor="email" className="text-slate-700 dark:text-gray-300 font-medium">Email</label>
             <input id="email" name="email" type="email" autoComplete="email" required value={formData.email} onChange={handleChange} className={inputClasses} placeholder="voce@exemplo.com" />
           </div>
 
           <div>
-            <label htmlFor="confirmEmail" className={labelClasses}>Confirmar Email</label>
+            <label htmlFor="confirmEmail" className="text-slate-700 dark:text-gray-300 font-medium">Confirmar Email</label>
             <input id="confirmEmail" name="confirmEmail" type="email" autoComplete="email" required value={formData.confirmEmail} onChange={handleChange} className={inputClasses} placeholder="Confirme seu email" />
           </div>
 
           <div>
-            <label htmlFor="password" className={labelClasses}>Senha</label>
-            <div className={passwordInputWrapperClasses}>
+            <label htmlFor="password" className="text-slate-700 dark:text-gray-300 font-medium">Senha</label>
+            <div className="relative">
               <input id="password" name="password" type={showPassword ? 'text' : 'password'} autoComplete="new-password" required value={formData.password} onChange={handleChange} className={inputClasses} placeholder="••••••••"/>
-              <span className={passwordInputIconClasses} onClick={() => setShowPassword(!showPassword)}>
+              <span className="absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer text-gray-500 hover:text-ollo-deep dark:text-gray-400 dark:hover:text-ollo-accent-light" onClick={() => setShowPassword(!showPassword)}>
                 {showPassword ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
               </span>
             </div>
           </div>
 
           <div>
-            <label htmlFor="confirmPassword" className={labelClasses}>Confirmar Senha</label>
-            <div className={passwordInputWrapperClasses}>
+            <label htmlFor="confirmPassword" className="text-slate-700 dark:text-gray-300 font-medium">Confirmar Senha</label>
+            <div className="relative">
               <input id="confirmPassword" name="confirmPassword" type={showConfirmPassword ? 'text' : 'password'} autoComplete="new-password" required value={formData.confirmPassword} onChange={handleChange} className={inputClasses} placeholder="••••••••"/>
-              <span className={passwordInputIconClasses} onClick={() => setShowConfirmPassword(!showConfirmPassword)}>
+              <span className="absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer text-gray-500 hover:text-ollo-deep dark:text-gray-400 dark:hover:text-ollo-accent-light" onClick={() => setShowConfirmPassword(!showConfirmPassword)}>
                 {showConfirmPassword ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
               </span>
             </div>
           </div>
 
           <div>
-            <label htmlFor="referralCode" className={labelClasses}>
+            <label htmlFor="referralCode" className="text-slate-700 dark:text-gray-300 font-medium">
               Código de Indicação <span className="text-xs font-normal">(Opcional)</span>
             </label>
             <input id="referralCode" name="referralCode" type="text" value={formData.referralCode} onChange={handleChange} className={inputClasses} placeholder="Código recebido"/>
           </div>
 
           <div className="pt-2">
-            <button type="submit" disabled={loading} className={buttonClasses}>
+            <button 
+              type="submit" 
+              disabled={loading} 
+              className={`w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors duration-150
+                          ${loading 
+                            ? 'bg-slate-300 text-slate-500 dark:bg-slate-600 dark:text-slate-400 cursor-not-allowed' 
+                            : 'bg-ollo-deep text-ollo-light hover:bg-opacity-90 focus:ring-ollo-deep focus:ring-offset-ollo-bg-light dark:bg-ollo-accent-light dark:text-ollo-deep dark:hover:bg-opacity-90 dark:focus:ring-ollo-accent-light dark:focus:ring-offset-gray-800'
+                          }`}
+            >
               {loading ? 'Concluindo Registro...' : 'Concluir Registro'}
             </button>
           </div>
@@ -215,7 +195,7 @@ const RegisterPage = ({ darkMode }) => {
 
         <p className="mt-8 text-sm text-center">
           Já tem uma conta?{' '}
-          <Link to="/login" className={linkClasses}>
+          <Link to="/login" className="font-medium text-ollo-deep hover:text-opacity-80 underline dark:text-ollo-accent-light dark:hover:text-opacity-80">
             Faça login
           </Link>
         </p>
