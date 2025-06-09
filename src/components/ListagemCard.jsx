@@ -1,39 +1,40 @@
-// src/components/ListingCard.jsx
+// src/components/ListagemCard.jsx
 
 import React from 'react';
-import { Link } from 'react-router-dom'; // Para tornar o card clicável no futuro
 
 function ListingCard({ listing }) {
   if (!listing) {
     return null;
   }
 
-  // Extrai a primeira imagem do array, ou usa um placeholder se não houver imagem
+  // CORRIGIDO PARA USAR OS NOMES EXATOS DO SEU FIREBASE
+  const nomeCampoImagem = 'URLs de imagem'; // Nome exato do campo no Firebase
+  const nomeCampoTitulo = 'título'; // Nome exato
+  const nomeCampoPreco = 'De preço'; // Nome exato
+  const nomeCampoCategoria = 'categoria'; // Nome exato
+
   const imageUrl =
-    listing.imageUrls && listing.imageUrls.length > 0
-      ? listing.imageUrls[0]
-      : `https://placehold.co/400x300/E0E1DD/0D1B2A?text=${encodeURIComponent(listing.título || 'Sem Imagem')}`;
-  // Formata o preço para o padrão brasileiro (ex: 750 -> "750,00")
+    listing[nomeCampoImagem] && listing[nomeCampoImagem].length > 0
+      ? listing[nomeCampoImagem][0]
+      : `https://placehold.co/400x300/E0E1DD/0D1B2A?text=${encodeURIComponent(listing[nomeCampoTitulo] || 'Sem Imagem')}`;
+
   const formattedPrice = new Intl.NumberFormat('pt-BR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(listing.preço || 0);
+    style: 'currency',
+    currency: 'BRL',
+  }).format(listing[nomeCampoPreco] || 0);
 
   return (
-    // Link futuro para a página de detalhes do produto
-    // <Link to={`/item/${listing.id}`} className="group block">
     <div className="group block overflow-hidden rounded-xl border border-gray-200/80 dark:border-gray-700/60 bg-white dark:bg-ollo-slate shadow-md transition-all duration-300 hover:shadow-xl hover:-translate-y-1">
       <div className="relative h-48 sm:h-56">
         <img
           src={imageUrl}
-          alt={`Imagem de ${listing.título}`}
+          alt={`Imagem de ${listing[nomeCampoTitulo]}`}
           className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
         />
-        {/* Tag de categoria */}
-        {listing.categoria && (
+        {listing[nomeCampoCategoria] && (
           <span className="absolute top-3 right-3 bg-ollo-accent dark:bg-ollo-accent-light text-white dark:text-ollo-deep text-xs font-semibold px-2.5 py-1 rounded-full">
-            {listing.categoria.charAt(0).toUpperCase() +
-              listing.categoria.slice(1)}
+            {listing[nomeCampoCategoria].charAt(0).toUpperCase() +
+              listing[nomeCampoCategoria].slice(1)}
           </span>
         )}
       </div>
@@ -41,17 +42,16 @@ function ListingCard({ listing }) {
       <div className="p-4">
         <h3
           className="text-lg font-bold text-ollo-deep dark:text-ollo-light truncate"
-          title={listing.título}
+          title={listing[nomeCampoTitulo]}
         >
-          {listing.título}
+          {listing[nomeCampoTitulo]}
         </h3>
 
         <p className="mt-2 text-xl font-black text-ollo-accent dark:text-ollo-accent-light">
-          R$ {formattedPrice}
+          {formattedPrice}
         </p>
       </div>
     </div>
-    // </Link>
   );
 }
 
