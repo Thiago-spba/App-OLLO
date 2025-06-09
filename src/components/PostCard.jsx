@@ -15,7 +15,6 @@ import {
   HeartIcon as HeartSolid,
 } from '@heroicons/react/24/solid';
 
-// Prop 'darkMode' foi removido
 function PostCard({ postData, onCommentSubmit, onDeletePost, variant }) {
   if (!postData) {
     return null;
@@ -24,6 +23,7 @@ function PostCard({ postData, onCommentSubmit, onDeletePost, variant }) {
   const { postId: postIdString, userName, timestamp, content } = postData;
   const currentComments = postData.comments || [];
 
+  // Seus estados... (sem alterações)
   const [isLiked, setIsLiked] = useState(false);
   const [currentLikeCount, setCurrentLikeCount] = useState(
     postData.likeCount || Math.floor(Math.random() * 100)
@@ -40,7 +40,7 @@ function PostCard({ postData, onCommentSubmit, onDeletePost, variant }) {
     content &&
     (content.length > 200 || content.split('\n').length > NUM_LINES_TO_CLAMP);
 
-  // Efeitos e handlers (sua lógica é mantida)
+  // Seus efeitos e handlers... (sem alterações)
   useEffect(() => {
     const initialReactions = {};
     if (currentComments.length > 0) {
@@ -139,8 +139,9 @@ function PostCard({ postData, onCommentSubmit, onDeletePost, variant }) {
       >
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center min-w-0">
+            {/* CORRIGIDO: Removido conflito de ring */}
             <img
-              className="h-10 w-10 sm:h-11 sm:w-11 rounded-full mr-3 sm:mr-3.5 object-cover ring-2 ring-offset-2 ring-offset-white dark:ring-offset-ollo-slate ring-ollo-accent-light/80"
+              className="h-10 w-10 sm:h-11 sm:w-11 rounded-full mr-3 sm:mr-3.5 object-cover ring-2 ring-offset-2 ring-ollo-accent-light/80 dark:ring-ollo-accent-light ring-offset-white dark:ring-offset-ollo-slate"
               src={getAvatarUrl(userName)}
               alt={`Avatar de ${userName}`}
             />
@@ -243,8 +244,9 @@ function PostCard({ postData, onCommentSubmit, onDeletePost, variant }) {
       {showComments && (
         <div className="px-4 sm:px-5 md:px-6 pb-5 pt-4 border-t border-gray-200/90 dark:border-gray-700/50">
           <div className="flex items-start space-x-2 sm:space-x-3 mb-4">
+            {/* CORRIGIDO: Removido conflito de ring */}
             <img
-              className="h-8 w-8 sm:h-9 sm:w-9 rounded-full object-cover flex-shrink-0 ring-1 ring-offset-1 ring-white dark:ring-offset-ollo-slate ring-gray-300 dark:ring-gray-600"
+              className="h-8 w-8 sm:h-9 sm:w-9 rounded-full object-cover flex-shrink-0 ring-1 ring-offset-1 ring-gray-300 dark:ring-gray-600 ring-offset-white dark:ring-offset-ollo-slate"
               src={getAvatarUrl('Eu')}
               alt="Seu avatar"
             />
@@ -284,8 +286,9 @@ function PostCard({ postData, onCommentSubmit, onDeletePost, variant }) {
                     key={commentId}
                     className="text-xs sm:text-sm flex items-start space-x-2 sm:space-2.5"
                   >
+                    {/* CORRIGIDO: Removido conflito de ring */}
                     <img
-                      className="h-6 w-6 sm:h-7 sm:w-7 rounded-full object-cover flex-shrink-0 mt-0.5 ring-1 ring-offset-1 ring-white dark:ring-offset-ollo-slate ring-gray-300 dark:ring-gray-600"
+                      className="h-6 w-6 sm:h-7 sm:w-7 rounded-full object-cover flex-shrink-0 mt-0.5 ring-1 ring-offset-1 ring-gray-300 dark:ring-gray-600 ring-offset-white dark:ring-offset-ollo-slate"
                       src={getAvatarUrl(comment.user)}
                       alt={`Avatar de ${comment.user}`}
                     />
@@ -302,7 +305,9 @@ function PostCard({ postData, onCommentSubmit, onDeletePost, variant }) {
                             onClick={() =>
                               handleCommentReaction(commentId, 'like')
                             }
-                            onMouseEnter={() => setActiveTooltip(likeTooltipId)}
+                            onMouseEnter={() =>
+                              setActiveTooltip(`like-${commentId}`)
+                            }
                             onMouseLeave={() => setActiveTooltip('')}
                             className={`flex items-center text-xs group ${isLikedByUser ? 'text-ollo-deep dark:text-ollo-accent-light' : 'text-gray-500 dark:text-gray-400 hover:text-ollo-deep dark:hover:text-ollo-accent-light/80'}`}
                           >
@@ -317,7 +322,7 @@ function PostCard({ postData, onCommentSubmit, onDeletePost, variant }) {
                               {reactionData.likes}
                             </span>
                           </button>
-                          {activeTooltip === `like-tooltip-${commentId}` && (
+                          {activeTooltip === `like-${commentId}` && (
                             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-black text-white text-xs font-medium rounded-md shadow-xl z-30">
                               {' '}
                               Gostei{' '}
@@ -330,7 +335,7 @@ function PostCard({ postData, onCommentSubmit, onDeletePost, variant }) {
                               handleCommentReaction(commentId, 'dislike')
                             }
                             onMouseEnter={() =>
-                              setActiveTooltip(dislikeTooltipId)
+                              setActiveTooltip(`dislike-${commentId}`)
                             }
                             onMouseLeave={() => setActiveTooltip('')}
                             className={`flex items-center text-xs group ${isDislikedByUser ? 'text-red-600 dark:text-red-500' : 'text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-500'}`}
@@ -346,7 +351,7 @@ function PostCard({ postData, onCommentSubmit, onDeletePost, variant }) {
                               {reactionData.dislikes}
                             </span>
                           </button>
-                          {activeTooltip === `dislike-tooltip-${commentId}` && (
+                          {activeTooltip === `dislike-${commentId}` && (
                             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-black text-white text-xs font-medium rounded-md shadow-xl z-30">
                               {' '}
                               Não gostei{' '}
