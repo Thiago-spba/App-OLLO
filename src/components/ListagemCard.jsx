@@ -1,5 +1,3 @@
-// src/components/ListagemCard.jsx
-
 import React from 'react';
 
 function ListingCard({ listing }) {
@@ -7,34 +5,33 @@ function ListingCard({ listing }) {
     return null;
   }
 
-  // CORRIGIDO PARA USAR OS NOMES EXATOS DO SEU FIREBASE
-  const nomeCampoImagem = 'URLs de imagem'; // Nome exato do campo no Firebase
-  const nomeCampoTitulo = 'título'; // Nome exato
-  const nomeCampoPreco = 'De preço'; // Nome exato
-  const nomeCampoCategoria = 'categoria'; // Nome exato
+  const { title, price, category, imageUrls } = listing;
 
-  const imageUrl =
-    listing[nomeCampoImagem] && listing[nomeCampoImagem].length > 0
-      ? listing[nomeCampoImagem][0]
-      : `https://placehold.co/400x300/E0E1DD/0D1B2A?text=${encodeURIComponent(listing[nomeCampoTitulo] || 'Sem Imagem')}`;
+  const displayImageUrl =
+    imageUrls && imageUrls.length > 0
+      ? imageUrls[0]
+      : `https://placehold.co/400x300/E0E1DD/0D1B2A?text=${encodeURIComponent(title || 'Sem Imagem')}`;
 
   const formattedPrice = new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
-  }).format(listing[nomeCampoPreco] || 0);
+  }).format(price || 0);
+
+  const formattedCategory = category
+    ? category.charAt(0).toUpperCase() + category.slice(1)
+    : '';
 
   return (
-    <div className="group block overflow-hidden rounded-xl border border-gray-200/80 dark:border-gray-700/60 bg-white dark:bg-ollo-slate shadow-md transition-all duration-300 hover:shadow-xl hover:-translate-y-1">
+    <div className="group block overflow-hidden rounded-xl border border-gray-200/80 dark:border-gray-700/60 bg-white dark:bg-ollo-slate shadow-md transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer">
       <div className="relative h-48 sm:h-56">
         <img
-          src={imageUrl}
-          alt={`Imagem de ${listing[nomeCampoTitulo]}`}
+          src={displayImageUrl}
+          alt={`Imagem de ${title}`}
           className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
         />
-        {listing[nomeCampoCategoria] && (
+        {formattedCategory && (
           <span className="absolute top-3 right-3 bg-ollo-accent dark:bg-ollo-accent-light text-white dark:text-ollo-deep text-xs font-semibold px-2.5 py-1 rounded-full">
-            {listing[nomeCampoCategoria].charAt(0).toUpperCase() +
-              listing[nomeCampoCategoria].slice(1)}
+            {formattedCategory}
           </span>
         )}
       </div>
@@ -42,9 +39,9 @@ function ListingCard({ listing }) {
       <div className="p-4">
         <h3
           className="text-lg font-bold text-ollo-deep dark:text-ollo-light truncate"
-          title={listing[nomeCampoTitulo]}
+          title={title}
         >
-          {listing[nomeCampoTitulo]}
+          {title || 'Anúncio sem título'}
         </h3>
 
         <p className="mt-2 text-xl font-black text-ollo-accent dark:text-ollo-accent-light">
