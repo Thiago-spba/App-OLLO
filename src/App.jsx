@@ -2,15 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
-
-// Seus Componentes
 import Footer from './components/Footer';
 import CreatePostModal from './components/CreatePostModal';
-
-// Seus Layouts
 import MainLayout from './layouts/MainLayout';
-
-// Suas Páginas
 import HomePage from './pages/HomePage';
 import ExplorePage from './pages/ExplorePage';
 import ProfilePage from './pages/ProfilePage';
@@ -21,7 +15,8 @@ import LoginPage from './pages/LoginPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import RegisterPage from './pages/RegisterPage';
 import MarketplacePage from './pages/MarketplacePage';
-import CreateListingPage from './pages/CreateListingPage'; // <--- ÚNICO IMPORT NO LUGAR CORRETO
+import CreateListingPage from './pages/CreateListingPage';
+import ListingDetailPage from './pages/ListingDetailPage';
 
 function App() {
   const [darkMode, setDarkMode] = useState(() => {
@@ -41,7 +36,6 @@ function App() {
       comments: [],
       likeCount: Math.floor(Math.random() * 101),
     },
-    //... seus outros posts de exemplo
   ]);
   const [isCreatePostModalOpen, setIsCreatePostModalOpen] = useState(false);
 
@@ -59,7 +53,6 @@ function App() {
   const openCreatePostModal = () => setIsCreatePostModalOpen(true);
   const closeCreatePostModal = () => setIsCreatePostModalOpen(false);
 
-  // ... suas outras funções (handleAddPost, etc.) ...
   const handleAddPost = () => {};
   const handleAddComment = () => {};
   const handleDeletePost = () => {};
@@ -110,8 +103,6 @@ function App() {
             </MainLayout>
           }
         />
-
-        {/* ROTA NOVA NO LUGAR CORRETO */}
         <Route
           path="/marketplace/criar"
           element={
@@ -120,7 +111,14 @@ function App() {
             </MainLayout>
           }
         />
-
+        <Route
+          path="/marketplace/detalhes/:listingId"
+          element={
+            <MainLayout {...mainLayoutProps}>
+              <ListingDetailPage />
+            </MainLayout>
+          }
+        />
         <Route
           path="/profile/:profileId"
           element={

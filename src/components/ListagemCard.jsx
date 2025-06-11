@@ -1,10 +1,9 @@
 // src/components/ListagemCard.jsx
 
 import React from 'react';
-import { Link } from 'react-router-dom'; // Importar Link para o botão de editar
-import { PencilSquareIcon, TrashIcon } from '@heroicons/react/24/outline'; // Ícones para os botões
+import { Link } from 'react-router-dom';
+import { PencilSquareIcon, TrashIcon } from '@heroicons/react/24/outline';
 
-// 👇 RECEBENDO A PROP 'onDelete'
 function ListingCard({ listing, onDelete }) {
   if (!listing) {
     return null;
@@ -26,26 +25,39 @@ function ListingCard({ listing, onDelete }) {
     ? category.charAt(0).toUpperCase() + category.slice(1)
     : '';
 
-  // 👇 FUNÇÃO CHAMADA QUANDO O BOTÃO DE LIXEIRA É CLICADO
   const handleDeleteClick = (e) => {
-    e.stopPropagation(); // Impede que o clique no botão também "clique" no card inteiro
-    e.preventDefault(); // Impede qualquer comportamento padrão do link/botão
+    e.stopPropagation();
+    e.preventDefault();
     if (onDelete) {
-      onDelete(id); // Chama a função que recebemos do pai, passando o ID deste anúncio
+      onDelete(id);
     }
   };
 
+  const handleEditClick = (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    // No futuro, isso pode abrir um modal de edição ou navegar
+    // Por enquanto, vamos apenas navegar para a página de edição
+    // Importante: use o hook useNavigate se for fazer a navegação programaticamente
+    alert(
+      `Navegando para a página de edição de ${id} (funcionalidade a ser implementada)`
+    );
+  };
+
   return (
-    // Removido 'group block' e 'cursor-pointer' para que o clique seja apenas nos botões
-    <div className="flex flex-col overflow-hidden rounded-xl border border-gray-200/80 dark:border-gray-700/60 bg-white dark:bg-ollo-slate shadow-md transition-all duration-300 hover:shadow-xl hover:-translate-y-1">
+    // O componente <Link> agora envolve todo o card
+    <Link
+      to={`/marketplace/detalhes/${id}`}
+      className="group flex flex-col overflow-hidden rounded-xl border border-gray-200/80 dark:border-gray-700/60 bg-white dark:bg-ollo-slate shadow-md transition-all duration-300 hover:shadow-xl hover:-translate-y-1"
+    >
       <div className="relative h-48 sm:h-56">
         <img
           src={displayImageUrl}
           alt={`Imagem de ${title}`}
-          className="absolute inset-0 h-full w-full object-cover"
+          className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
         />
         {formattedCategory && (
-          <span className="absolute top-3 right-3 bg-ollo-accent dark:bg-ollo-accent-light text-white dark:text-ollo-deep text-xs font-semibold px-2.5 py-1 rounded-full">
+          <span className="absolute top-3 right-3 bg-ollo-accent dark:bg-ollo-accent-light text-white dark:text-ollo-deep text-xs font-semibold px-2.5 py-1 rounded-full z-10">
             {formattedCategory}
           </span>
         )}
@@ -65,20 +77,18 @@ function ListingCard({ listing, onDelete }) {
           </p>
         </div>
 
-        {/* 👇 PASSO 3: ADICIONAR OS BOTÕES DE AÇÃO */}
+        {/* Os botões de ação agora ficam por cima, mas não fazem parte do link principal */}
         <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700/50 flex justify-end space-x-2">
-          {/* BOTÃO DE EDITAR (por enquanto, apenas um link) */}
-          <Link
-            to={`/marketplace/editar/${id}`} // Link para uma futura página de edição
+          <button
+            onClick={handleEditClick} // Usamos um handler para impedir a navegação
             className="p-2 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
             title="Editar Anúncio"
           >
             <PencilSquareIcon className="h-5 w-5" />
-          </Link>
+          </button>
 
-          {/* BOTÃO DE EXCLUIR */}
           <button
-            onClick={handleDeleteClick}
+            onClick={handleDeleteClick} // Handler que já impede a navegação
             className="p-2 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
             title="Excluir Anúncio"
           >
@@ -86,7 +96,7 @@ function ListingCard({ listing, onDelete }) {
           </button>
         </div>
       </div>
-    </div>
+    </Link>
   );
 }
 
