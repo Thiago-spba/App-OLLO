@@ -1,52 +1,95 @@
-// src/context/AuthContext.js
-import React, { createContext, useState, useContext } from 'react';
+// src/context/AuthContext.jsx
 
-// 1. Criar o Contexto
+import React, { createContext, useState, useContext, useEffect } from 'react';
+import {
+  onAuthStateChanged,
+  signOut,
+  createUserWithEmailAndPassword,
+  sendEmailVerification,
+  signInWithEmailAndPassword,
+} from 'firebase/auth';
+import { auth, db } from '../firebase/config';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+
 const AuthContext = createContext(null);
 
-// 2. Criar o Provedor (AuthProvider Component)
 export const AuthProvider = ({ children }) => {
-    const [isAuthenticated, setIsAuthenticated] = useState(false);
-    const [user, setUser] = useState(null); // Pode armazenar dados do usuário como { id, name, email }
+  const [currentUser, setCurrentUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-    // Função de login simulada
-    const login = (userData) => {
-        // Em uma aplicação real, aqui você faria uma chamada à API,
-        // receberia um token, dados do usuário, etc.
-        setUser(userData); // Ex: { id: '1', name: 'Usuário Teste', email: userData.email }
-        setIsAuthenticated(true);
-        console.log('Usuário logado (simulado):', userData);
-    };
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        const userDocRef = doc(db, 'users', firebaseUser.uid);
+        const docSnap = await getDoc(userDocRef);
+        if (docSnap.exists()) {
+          setCurrentUser({
+            ...docSnap.data(),
+            emailVerified: firebaseUser.emailVerified,
+          });
+        } else {
+          setCurrentUser(null);
+        }
+      } else {
+        setCurrentUser(null);
+      }
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
 
-    // Função de logout simulada
-    const logout = () => {
-        setUser(null);
-        setIsAuthenticated(false);
-        console.log('Usuário deslogado (simulado)');
-    };
+  const registerWithEmail = async (email, password, additionalData) => {
+    const userCredential = await createUserWithEmailAndPassword(
+      auth,
+      email,
+      password
+    );
+    const firebaseUser = userCredential.user;
+    await sendEmailVerification(firebaseUser);
 
-    // Valor que será fornecido pelo Contexto
-    const value = {
-        isAuthenticated,
-        user,
-        login, // exporta a função de login
-        logout // exporta a função de logout
-    };
+    const userDocRef = doc(db, 'users', firebaseUser.uid);
+    await setDoc(userDocRef, {
+      uid: firebaseUser.uid,
+      email: firebaseUser.email,
+      name: additionalData.name,
+      username: additionalData.username,
+      bio: 'Novo membro do OLLO!',
+      avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(additionalData.name)}&background=0D1B2A&color=E0E1DD&bold=true`,
+      createdAt: serverTimestamp(),
+    });
 
-    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+    // A LINHA QUE FALTAVA
+    return { success: true };
+  };
+
+  const loginWithEmail = (email, password) => {
+    return signInWithEmailAndPassword(auth, email, password);
+  };
+
+  const logout = async () => {
+    await signOut(auth);
+    setCurrentUser(null);
+  };
+
+  const value = {
+    currentUser,
+    loading,
+    registerWithEmail,
+    loginWithEmail,
+    logout,
+  };
+
+  return (
+    <AuthContext.Provider value={value}>
+      {!loading && children}
+    </AuthContext.Provider>
+  );
 };
 
-// 3. Criar um Hook customizado para usar o AuthContext (opcional, mas recomendado)
 export const useAuth = () => {
-    const context = useContext(AuthContext);
-    if (context === undefined) {
-        throw new Error('useAuth deve ser usado dentro de um AuthProvider');
-    }
-    if (context === null) {
-        // Isso pode acontecer se o valor inicial do createContext for null e o provider ainda não envolveu
-        // os componentes. Com a estrutura atual do AuthProvider, isso é menos provável de ser um problema
-        // prático, mas a checagem é uma boa prática.
-        throw new Error('AuthProvider não parece estar envolvendo os componentes corretamente ou o valor do contexto é null.');
-    }
-    return context;
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth deve ser usado dentro de um AuthProvider');
+  }
+  return context;
 };
