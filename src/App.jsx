@@ -3,9 +3,6 @@
 import { useState, useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 
-// Importa nosso novo authStore
-import useAuthStore from './store/authStore';
-
 import Footer from './components/Footer';
 import CreatePostModal from './components/CreatePostModal';
 import MainLayout from './layouts/MainLayout';
@@ -21,6 +18,9 @@ import RegisterPage from './pages/RegisterPage';
 import MarketplacePage from './pages/MarketplacePage';
 import CreateListingPage from './pages/CreateListingPage';
 import ListingDetailPage from './pages/ListingDetailPage';
+import VerifyEmailPage from './pages/VerifyEmailPage';
+// MUDANÇA 1: Importa o componente de proteção
+import ProtectedRoute from './components/auth/ProtectedRoute';
 
 function App() {
   const [darkMode, setDarkMode] = useState(() => {
@@ -28,17 +28,6 @@ function App() {
     return savedMode === 'true';
   });
 
-  // *** NOVA LÓGICA DE AUTENTICAÇÃO ***
-  // Pega a função 'fetchUser' do nosso store.
-  const fetchUser = useAuthStore((state) => state.fetchUser);
-
-  useEffect(() => {
-    // Chama a função fetchUser uma vez quando o App é montado.
-    // Isso inicia o listener onAuthStateChanged do Firebase.
-    fetchUser();
-  }, [fetchUser]);
-
-  // O resto do seu código permanece exatamente igual
   const [sessionFollowStatus, setSessionFollowStatus] = useState({});
   const [posts, setPosts] = useState([
     {
@@ -86,6 +75,7 @@ function App() {
       className={`min-h-screen flex flex-col font-sans transition-colors duration-300 ${themeClasses}`}
     >
       <Routes>
+        {/* --- Rotas Públicas --- */}
         <Route
           path="/"
           element={
@@ -119,52 +109,10 @@ function App() {
           }
         />
         <Route
-          path="/marketplace/criar"
-          element={
-            <MainLayout {...mainLayoutProps}>
-              <CreateListingPage />
-            </MainLayout>
-          }
-        />
-        <Route
           path="/marketplace/detalhes/:listingId"
           element={
             <MainLayout {...mainLayoutProps}>
               <ListingDetailPage />
-            </MainLayout>
-          }
-        />
-        <Route
-          path="/profile/:profileId"
-          element={
-            <MainLayout {...mainLayoutProps}>
-              <ProfilePage
-                allPosts={posts}
-                onCommentSubmit={handleAddComment}
-                sessionFollowStatus={sessionFollowStatus}
-                setSessionFollowStatus={setSessionFollowStatus}
-              />
-            </MainLayout>
-          }
-        />
-        <Route
-          path="/profile"
-          element={
-            <MainLayout {...mainLayoutProps}>
-              <ProfilePage
-                allPosts={posts}
-                onCommentSubmit={handleAddComment}
-                sessionFollowStatus={sessionFollowStatus}
-                setSessionFollowStatus={setSessionFollowStatus}
-              />
-            </MainLayout>
-          }
-        />
-        <Route
-          path="/notifications"
-          element={
-            <MainLayout {...mainLayoutProps}>
-              <NotificationsPage />
             </MainLayout>
           }
         />
@@ -184,9 +132,64 @@ function App() {
             </MainLayout>
           }
         />
+
+        {/* --- Rotas de Autenticação (públicas) --- */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/verify-email" element={<VerifyEmailPage />} />
+
+        {/* --- MUDANÇA 2: Rotas Protegidas --- */}
+        <Route
+          path="/marketplace/criar"
+          element={
+            <ProtectedRoute>
+              <MainLayout {...mainLayoutProps}>
+                <CreateListingPage />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile/:profileId"
+          element={
+            <ProtectedRoute>
+              <MainLayout {...mainLayoutProps}>
+                <ProfilePage
+                  allPosts={posts}
+                  onCommentSubmit={handleAddComment}
+                  sessionFollowStatus={sessionFollowStatus}
+                  setSessionFollowStatus={setSessionFollowStatus}
+                />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <MainLayout {...mainLayoutProps}>
+                <ProfilePage
+                  allPosts={posts}
+                  onCommentSubmit={handleAddComment}
+                  sessionFollowStatus={sessionFollowStatus}
+                  setSessionFollowStatus={setSessionFollowStatus}
+                />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/notifications"
+          element={
+            <ProtectedRoute>
+              <MainLayout {...mainLayoutProps}>
+                <NotificationsPage />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
       </Routes>
       <Footer />
       {isCreatePostModalOpen && (

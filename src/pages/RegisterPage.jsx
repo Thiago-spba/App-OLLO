@@ -1,9 +1,9 @@
 // src/pages/RegisterPage.jsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import useAuthStore from '../store/authStore';
+import { useAuth } from '../context/AuthContext';
 import {
   EyeIcon,
   EyeSlashIcon,
@@ -14,6 +14,10 @@ import toast, { Toaster } from 'react-hot-toast';
 
 function RegisterPage() {
   const navigate = useNavigate();
+  // MUDANÇA 1: Pega também a função de logout
+  const { registerWithEmail, logout } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
+
   const {
     register,
     handleSubmit,
@@ -21,93 +25,42 @@ function RegisterPage() {
     formState: { errors },
   } = useForm();
 
-  const registerWithEmail = useAuthStore((state) => state.registerWithEmail);
-  const isLoading = useAuthStore((state) => state.isLoading);
-  const authError = useAuthStore((state) => state.error);
-
   const [showPassword, setShowPassword] = useState(false);
   const [isUsernameTooltipVisible, setIsUsernameTooltipVisible] =
     useState(false);
 
-  useEffect(() => {
-    if (authError) {
+  const onSubmit = async (data) => {
+    setIsLoading(true);
+    const additionalData = {
+      name: `${data.firstName} ${data.lastName}`,
+      username: data.username.toLowerCase(),
+    };
+
+    try {
+      const result = await registerWithEmail(
+        data.email,
+        data.password,
+        additionalData
+      );
+
+      if (result.success) {
+        // MUDANÇA 2: Desloga o usuário para forçar o fluxo de verificação
+        await logout();
+        navigate('/verify-email');
+      }
+    } catch (error) {
       toast.error(
-        authError.includes('email-already-in-use')
+        error.code === 'auth/email-already-in-use'
           ? 'Este email já está cadastrado.'
-          : 'Ocorreu um erro no cadastro.',
+          : 'Ocorreu um erro no cadastro. Tente novamente.',
         {
           duration: 4000,
           position: 'top-center',
           style: { background: '#FFF0F0', color: '#D92D20' },
         }
       );
-    }
-  }, [authError]);
-
-  const onSubmit = async (data) => {
-    const additionalData = {
-      name: `${data.firstName} ${data.lastName}`,
-      username: data.username.toLowerCase(),
-    };
-    const result = await registerWithEmail(
-      data.email,
-      data.password,
-      additionalData
-    );
-
-    if (result.success) {
-      toast.custom(
-        (t) => (
-          <div
-            className={`${
-              t.visible ? 'animate-enter' : 'animate-leave'
-            } max-w-md w-full bg-white dark:bg-gray-800 shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5 dark:ring-white dark:ring-opacity-10`}
-          >
-            <div className="flex-1 w-0 p-4">
-              <div className="flex items-start">
-                <div className="flex-shrink-0 pt-0.5">
-                  <svg
-                    className="h-10 w-10 text-green-500"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                    ></path>
-                  </svg>
-                </div>
-                <div className="ml-3 flex-1">
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                    Conta criada com sucesso!
-                  </p>
-                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                    Enviamos um link para <b>{data.email}</b>. Por favor,
-                    verifique sua caixa de entrada e spam para confirmar sua
-                    conta.
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="flex border-l border-gray-200 dark:border-gray-700">
-              <button
-                onClick={() => toast.dismiss(t.id)}
-                className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-ollo-accent hover:text-ollo-deep focus:outline-none focus:ring-2 focus:ring-ollo-accent"
-              >
-                Fechar
-              </button>
-            </div>
-          </div>
-        ),
-        {
-          duration: 10000,
-          position: 'top-center',
-        }
-      );
-      setTimeout(() => navigate('/login'), 5000);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -123,6 +76,7 @@ function RegisterPage() {
           </h2>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+            {/* O resto do JSX permanece igual */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-5">
               <div>
                 <label htmlFor="firstName" className="label-style">
