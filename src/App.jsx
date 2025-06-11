@@ -2,6 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
+
+// Importa nosso novo authStore
+import useAuthStore from './store/authStore';
+
 import Footer from './components/Footer';
 import CreatePostModal from './components/CreatePostModal';
 import MainLayout from './layouts/MainLayout';
@@ -24,6 +28,17 @@ function App() {
     return savedMode === 'true';
   });
 
+  // *** NOVA LÓGICA DE AUTENTICAÇÃO ***
+  // Pega a função 'fetchUser' do nosso store.
+  const fetchUser = useAuthStore((state) => state.fetchUser);
+
+  useEffect(() => {
+    // Chama a função fetchUser uma vez quando o App é montado.
+    // Isso inicia o listener onAuthStateChanged do Firebase.
+    fetchUser();
+  }, [fetchUser]);
+
+  // O resto do seu código permanece exatamente igual
   const [sessionFollowStatus, setSessionFollowStatus] = useState({});
   const [posts, setPosts] = useState([
     {
