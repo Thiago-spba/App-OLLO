@@ -1,9 +1,8 @@
 // src/pages/LoginPage.jsx
 
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import { EyeIcon } from '@heroicons/react/24/outline';
 import toast, { Toaster } from 'react-hot-toast';
 
 const LoginPage = () => {
@@ -11,30 +10,33 @@ const LoginPage = () => {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // MUDANÇA 1: Pega a função correta do AuthContext
   const { loginWithEmail } = useAuth();
   const navigate = useNavigate();
 
-  // MUDANÇA 2: A função handleSubmit é reescrita para usar o login real
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
-      await loginWithEmail(email, password);
-      // O listener onAuthStateChanged no AuthContext vai detectar o login.
-      // A lógica de redirecionamento agora viverá no componente que protege as rotas.
-      // Por enquanto, após o login, ele vai para a home.
-      navigate('/');
+      // A função de login do Firebase retorna o userCredential
+      const userCredential = await loginWithEmail(email, password);
+      const firebaseUser = userCredential.user;
+
+      // Verificação IMEDIATA após o login
+      if (firebaseUser.emailVerified) {
+        // Se o e-mail for verificado, vai para a home.
+        navigate('/');
+      } else {
+        // Se NÃO for verificado, vai para a página de verificação.
+        navigate('/verify-email');
+      }
     } catch (err) {
-      console.error('Erro no login:', err);
-      toast.error('Email ou senha inválidos. Por favor, tente novamente.');
+      toast.error('Email ou senha inválidos.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // O resto do seu JSX está ótimo, apenas o texto do botão é alterado.
   return (
     <>
       <Toaster />
@@ -99,24 +101,12 @@ const LoginPage = () => {
             </div>
 
             <div className="flex justify-end items-center -mt-3 mb-2 sm:mb-0 sm:-mt-4">
-              <button
-                type="button"
-                onClick={() => navigate('/forgot-password')}
-                className="group relative inline-flex items-center text-xs focus:outline-none"
-                aria-label="Recuperar senha"
+              <Link
+                to="/forgot-password"
+                className="text-xs text-gray-600 hover:underline dark:text-gray-400"
               >
-                <EyeIcon
-                  className="h-5 w-5 text-gray-500 group-hover:text-ollo-deep dark:text-gray-400 dark:group-hover:text-ollo-accent-light transition-colors duration-150"
-                  aria-hidden="true"
-                />
-                <span
-                  className="absolute left-1/2 -translate-x-1/2 top-full mt-2 whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs font-semibold shadow-lg opacity-0 transition-opacity group-hover:opacity-100 pointer-events-none z-10
-                                             bg-gray-600 text-white dark:bg-gray-700 dark:text-ollo-light"
-                  role="tooltip"
-                >
-                  Recuperar senha
-                </span>
-              </button>
+                Esqueceu a senha?
+              </Link>
             </div>
 
             <div className="pt-1">
@@ -136,12 +126,12 @@ const LoginPage = () => {
           </form>
           <p className="mt-8 sm:mt-10 text-center text-xs text-gray-700 dark:text-gray-300">
             Ainda não tem uma conta?{' '}
-            <button
-              onClick={() => navigate('/register')}
+            <Link
+              to="/register"
               className="font-semibold text-ollo-deep hover:underline dark:text-ollo-accent-light dark:hover:underline"
             >
               Cadastre-se
-            </button>
+            </Link>
           </p>
         </div>
         <footer className="text-center mt-8 sm:mt-12 text-xs text-gray-600 dark:text-gray-400">

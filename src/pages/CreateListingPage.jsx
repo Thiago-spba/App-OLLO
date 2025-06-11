@@ -4,7 +4,8 @@ import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
-import { db, storage } from '../firebase/config.js'; // Importa também o storage
+import { db, storage } from '../firebase/config.js';
+import { useAuth } from '../context/AuthContext'; // MUDANÇA 1: Importa o useAuth
 import {
   TagIcon,
   CurrencyDollarIcon,
@@ -13,7 +14,7 @@ import {
   PhotoIcon,
   XCircleIcon,
 } from '@heroicons/react/24/outline';
-import { v4 as uuidv4 } from 'uuid'; // AGORA ISSO VAI FUNCIONAR!
+import { v4 as uuidv4 } from 'uuid';
 
 const CreateListingPage = () => {
   const {
@@ -22,6 +23,7 @@ const CreateListingPage = () => {
     formState: { errors, isSubmitting },
   } = useForm();
   const navigate = useNavigate();
+  const { currentUser } = useAuth(); // MUDANÇA 2: Pega o usuário logado do contexto
   const [serverError, setServerError] = useState('');
   const [imageFiles, setImageFiles] = useState([]);
   const [imagePreviews, setImagePreviews] = useState([]);
@@ -30,23 +32,24 @@ const CreateListingPage = () => {
     if (e.target.files) {
       const filesArray = Array.from(e.target.files);
       const newFiles = filesArray.slice(0, 5 - imageFiles.length);
-
       setImageFiles((prev) => [...prev, ...newFiles]);
-
       const newPreviews = newFiles.map((file) => URL.createObjectURL(file));
       setImagePreviews((prev) => [...prev, ...newPreviews]);
-      e.target.value = null; // Limpa o input para permitir selecionar os mesmos arquivos de novo
+      e.target.value = null;
     }
   };
 
   const removeImage = (index) => {
     setImageFiles((prev) => prev.filter((_, i) => i !== index));
-    // Limpa a URL do objeto para liberar memória
     URL.revokeObjectURL(imagePreviews[index]);
     setImagePreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
   const onSubmit = async (data) => {
+    if (!currentUser) {
+      setServerError('Você precisa estar logado para criar um anúncio.');
+      return;
+    }
     if (imageFiles.length === 0) {
       setServerError('Por favor, adicione pelo menos uma imagem.');
       return;
@@ -56,20 +59,24 @@ const CreateListingPage = () => {
     try {
       const imageUrls = await Promise.all(
         imageFiles.map(async (file) => {
-          const imageRef = ref(storage, `listings/${uuidv4()}-${file.name}`);
+          const imageRef = ref(
+            storage,
+            `listings/${currentUser.uid}/${uuidv4()}-${file.name}`
+          );
           await uploadBytes(imageRef, file);
           return getDownloadURL(imageRef);
         })
       );
 
+      // MUDANÇA 3: Usa os dados do currentUser em vez de valores fixos
       await addDoc(collection(db, 'listagens'), {
         title: data.title,
         description: data.description,
         price: data.price,
         category: data.category.toLowerCase(),
         imageUrls: imageUrls,
-        sellerId: 'usuario-ollo',
-        sellerName: 'Usuário OLLO',
+        sellerId: currentUser.uid, // <-- CORRIGIDO
+        sellerName: currentUser.name, // <-- CORRIGIDO
         status: 'active',
         isPromoted: false,
         createdAt: serverTimestamp(),
@@ -79,7 +86,16 @@ const CreateListingPage = () => {
       navigate('/marketplace');
     } catch (error) {
       console.error('Erro ao criar anúncio:', error);
-      setServerError('Ocorreu um erro ao criar seu anúncio. Tente novamente.');
+      // Aqui você pode verificar se o erro é de permissão do Firestore
+      if (error.code === 'permission-denied') {
+        setServerError(
+          'Você não tem permissão para criar anúncios. Verifique suas regras de segurança no Firebase.'
+        );
+      } else {
+        setServerError(
+          'Ocorreu um erro ao criar seu anúncio. Tente novamente.'
+        );
+      }
     }
   };
 
@@ -103,7 +119,6 @@ const CreateListingPage = () => {
         onSubmit={handleSubmit(onSubmit)}
         className="space-y-6 bg-white dark:bg-ollo-slate p-6 sm:p-8 rounded-xl shadow-2xl border border-gray-200/50 dark:border-gray-700/50"
       >
-        {/* ---- ÁREA DE UPLOAD DE IMAGENS ---- */}
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
             Imagens do Produto (até 5)
@@ -157,7 +172,6 @@ const CreateListingPage = () => {
           )}
         </div>
 
-        {/* ... O resto do seu formulário, como já estava ... */}
         <div className="relative">
           <label
             htmlFor="title"

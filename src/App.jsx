@@ -1,8 +1,7 @@
 // src/App.jsx
 
 import { useState, useEffect } from 'react';
-import { Routes, Route } from 'react-router-dom';
-
+import { Routes, Route, Outlet } from 'react-router-dom'; // Adiciona Outlet
 import Footer from './components/Footer';
 import CreatePostModal from './components/CreatePostModal';
 import MainLayout from './layouts/MainLayout';
@@ -19,8 +18,16 @@ import MarketplacePage from './pages/MarketplacePage';
 import CreateListingPage from './pages/CreateListingPage';
 import ListingDetailPage from './pages/ListingDetailPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
-// MUDANÇA 1: Importa o componente de proteção
 import ProtectedRoute from './components/auth/ProtectedRoute';
+
+// Componente de Layout para Rotas Protegidas
+const ProtectedLayout = ({ mainLayoutProps }) => (
+  <ProtectedRoute>
+    <MainLayout {...mainLayoutProps}>
+      <Outlet /> {/* O Outlet renderiza a rota filha */}
+    </MainLayout>
+  </ProtectedRoute>
+);
 
 function App() {
   const [darkMode, setDarkMode] = useState(() => {
@@ -57,14 +64,7 @@ function App() {
   const openCreatePostModal = () => setIsCreatePostModalOpen(true);
   const closeCreatePostModal = () => setIsCreatePostModalOpen(false);
 
-  const handleAddPost = () => {};
-  const handleAddComment = () => {};
-  const handleDeletePost = () => {};
-
-  const mainLayoutProps = {
-    openCreatePostModal,
-    toggleTheme,
-  };
+  const mainLayoutProps = { openCreatePostModal, toggleTheme };
 
   const themeClasses = darkMode
     ? 'bg-ollo-deep text-ollo-light'
@@ -75,7 +75,13 @@ function App() {
       className={`min-h-screen flex flex-col font-sans transition-colors duration-300 ${themeClasses}`}
     >
       <Routes>
-        {/* --- Rotas Públicas --- */}
+        {/* --- Rotas de Autenticação (fora de qualquer layout) --- */}
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/verify-email" element={<VerifyEmailPage />} />
+
+        {/* --- Rotas Públicas com Layout Principal --- */}
         <Route
           path="/"
           element={
@@ -83,8 +89,8 @@ function App() {
               <HomePage
                 posts={posts}
                 onTriggerCreatePost={openCreatePostModal}
-                onCommentSubmit={handleAddComment}
-                onDeletePost={handleDeletePost}
+                onCommentSubmit={() => {}}
+                onDeletePost={() => {}}
               />
             </MainLayout>
           }
@@ -93,10 +99,7 @@ function App() {
           path="/explore"
           element={
             <MainLayout {...mainLayoutProps}>
-              <ExplorePage
-                allPosts={posts}
-                onCommentSubmit={handleAddComment}
-              />
+              <ExplorePage allPosts={posts} onCommentSubmit={() => {}} />
             </MainLayout>
           }
         />
@@ -133,70 +136,37 @@ function App() {
           }
         />
 
-        {/* --- Rotas de Autenticação (públicas) --- */}
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-        <Route path="/verify-email" element={<VerifyEmailPage />} />
-
-        {/* --- MUDANÇA 2: Rotas Protegidas --- */}
-        <Route
-          path="/marketplace/criar"
-          element={
-            <ProtectedRoute>
-              <MainLayout {...mainLayoutProps}>
-                <CreateListingPage />
-              </MainLayout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/profile/:profileId"
-          element={
-            <ProtectedRoute>
-              <MainLayout {...mainLayoutProps}>
-                <ProfilePage
-                  allPosts={posts}
-                  onCommentSubmit={handleAddComment}
-                  sessionFollowStatus={sessionFollowStatus}
-                  setSessionFollowStatus={setSessionFollowStatus}
-                />
-              </MainLayout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/profile"
-          element={
-            <ProtectedRoute>
-              <MainLayout {...mainLayoutProps}>
-                <ProfilePage
-                  allPosts={posts}
-                  onCommentSubmit={handleAddComment}
-                  sessionFollowStatus={sessionFollowStatus}
-                  setSessionFollowStatus={setSessionFollowStatus}
-                />
-              </MainLayout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/notifications"
-          element={
-            <ProtectedRoute>
-              <MainLayout {...mainLayoutProps}>
-                <NotificationsPage />
-              </MainLayout>
-            </ProtectedRoute>
-          }
-        />
+        {/* --- Rotas Protegidas --- */}
+        <Route element={<ProtectedLayout mainLayoutProps={mainLayoutProps} />}>
+          <Route path="/marketplace/criar" element={<CreateListingPage />} />
+          <Route
+            path="/profile/:profileId"
+            element={
+              <ProfilePage
+                allPosts={posts}
+                onCommentSubmit={() => {}}
+                sessionFollowStatus={sessionFollowStatus}
+                setSessionFollowStatus={setSessionFollowStatus}
+              />
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <ProfilePage
+                allPosts={posts}
+                onCommentSubmit={() => {}}
+                sessionFollowStatus={sessionFollowStatus}
+                setSessionFollowStatus={setSessionFollowStatus}
+              />
+            }
+          />
+          <Route path="/notifications" element={<NotificationsPage />} />
+        </Route>
       </Routes>
       <Footer />
       {isCreatePostModalOpen && (
-        <CreatePostModal
-          onClose={closeCreatePostModal}
-          onAddPost={handleAddPost}
-        />
+        <CreatePostModal onClose={closeCreatePostModal} onAddPost={() => {}} />
       )}
     </div>
   );
