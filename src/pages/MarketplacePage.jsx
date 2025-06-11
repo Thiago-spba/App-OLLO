@@ -2,8 +2,16 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { db } from '../firebase/config.js'; // A importação já estava correta
-import { collection, getDocs, query, orderBy } from 'firebase/firestore'; // Importando query e orderBy
+import { db } from '../firebase/config.js';
+// 👇 ADICIONADO: 'doc' e 'deleteDoc' para a funcionalidade de exclusão
+import {
+  collection,
+  getDocs,
+  query,
+  orderBy,
+  doc,
+  deleteDoc,
+} from 'firebase/firestore';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import ListagemCard from '../components/ListagemCard.jsx';
 
@@ -13,24 +21,18 @@ function MarketplacePage() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    // REFINAMENTO 1: Envolvemos a função assíncrona dentro do useEffect
-    // para deixar claro que ela só pertence a este efeito.
     const fetchListings = async () => {
-      setLoading(true); // Garante que o loading seja reativado se a página recarregar
+      setLoading(true);
       try {
-        // REFINAMENTO 2: Adicionamos uma query para ordenar os produtos pelo mais recente
         const listingsCollectionRef = collection(db, 'listagens');
-        const q = query(listingsCollectionRef, orderBy('createdAt', 'desc')); // Ordena por data de criação, do mais novo para o mais antigo
-
-        const data = await getDocs(q); // Executa a query
-
+        const q = query(listingsCollectionRef, orderBy('createdAt', 'desc'));
+        const data = await getDocs(q);
         const listingsData = data.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
         }));
-
         setListings(listingsData);
-        setError(null); // Limpa qualquer erro anterior
+        setError(null);
       } catch (err) {
         console.error('Erro ao buscar anúncios:', err);
         setError(
@@ -42,12 +44,37 @@ function MarketplacePage() {
     };
 
     fetchListings();
-
-    // O array de dependências vazio [] garante que o useEffect rode apenas uma vez,
-    // quando o componente é montado. Isso está correto.
   }, []);
 
-  // Função para renderizar o conteúdo principal
+  // 👇 PASSO 1: CRIAR A FUNÇÃO DE EXCLUSÃO
+  const handleDeleteListing = async (listingId) => {
+    // Confirmação para evitar exclusão acidental
+    if (
+      !window.confirm(
+        'Tem certeza que deseja excluir este anúncio? Esta ação não pode ser desfeita.'
+      )
+    ) {
+      return;
+    }
+
+    try {
+      // Cria uma referência para o documento específico que queremos deletar
+      const listingDocRef = doc(db, 'listagens', listingId);
+      // Deleta o documento no Firestore
+      await deleteDoc(listingDocRef);
+
+      // Atualiza o estado local para remover o item da tela imediatamente (UI Otimista)
+      setListings((currentListings) =>
+        currentListings.filter((item) => item.id !== listingId)
+      );
+
+      console.log(`Anúncio ${listingId} excluído com sucesso!`);
+    } catch (err) {
+      console.error('Erro ao excluir anúncio:', err);
+      alert('Ocorreu um erro ao tentar excluir o anúncio. Tente novamente.');
+    }
+  };
+
   const renderContent = () => {
     if (loading) {
       return (
@@ -81,7 +108,12 @@ function MarketplacePage() {
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {listings.map((item) => (
-          <ListagemCard key={item.id} listing={item} />
+          // 👇 PASSO 2: PASSAR A FUNÇÃO COMO PROP
+          <ListagemCard
+            key={item.id}
+            listing={item}
+            onDelete={handleDeleteListing} // Passando a função de exclusão
+          />
         ))}
       </div>
     );
