@@ -5,13 +5,24 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
 const ProtectedRoute = ({ children }) => {
-  // MUDANÇA: Pega também o estado de 'loading' do contexto
   const { currentUser, loading } = useAuth();
   const location = useLocation();
 
-  // Se ainda estivermos verificando o usuário, mostra uma tela de carregamento.
-  // ISSO EVITA O REDIRECIONAMENTO PREMATURO.
+  // DEBUG: Vamos ver o que está acontecendo
+  console.log('🔍 ProtectedRoute Debug:', {
+    loading,
+    currentUser: currentUser
+      ? {
+          email: currentUser.email,
+          emailVerified: currentUser.emailVerified,
+          uid: currentUser.uid,
+        }
+      : null,
+    pathname: location.pathname,
+  });
+
   if (loading) {
+    console.log('⏳ ProtectedRoute: Ainda carregando...');
     return (
       <div className="flex items-center justify-center min-h-screen">
         Carregando...
@@ -20,13 +31,22 @@ const ProtectedRoute = ({ children }) => {
   }
 
   if (!currentUser) {
+    console.log(
+      '❌ ProtectedRoute: Usuário não autenticado, redirecionando para /login'
+    );
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   if (!currentUser.emailVerified) {
+    console.log(
+      '📧 ProtectedRoute: Email não verificado, redirecionando para /verify-email'
+    );
     return <Navigate to="/verify-email" replace />;
   }
 
+  console.log(
+    '✅ ProtectedRoute: Usuário autenticado e verificado, permitindo acesso'
+  );
   return children;
 };
 
