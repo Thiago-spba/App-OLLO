@@ -1,33 +1,51 @@
 // src/pages/VerifyEmailPage.jsx
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext'; // MUDANÇA 1: Usa o AuthContext
-import { signOut, sendEmailVerification } from 'firebase/auth';
+import { useAuth } from '../context/AuthContext';
+import {
+  signOut,
+  sendEmailVerification,
+  onAuthStateChanged,
+} from 'firebase/auth'; // Importa onAuthStateChanged
 import { auth } from '../firebase/config';
 import toast, { Toaster } from 'react-hot-toast';
 
 const VerifyEmailPage = () => {
-  const { currentUser: user, logout } = useAuth(); // MUDANÇA 2: Pega o usuário e o logout do AuthContext
+  const { logout } = useAuth();
   const navigate = useNavigate();
+  // MUDANÇA 1: Usa um estado local para o usuário desta página
+  const [pageUser, setPageUser] = useState(auth.currentUser);
 
   useEffect(() => {
-    // Se o usuário já estiver com o e-mail verificado, não precisa estar nesta página.
-    // Redireciona para a home.
-    if (user && user.emailVerified) {
-      navigate('/');
-    }
-  }, [user, navigate]);
+    // Escuta por mudanças no estado de autenticação do Firebase.
+    // Isso garante que temos a informação mais atual.
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setPageUser(user);
+        // Se o usuário já estiver verificado (ex: clicou no link e voltou para a aba),
+        // recarrega os dados dele e o envia para a home.
+        if (user.emailVerified) {
+          toast.success('Email verificado com sucesso! Redirecionando...');
+          setTimeout(() => navigate('/'), 2000);
+        }
+      } else {
+        // Se o usuário deslogou, envia para a página de login.
+        setPageUser(null);
+        navigate('/login');
+      }
+    });
+
+    return () => unsubscribe();
+  }, [navigate]);
 
   const handleResendEmail = async () => {
-    if (!auth.currentUser) {
+    if (!pageUser) {
       toast.error('Ocorreu um erro. Por favor, faça login novamente.');
-      await logout();
-      navigate('/login');
       return;
     }
     try {
-      await sendEmailVerification(auth.currentUser);
+      await sendEmailVerification(pageUser);
       toast.success(
         'Um novo link de verificação foi enviado para o seu e-mail!'
       );
@@ -43,8 +61,8 @@ const VerifyEmailPage = () => {
     navigate('/login');
   };
 
-  // Se o estado ainda está carregando ou não há usuário, mostra um loader.
-  if (!user) {
+  // MUDANÇA 2: A lógica de carregamento agora é baseada no usuário local da página.
+  if (!pageUser) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-white dark:bg-ollo-deep">
         <p className="text-lg text-gray-600 dark:text-gray-300">
@@ -78,12 +96,12 @@ const VerifyEmailPage = () => {
             Confirme seu e-mail
           </h2>
           <p className="text-gray-600 dark:text-gray-300">
-            Enviamos um link de verificação para <strong>{user.email}</strong>.
-            Por favor, verifique sua caixa de entrada (e a pasta de spam) para
-            ativar sua conta.
+            Enviamos um link de verificação para{' '}
+            <strong>{pageUser.email}</strong>. Por favor, verifique sua caixa de
+            entrada (e a pasta de spam) para ativar sua conta.
           </p>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Após verificar, você pode fechar esta aba e fazer o login novamente.
+            Após verificar, você pode fazer o login.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button

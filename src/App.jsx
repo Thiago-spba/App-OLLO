@@ -1,7 +1,7 @@
 // src/App.jsx
 
 import { useState, useEffect } from 'react';
-import { Routes, Route, Outlet } from 'react-router-dom'; // Adiciona Outlet
+import { Routes, Route } from 'react-router-dom';
 import Footer from './components/Footer';
 import CreatePostModal from './components/CreatePostModal';
 import MainLayout from './layouts/MainLayout';
@@ -18,18 +18,11 @@ import MarketplacePage from './pages/MarketplacePage';
 import CreateListingPage from './pages/CreateListingPage';
 import ListingDetailPage from './pages/ListingDetailPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 
-// Componente de Layout para Rotas Protegidas
-const ProtectedLayout = ({ mainLayoutProps }) => (
-  <ProtectedRoute>
-    <MainLayout {...mainLayoutProps}>
-      <Outlet /> {/* O Outlet renderiza a rota filha */}
-    </MainLayout>
-  </ProtectedRoute>
-);
-
 function App() {
+  // A sua lógica de estado permanece a mesma.
   const [darkMode, setDarkMode] = useState(() => {
     const savedMode = localStorage.getItem('darkMode');
     return savedMode === 'true';
@@ -40,12 +33,11 @@ function App() {
     {
       id: 1,
       postId: 'bem-vindo-ollo',
-      userName: 'Gemini Auxiliar',
-      timestamp: 'Agora mesmo',
-      content:
-        'Bem-vindo ao OLLO! Uma nova plataforma para conectar e compartilhar. Explore, crie e divirta-se!',
+      userName: 'Usuário OLLO',
       comments: [],
       likeCount: Math.floor(Math.random() * 101),
+      content:
+        'Bem-vindo ao OLLO! Uma nova plataforma para conectar e compartilhar. Explore, crie e divirta-se!',
     },
   ]);
   const [isCreatePostModalOpen, setIsCreatePostModalOpen] = useState(false);
@@ -75,13 +67,14 @@ function App() {
       className={`min-h-screen flex flex-col font-sans transition-colors duration-300 ${themeClasses}`}
     >
       <Routes>
-        {/* --- Rotas de Autenticação (fora de qualquer layout) --- */}
+        {/* Rotas que NÃO usam o MainLayout */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/verify-email" element={<VerifyEmailPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
 
-        {/* --- Rotas Públicas com Layout Principal --- */}
+        {/* --- Rotas Públicas com Layout --- */}
         <Route
           path="/"
           element={
@@ -136,33 +129,55 @@ function App() {
           }
         />
 
+        {/* --- Rota do Perfil (PÚBLICA PARA TESTE) --- */}
+        <Route
+          path="/profile"
+          element={
+            <MainLayout {...mainLayoutProps}>
+              <ProfilePage
+                allPosts={posts}
+                onCommentSubmit={() => {}}
+                sessionFollowStatus={sessionFollowStatus}
+                setSessionFollowStatus={setSessionFollowStatus}
+              />
+            </MainLayout>
+          }
+        />
+        <Route
+          path="/profile/:profileId"
+          element={
+            <MainLayout {...mainLayoutProps}>
+              <ProfilePage
+                allPosts={posts}
+                onCommentSubmit={() => {}}
+                sessionFollowStatus={sessionFollowStatus}
+                setSessionFollowStatus={setSessionFollowStatus}
+              />
+            </MainLayout>
+          }
+        />
+
         {/* --- Rotas Protegidas --- */}
-        <Route element={<ProtectedLayout mainLayoutProps={mainLayoutProps} />}>
-          <Route path="/marketplace/criar" element={<CreateListingPage />} />
-          <Route
-            path="/profile/:profileId"
-            element={
-              <ProfilePage
-                allPosts={posts}
-                onCommentSubmit={() => {}}
-                sessionFollowStatus={sessionFollowStatus}
-                setSessionFollowStatus={setSessionFollowStatus}
-              />
-            }
-          />
-          <Route
-            path="/profile"
-            element={
-              <ProfilePage
-                allPosts={posts}
-                onCommentSubmit={() => {}}
-                sessionFollowStatus={sessionFollowStatus}
-                setSessionFollowStatus={setSessionFollowStatus}
-              />
-            }
-          />
-          <Route path="/notifications" element={<NotificationsPage />} />
-        </Route>
+        <Route
+          path="/marketplace/criar"
+          element={
+            <ProtectedRoute>
+              <MainLayout {...mainLayoutProps}>
+                <CreateListingPage />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/notifications"
+          element={
+            <ProtectedRoute>
+              <MainLayout {...mainLayoutProps}>
+                <NotificationsPage />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
       </Routes>
       <Footer />
       {isCreatePostModalOpen && (
