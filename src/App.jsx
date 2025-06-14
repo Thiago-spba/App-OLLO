@@ -20,9 +20,11 @@ import ListingDetailPage from './pages/ListingDetailPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import ProtectedRoute from './components/auth/ProtectedRoute';
+// --- 1. IMPORTAÇÃO ADICIONADA ---
+import ActionHandlerPage from './pages/ActionHandlerPage';
 
 function App() {
-  // A sua lógica de estado permanece a mesma.
+  // Sua lógica de estado permanece a mesma, está perfeita.
   const [darkMode, setDarkMode] = useState(() => {
     const savedMode = localStorage.getItem('darkMode');
     return savedMode === 'true';
@@ -73,6 +75,8 @@ function App() {
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
+        {/* --- 2. ROTA DA PÁGINA DE PONTE ADICIONADA --- */}
+        <Route path="/actions" element={<ActionHandlerPage />} />
 
         {/* --- Rotas Públicas com Layout --- */}
         <Route
@@ -129,31 +133,35 @@ function App() {
           }
         />
 
-        {/* --- Rota do Perfil (PÚBLICA PARA TESTE) --- */}
+        {/* --- Rota do Perfil --- */}
         <Route
           path="/profile"
           element={
-            <MainLayout {...mainLayoutProps}>
-              <ProfilePage
-                allPosts={posts}
-                onCommentSubmit={() => {}}
-                sessionFollowStatus={sessionFollowStatus}
-                setSessionFollowStatus={setSessionFollowStatus}
-              />
-            </MainLayout>
+            <ProtectedRoute>
+              <MainLayout {...mainLayoutProps}>
+                <ProfilePage
+                  allPosts={posts}
+                  onCommentSubmit={() => {}}
+                  sessionFollowStatus={sessionFollowStatus}
+                  setSessionFollowStatus={setSessionFollowStatus}
+                />
+              </MainLayout>
+            </ProtectedRoute>
           }
         />
         <Route
           path="/profile/:profileId"
           element={
-            <MainLayout {...mainLayoutProps}>
-              <ProfilePage
-                allPosts={posts}
-                onCommentSubmit={() => {}}
-                sessionFollowStatus={sessionFollowStatus}
-                setSessionFollowStatus={setSessionFollowStatus}
-              />
-            </MainLayout>
+            <ProtectedRoute>
+              <MainLayout {...mainLayoutProps}>
+                <ProfilePage
+                  allPosts={posts}
+                  onCommentSubmit={() => {}}
+                  sessionFollowStatus={sessionFollowStatus}
+                  setSessionFollowStatus={setSessionFollowStatus}
+                />
+              </MainLayout>
+            </ProtectedRoute>
           }
         />
 

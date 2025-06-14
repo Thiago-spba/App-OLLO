@@ -40,16 +40,40 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const registerWithEmail = async (email, password, additionalData) => {
-    // ... (código de registro permanece o mesmo)
+    const userCredential = await createUserWithEmailAndPassword(
+      auth,
+      email,
+      password
+    );
+    const firebaseUser = userCredential.user;
+
+    const userDocRef = doc(db, 'users', firebaseUser.uid);
+    await setDoc(userDocRef, {
+      uid: firebaseUser.uid,
+      email: firebaseUser.email,
+      name: additionalData.name,
+      username: additionalData.username,
+      bio: 'Novo membro do OLLO!',
+      avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(additionalData.name)}&background=0D1B2A&color=E0E1DD&bold=true`,
+      createdAt: serverTimestamp(),
+    });
+
+    // CORREÇÃO: Restaurando a lógica correta para a verificação de e-mail.
+    const actionCodeSettings = {
+      url: `${window.location.origin}/login?email_verified=true`,
+      handleCodeInApp: true,
+    };
+    await sendEmailVerification(firebaseUser, actionCodeSettings);
+
+    return { success: true };
   };
 
   const loginWithEmail = (email, password) => {
-    // ... (código de login permanece o mesmo)
+    return signInWithEmailAndPassword(auth, email, password);
   };
 
-  // FUNÇÃO SIMPLIFICADA
   const forgotPassword = (email) => {
-    // Não precisamos mais do actionCodeSettings, pois o Console cuidará disso.
+    // A lógica para forgotPassword permanece a mesma, usando a configuração do Console.
     return sendPasswordResetEmail(auth, email);
   };
 
