@@ -14,21 +14,24 @@ import toast, { Toaster } from 'react-hot-toast';
 
 function RegisterPage() {
   const navigate = useNavigate();
-  // MUDANÇA 1: Pega também a função de logout
-  const { registerWithEmail, logout } = useAuth();
-  const [isLoading, setIsLoading] = useState(false);
-
+  // MUDANÇA 1: A função 'reset' do react-hook-form é importada para limpar o formulário
   const {
     register,
     handleSubmit,
     watch,
+    reset, // <-- Importado
     formState: { errors },
   } = useForm();
+
+  // MUDANÇA 2: Pegamos apenas a função 'registerWithEmail', pois 'logout' não é mais necessário aqui
+  const { registerWithEmail } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
 
   const [showPassword, setShowPassword] = useState(false);
   const [isUsernameTooltipVisible, setIsUsernameTooltipVisible] =
     useState(false);
 
+  // MUDANÇA 3: A função onSubmit é simplificada
   const onSubmit = async (data) => {
     setIsLoading(true);
     const additionalData = {
@@ -44,9 +47,15 @@ function RegisterPage() {
       );
 
       if (result.success) {
-        // MUDANÇA 2: Desloga o usuário para forçar o fluxo de verificação
-        await logout();
-        navigate('/verify-email');
+        // Exibe a mensagem de sucesso que você queria!
+        toast.success(
+          'Cadastro realizado! Verifique seu e-mail para ativar a conta.',
+          {
+            duration: 5000,
+            position: 'top-center',
+          }
+        );
+        reset(); // Limpa todos os campos do formulário
       }
     } catch (error) {
       toast.error(
@@ -56,7 +65,6 @@ function RegisterPage() {
         {
           duration: 4000,
           position: 'top-center',
-          style: { background: '#FFF0F0', color: '#D92D20' },
         }
       );
     } finally {
@@ -66,6 +74,7 @@ function RegisterPage() {
 
   const password = watch('password');
 
+  // O JSX permanece o mesmo. Ele já é excelente.
   return (
     <>
       <Toaster />
@@ -76,7 +85,6 @@ function RegisterPage() {
           </h2>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-            {/* O resto do JSX permanece igual */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-5">
               <div>
                 <label htmlFor="firstName" className="label-style">
@@ -220,7 +228,7 @@ function RegisterPage() {
                 {...register('confirmPassword', {
                   required: 'Confirme sua senha',
                   validate: (value) =>
-                    value === password || 'As senhas não coincidem',
+                    value === watch('password') || 'As senhas não coincidem',
                 })}
                 className="input-field"
                 placeholder="••••••••"

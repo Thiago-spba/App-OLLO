@@ -2,7 +2,8 @@
 
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { sendPasswordResetEmail } from 'firebase/auth';
+import { auth } from '../firebase/config';
 import {
   EnvelopeIcon,
   CheckCircleIcon,
@@ -14,7 +15,6 @@ const ForgotPasswordPage = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const { forgotPassword } = useAuth();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -25,7 +25,11 @@ const ForgotPasswordPage = () => {
     }
     setLoading(true);
     try {
-      await forgotPassword(email);
+      const actionCodeSettings = {
+        url: `${window.location.origin}/reset-password`,
+        handleCodeInApp: true,
+      };
+      await sendPasswordResetEmail(auth, email, actionCodeSettings);
       setIsSubmitted(true);
     } catch (err) {
       setIsSubmitted(true);
@@ -34,32 +38,12 @@ const ForgotPasswordPage = () => {
     }
   };
 
-  const inputClasses = `
-    mt-1 block w-full px-3 py-2.5 border rounded-md shadow-sm focus:outline-none sm:text-sm transition-colors duration-150
-    bg-white dark:bg-slate-700
-    border-slate-300 dark:border-slate-600
-    text-slate-900 dark:text-ollo-light
-    placeholder-slate-400 dark:placeholder-slate-400
-    focus:border-ollo-deep dark:focus:border-ollo-accent-light
-    focus:ring-1 focus:ring-ollo-deep dark:focus:ring-ollo-accent-light
-  `;
-  const buttonClasses = `
-    w-full flex items-center justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors duration-150
-    ${
-      loading
-        ? 'bg-slate-300 text-slate-500 dark:bg-slate-600 dark:text-slate-400 cursor-not-allowed'
-        : 'bg-ollo-deep text-ollo-light hover:bg-opacity-90 focus:ring-ollo-deep focus:ring-offset-white dark:bg-ollo-accent-light dark:text-ollo-deep dark:hover:bg-opacity-90 dark:focus:ring-ollo-accent-light dark:focus:ring-offset-gray-800'
-    }
-  `;
+  const inputClasses = `mt-1 block w-full px-3 py-2.5 border rounded-md shadow-sm focus:outline-none sm:text-sm transition-colors duration-150 bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-900 dark:text-ollo-light placeholder-slate-400 dark:placeholder-slate-400 focus:border-ollo-deep dark:focus:border-ollo-accent-light focus:ring-1 focus:ring-ollo-deep dark:focus:ring-ollo-accent-light`;
+  const buttonClasses = `w-full flex items-center justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors duration-150 ${loading ? 'bg-slate-300 text-slate-500 dark:bg-slate-600 dark:text-slate-400 cursor-not-allowed' : 'bg-ollo-deep text-ollo-light hover:bg-opacity-90 focus:ring-ollo-deep focus:ring-offset-white dark:bg-ollo-accent-light dark:text-ollo-deep dark:hover:bg-opacity-90 dark:focus:ring-ollo-accent-light dark:focus:ring-offset-gray-800'}`;
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 selection:bg-ollo-deep/30 selection:text-ollo-deep">
-      <div
-        className="w-full max-w-md p-7 sm:p-10 space-y-6 rounded-xl
-                      bg-ollo-light/80 dark:bg-gray-800/90
-                      text-slate-800 dark:text-ollo-light
-                      backdrop-blur-lg shadow-2xl"
-      >
+      <div className="w-full max-w-md p-7 sm:p-10 space-y-6 rounded-xl bg-ollo-light/80 dark:bg-gray-800/90 text-slate-800 dark:text-ollo-light backdrop-blur-lg shadow-2xl">
         {!isSubmitted ? (
           <>
             <div className="text-center">
@@ -75,15 +59,13 @@ const ForgotPasswordPage = () => {
                 você voltar a acessar sua conta Ollo.
               </p>
             </div>
+
             {error && (
-              <div
-                className="p-3.5 rounded-lg text-sm
-                            bg-red-50 text-red-700 border border-red-200
-                            dark:bg-red-900/50 dark:text-red-200 dark:border-red-700/70"
-              >
+              <div className="p-3.5 rounded-lg text-sm bg-red-50 text-red-700 border border-red-200 dark:bg-red-900/50 dark:text-red-200 dark:border-red-700/70">
                 {error}
               </div>
             )}
+
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
                 <label
@@ -121,6 +103,7 @@ const ForgotPasswordPage = () => {
                 </button>
               </div>
             </form>
+
             <p className="mt-8 text-sm text-center">
               Lembrou a senha?{' '}
               <Link

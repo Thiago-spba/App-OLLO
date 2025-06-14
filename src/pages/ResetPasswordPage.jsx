@@ -53,7 +53,7 @@ const ResetPasswordPage = () => {
 
   const onSubmit = async (data) => {
     if (!oobCode) {
-      setError('Erro: código de ação inválido. Tente novamente.');
+      toast.error('Erro: código de ação inválido. Tente novamente.');
       return;
     }
     setLoading(true);
