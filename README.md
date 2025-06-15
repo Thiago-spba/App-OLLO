@@ -99,3 +99,5 @@ Para executar uma cópia deste projeto em seu ambiente de desenvolvimento, siga 
 ### 📄 Licença
 
 Distribuído sob a licença MIT. Veja `LICENSE.txt` para mais informações.
+---
+Teste de deploy automático.
