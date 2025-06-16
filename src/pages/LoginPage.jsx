@@ -1,3 +1,4 @@
+// Versão Aprimorada e Consolidada - 2025-06-16
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
