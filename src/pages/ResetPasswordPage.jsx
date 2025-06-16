@@ -1,3 +1,5 @@
+// Versão Corrigida - 2025-06-16
+
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { verifyPasswordResetCode, confirmPasswordReset } from 'firebase/auth';
