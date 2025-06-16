@@ -1,3 +1,5 @@
+// Versão Aprimorada - Mantendo Todas as Funcionalidades - 2025-06-16
+
 import { useState, useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import Footer from './components/Footer';
