@@ -1,3 +1,5 @@
+// Revisão: Testando alteração visível no Git
+
 // src/context/AuthContext.jsx
 
 import React, { createContext, useState, useContext, useEffect } from 'react';
