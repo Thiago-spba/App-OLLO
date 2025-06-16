@@ -1,5 +1,3 @@
-// src/App.jsx
-
 import { useState, useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import Footer from './components/Footer';
@@ -20,16 +18,17 @@ import ListingDetailPage from './pages/ListingDetailPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import ProtectedRoute from './components/auth/ProtectedRoute';
-// --- 1. IMPORTAÇÃO ADICIONADA ---
 import ActionHandlerPage from './pages/ActionHandlerPage';
+import { Toaster } from 'react-hot-toast';
 
 function App() {
-  // Sua lógica de estado permanece a mesma, está perfeita.
+  // Estado do tema dark/light
   const [darkMode, setDarkMode] = useState(() => {
     const savedMode = localStorage.getItem('darkMode');
     return savedMode === 'true';
   });
 
+  // Estados da aplicação
   const [sessionFollowStatus, setSessionFollowStatus] = useState({});
   const [posts, setPosts] = useState([
     {
@@ -44,30 +43,47 @@ function App() {
   ]);
   const [isCreatePostModalOpen, setIsCreatePostModalOpen] = useState(false);
 
+  // Efeito para persistir o tema
   useEffect(() => {
     localStorage.setItem('darkMode', darkMode);
     const root = window.document.documentElement;
-    if (darkMode) {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
+    root.classList.toggle('dark', darkMode);
   }, [darkMode]);
 
+  // Funções utilitárias
   const toggleTheme = () => setDarkMode(!darkMode);
   const openCreatePostModal = () => setIsCreatePostModalOpen(true);
   const closeCreatePostModal = () => setIsCreatePostModalOpen(false);
 
-  const mainLayoutProps = { openCreatePostModal, toggleTheme };
+  // Props compartilhadas
+  const mainLayoutProps = {
+    openCreatePostModal,
+    toggleTheme,
+    darkMode, // Adicionado para acesso em componentes filhos
+  };
 
+  // Classes condicionais de tema
   const themeClasses = darkMode
-    ? 'bg-ollo-deep text-ollo-light'
-    : 'bg-ollo-light text-ollo-deep';
+    ? 'bg-gray-900 text-gray-100'
+    : 'bg-gray-50 text-gray-900';
 
   return (
     <div
       className={`min-h-screen flex flex-col font-sans transition-colors duration-300 ${themeClasses}`}
     >
+      {/* Componente Toaster para notificações globais */}
+      <Toaster
+        position="top-center"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: darkMode ? '#1f2937' : '#ffffff',
+            color: darkMode ? '#f3f4f6' : '#111827',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+          },
+        }}
+      />
+
       <Routes>
         {/* Rotas que NÃO usam o MainLayout */}
         <Route path="/login" element={<LoginPage />} />
@@ -75,10 +91,9 @@ function App() {
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
-        {/* --- 2. ROTA DA PÁGINA DE PONTE ADICIONADA --- */}
         <Route path="/actions" element={<ActionHandlerPage />} />
 
-        {/* --- Rotas Públicas com Layout --- */}
+        {/* Rotas Públicas com MainLayout */}
         <Route
           path="/"
           element={
@@ -133,7 +148,7 @@ function App() {
           }
         />
 
-        {/* --- Rota do Perfil --- */}
+        {/* Rotas de Perfil (Protegidas) */}
         <Route
           path="/profile"
           element={
@@ -165,7 +180,7 @@ function App() {
           }
         />
 
-        {/* --- Rotas Protegidas --- */}
+        {/* Outras Rotas Protegidas */}
         <Route
           path="/marketplace/criar"
           element={
@@ -187,9 +202,20 @@ function App() {
           }
         />
       </Routes>
-      <Footer />
+
+      {/* Footer global */}
+      <Footer darkMode={darkMode} />
+
+      {/* Modal de criação de post */}
       {isCreatePostModalOpen && (
-        <CreatePostModal onClose={closeCreatePostModal} onAddPost={() => {}} />
+        <CreatePostModal
+          onClose={closeCreatePostModal}
+          onAddPost={(newPost) => {
+            setPosts([newPost, ...posts]);
+            closeCreatePostModal();
+          }}
+          darkMode={darkMode}
+        />
       )}
     </div>
   );
