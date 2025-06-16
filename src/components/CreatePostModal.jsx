@@ -1,14 +1,14 @@
 // src/components/CreatePostModal.jsx
+// Atualizado em junho de 2025
 
 import { useEffect, useRef } from 'react';
-import CreatePost from './CreatePost';
 import { XMarkIcon } from '@heroicons/react/24/solid';
+import PostForm from './PostForm/PostForm'; // Atualizamos aqui
 
-// Prop 'darkMode' removido
 function CreatePostModal({ onClose, onAddPost }) {
   const modalRef = useRef();
 
-  // Efeitos para fechar o modal (lógica mantida)
+  // Fecha ao clicar fora
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (modalRef.current && !modalRef.current.contains(event.target)) {
@@ -21,6 +21,7 @@ function CreatePostModal({ onClose, onAddPost }) {
     };
   }, [onClose]);
 
+  // Fecha com tecla Esc
   useEffect(() => {
     const handleEsc = (event) => {
       if (event.key === 'Escape') {
@@ -66,8 +67,8 @@ function CreatePostModal({ onClose, onAddPost }) {
           </button>
         </div>
 
-        {/* Passa os props para CreatePost, mas sem 'darkMode' */}
-        <CreatePost onAddPost={onAddPost} />
+        {/* Aqui trocamos CreatePost por PostForm */}
+        <PostForm onPost={onAddPost} />
       </div>
     </div>
   );
