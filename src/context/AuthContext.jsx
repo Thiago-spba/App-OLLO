@@ -18,6 +18,13 @@ export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Configurações comuns
+  const getBaseUrl = () => {
+    return process.env.NODE_ENV === 'production'
+      ? 'https://olloapp.com.br'
+      : window.location.origin;
+  };
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
@@ -58,12 +65,13 @@ export const AuthProvider = ({ children }) => {
       createdAt: serverTimestamp(),
     });
 
-    // CORREÇÃO: Restaurando a lógica correta para a verificação de e-mail.
-    const actionCodeSettings = {
-      url: `${window.location.origin}/login?email_verified=true`,
-      handleCodeInApp: true,
+    // Configuração para verificação de e-mail
+    const emailVerificationSettings = {
+      url: `${getBaseUrl()}/login?email_verified=true`,
+      handleCodeInApp: false, // Melhor para verificação de e-mail
     };
-    await sendEmailVerification(firebaseUser, actionCodeSettings);
+
+    await sendEmailVerification(firebaseUser, emailVerificationSettings);
 
     return { success: true };
   };
@@ -73,8 +81,13 @@ export const AuthProvider = ({ children }) => {
   };
 
   const forgotPassword = (email) => {
-    // A lógica para forgotPassword permanece a mesma, usando a configuração do Console.
-    return sendPasswordResetEmail(auth, email);
+    // Configuração para redefinição de senha
+    const passwordResetSettings = {
+      url: `${getBaseUrl()}/reset-password`,
+      handleCodeInApp: true, // Necessário para redefinição de senha
+    };
+
+    return sendPasswordResetEmail(auth, email, passwordResetSettings);
   };
 
   const logout = async () => {
