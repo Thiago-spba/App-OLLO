@@ -1,105 +1,167 @@
-// Atualizado em junho de 2025
-// src/pages/HomePage.jsx
-
-
-import React, { useState } from 'react';
-import PostCard from '../components/PostCard';
-import StoriesReel from '../components/StoriesReel.jsx';
-import CreatePostModal from '../components/CreatePostModal';
-import { useAuth } from '../context/AuthContext.jsx';
+ // HomePage.jsx atualizando em junho de 2025
+ 
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import {
+  PlusCircle,
+  Sparkle,
+  ArrowClockwise,
+  Image as ImageIcon,
+} from '@phosphor-icons/react';
+import PostCard from '../components/PostCard';
+import StoriesReel from '../components/StoriesReel';
+import CreatePostModal from '../components/CreatePostModal';
 
 const HomePage = ({ onCommentSubmit, onDeletePost }) => {
-  const { user } = useAuth();
+  const { currentUser } = useAuth();
   const navigate = useNavigate();
 
   const [posts, setPosts] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const loadPosts = async () => {
+      setIsLoading(true);
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        const savedPosts = JSON.parse(localStorage.getItem('ollo-posts')) || [];
+        setPosts(savedPosts);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadPosts();
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      localStorage.setItem('ollo-posts', JSON.stringify(posts));
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [posts]);
 
   const handleNewPost = (newPost) => {
-    setPosts([newPost, ...posts]);
+    setPosts((prev) => [
+      {
+        ...newPost,
+        user: {
+          name: currentUser?.name || 'Usuário OLLO',
+          avatar: currentUser?.avatarUrl || '/images/default-avatar.png',
+        },
+      },
+      ...prev,
+    ]);
     setIsModalOpen(false);
   };
 
-  const handleOpenModal = () => setIsModalOpen(true);
-  const handleCloseModal = () => setIsModalOpen(false);
+  const handleOpenModal = () => {
+    if (!currentUser) {
+      navigate('/login');
+      return;
+    }
+    setIsModalOpen(true);
+  };
 
   return (
-    <div className="flex flex-col lg:flex-row lg:gap-x-6 xl:gap-x-8 pt-1 px-2 md:px-4 lg:px-6 xl:px-8">
+    <div className="flex flex-col lg:flex-row lg:gap-x-6 xl:gap-x-8 pt-1 px-4 sm:px-6 lg:px-8">
       <main className="w-full flex-grow lg:max-w-2xl xl:max-w-3xl mx-auto lg:mx-0">
         <div className="space-y-6 md:space-y-8">
           <StoriesReel />
 
-          <section
-            aria-labelledby="create-post-prompt-heading"
-            className="p-4 rounded-lg bg-white dark:bg-gray-800/70 shadow-md"
-          >
-            {user && (
-              <div className="flex items-center space-x-3">
-                <div
-                  className="flex-shrink-0 h-10 w-10 sm:h-11 sm:w-11 rounded-full flex items-center justify-center text-lg sm:text-xl font-bold
-                  bg-ollo-deep text-ollo-light dark:bg-ollo-accent-light dark:text-ollo-deep"
-                >
-                  {user.name ? user.name.charAt(0).toUpperCase() : '?'}
-                </div>
-                <div
-                  className="flex-grow px-4 py-2.5 sm:py-3 rounded-full cursor-pointer transition-colors text-left
-                  bg-gray-100 hover:bg-gray-200 text-gray-600
-                  dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-300"
-                  onClick={handleOpenModal}
-                  role="button"
-                  tabIndex={0}
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') handleOpenModal();
+          <section className="p-5 rounded-2xl bg-white dark:bg-ollo-dark-800 shadow-lg border border-ollo-light-200/50 dark:border-ollo-dark-600/50 transition-all hover:shadow-xl">
+            <div className="flex items-center gap-3">
+              <div className="flex-shrink-0 h-12 w-12 rounded-full overflow-hidden border-2 border-ollo-primary-400">
+                <img
+                  src={currentUser?.avatarUrl || '/images/default-avatar.png'}
+                  alt="avatar"
+                  className="h-full w-full object-cover"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = '/images/default-avatar.png';
                   }}
-                >
-                  No que você está pensando,{' '}
-                  {user.name ? user.name.split(' ')[0] : 'Usuário'}?
-                </div>
+                />
               </div>
-            )}
-            <h2 id="create-post-prompt-heading" className="sr-only">
-              Iniciar nova postagem
-            </h2>
+
+              <button
+                onClick={handleOpenModal}
+                className="flex-grow px-5 py-3 rounded-xl text-left bg-ollo-light-100 hover:bg-ollo-light-200 dark:bg-ollo-dark-700 dark:hover:bg-ollo-dark-600 text-ollo-dark-600 dark:text-ollo-light-300 transition-colors"
+              >
+                <span className="font-medium">
+                  {currentUser
+                    ? `No que você está pensando, ${currentUser.name.split(' ')[0]}?`
+                    : 'Faça login para compartilhar'}
+                </span>
+              </button>
+            </div>
+
+            <div className="mt-4 flex justify-between">
+              <button
+                onClick={handleOpenModal}
+                className="flex items-center gap-2 px-4 py-2 text-ollo-primary-600 dark:text-ollo-primary-400 hover:bg-ollo-primary-50 dark:hover:bg-ollo-dark-700 rounded-lg transition-colors"
+              >
+                <ImageIcon size={20} weight="duotone" />
+                <span>Foto/Vídeo</span>
+              </button>
+
+              <button
+                onClick={handleOpenModal}
+                className="flex items-center gap-2 px-4 py-2 text-ollo-accent-600 dark:text-ollo-accent-400 hover:bg-ollo-accent-50 dark:hover:bg-ollo-dark-700 rounded-lg transition-colors"
+              >
+                <Sparkle size={20} weight="duotone" />
+                <span>Momento</span>
+              </button>
+            </div>
           </section>
 
           <section aria-labelledby="feed-heading">
-            <h2
-              id="feed-heading"
-              className="text-xl md:text-2xl font-semibold mb-4 sm:mb-6 text-gray-900 dark:text-gray-100"
-            >
-              Atualizações Recentes
-            </h2>
-            {posts.length > 0 ? (
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-ollo-dark-900 dark:text-ollo-light-100">
+                Atualizações Recentes
+              </h2>
+              <button className="text-ollo-primary-500 hover:text-ollo-primary-600 dark:text-ollo-primary-400 dark:hover:text-ollo-primary-300 transition-colors">
+                <ArrowClockwise size={20} />
+              </button>
+            </div>
+
+            {isLoading ? (
+              <div className="space-y-6">
+                {[...Array(3)].map((_, i) => (
+                  <PostCardSkeleton key={i} />
+                ))}
+              </div>
+            ) : posts.length > 0 ? (
               <div className="space-y-6 md:space-y-8">
                 {posts.map((post) => (
                   <PostCard
                     key={post.id}
                     postData={post}
+                    currentUserId={currentUser?.uid}
                     onCommentSubmit={onCommentSubmit}
                     onDeletePost={onDeletePost}
                   />
                 ))}
               </div>
             ) : (
-              <div
-                className="text-center py-12 px-6 rounded-lg 
-                bg-white dark:bg-gray-800/70 shadow-md border border-gray-200/70 dark:border-gray-700/50"
-              >
-                <h3 className="text-xl font-semibold mb-2 text-gray-800 dark:text-gray-200">
-                  Bem-vindo(a) ao OLLO!
+              <div className="text-center py-12 px-6 rounded-2xl bg-white/80 dark:bg-ollo-dark-800/80 shadow-md border border-ollo-light-200/50 dark:border-ollo-dark-600/50">
+                <div className="mx-auto w-24 h-24 bg-ollo-primary-100 dark:bg-ollo-dark-700 rounded-full flex items-center justify-center mb-4">
+                  <PlusCircle
+                    size={48}
+                    className="text-ollo-primary-500 dark:text-ollo-primary-400"
+                  />
+                </div>
+                <h3 className="text-xl font-bold mb-2 text-ollo-dark-800 dark:text-ollo-light-100">
+                  Bem-vindo ao OLLO!
                 </h3>
-                <p className="text-base text-gray-600 dark:text-gray-400">
-                  Seu feed está um pouco vazio. Que tal explorar ou criar seu
-                  primeiro post?
+                <p className="text-ollo-dark-600 dark:text-ollo-light-300 mb-6">
+                  Seu feed está vazio. Comece compartilhando algo incrível!
                 </p>
                 <button
-                  onClick={() => navigate('/explore')}
-                  className="mt-6 px-5 py-2.5 rounded-lg font-semibold transition-colors
-                  bg-ollo-deep text-ollo-light hover:bg-opacity-80
-                  dark:bg-ollo-accent-light dark:text-ollo-deep dark:hover:bg-opacity-90"
+                  onClick={handleOpenModal}
+                  className="px-6 py-3 rounded-xl font-semibold bg-gradient-to-r from-ollo-primary-500 to-ollo-primary-600 hover:from-ollo-primary-600 hover:to-ollo-primary-700 text-white shadow-md hover:shadow-lg transition-all"
                 >
-                  Explorar o OLLO
+                  Criar Primeiro Post
                 </button>
               </div>
             )}
@@ -107,60 +169,46 @@ const HomePage = ({ onCommentSubmit, onDeletePost }) => {
         </div>
       </main>
 
-      <aside className="hidden lg:block lg:w-72 xl:w-80 flex-shrink-0">
+      <aside className="hidden lg:block lg:w-80 xl:w-96 flex-shrink-0 pl-6">
         <div className="sticky top-4 space-y-6">
-          <h3 className="px-1 text-lg font-semibold tracking-tight text-gray-700 dark:text-gray-300">
-            Para Você
-          </h3>
-          <div className="rounded-xl overflow-hidden shadow-lg bg-white dark:bg-gray-800 border border-gray-200/90 dark:border-gray-700/60 hover:shadow-xl dark:hover:border-gray-600">
-            <div
-              className="h-32 bg-cover bg-center bg-gray-300 dark:bg-gray-700"
-              style={{
-                backgroundImage:
-                  "url('https://placehold.co/300x180/A0D2DB/005A4B?text=OLLO+Promo')",
-              }}
-            ></div>
-            <div className="p-4">
-              <p className="text-xs uppercase tracking-wider mb-1 text-ollo-deep/80 dark:text-ollo-accent-light/80">
-                Patrocinado
-              </p>
-              <h4 className="font-semibold mb-1 text-ollo-deep group-hover:text-sky-700 dark:text-gray-100 dark:group-hover:text-ollo-accent-light">
-                Nova Coleção OLLO!
-              </h4>
-              <p className="text-xs text-gray-600 dark:text-gray-400">
-                Descubra designs incríveis e exclusivos.
-              </p>
-            </div>
-          </div>
-          <div className="rounded-xl overflow-hidden shadow-lg bg-white dark:bg-gray-800 border border-gray-200/90 dark:border-gray-700/60 hover:shadow-xl dark:hover:border-gray-600">
-            <div className="p-4">
-              <p className="text-xs uppercase tracking-wider mb-1 text-gray-400 dark:text-gray-500">
-                Dica OLLO
-              </p>
-              <h4 className="font-semibold mb-1 text-ollo-deep group-hover:text-sky-700 dark:text-gray-100 dark:group-hover:text-ollo-accent-light">
-                Personalize Seu Perfil
-              </h4>
-              <p className="text-xs text-gray-600 dark:text-gray-400">
-                Adicione uma foto e uma bio para se conectar melhor!
-              </p>
-              <button
-                onClick={() => navigate('/profile')}
-                className="mt-3 text-xs font-semibold py-1 px-3 rounded-full transition-colors
-                bg-ollo-deep/10 text-ollo-deep hover:bg-ollo-deep/20
-                dark:bg-ollo-accent-light/20 dark:text-ollo-accent-light dark:hover:bg-ollo-accent-light/30"
-              >
-                Ver Perfil
-              </button>
-            </div>
+          <div className="p-5 rounded-2xl bg-white/80 dark:bg-ollo-dark-800/80 border border-ollo-light-200/50 dark:border-ollo-dark-600/50">
+            <h3 className="font-bold text-lg mb-4 text-ollo-dark-800 dark:text-ollo-light-100">
+              Novidades no OLLO
+            </h3>
           </div>
         </div>
       </aside>
 
       {isModalOpen && (
-        <CreatePostModal onClose={handleCloseModal} onAddPost={handleNewPost} />
+        <CreatePostModal
+          onClose={() => setIsModalOpen(false)}
+          onAddPost={handleNewPost}
+          currentUser={currentUser}
+        />
       )}
     </div>
   );
 };
+
+const PostCardSkeleton = () => (
+  <div className="p-5 rounded-2xl bg-white/80 dark:bg-ollo-dark-800/80 border border-ollo-light-200/50 dark:border-ollo-dark-600/50">
+    <div className="flex items-center gap-3 mb-4">
+      <div className="w-10 h-10 rounded-full bg-ollo-light-300 dark:bg-ollo-dark-700 animate-pulse"></div>
+      <div className="space-y-2">
+        <div className="w-32 h-4 rounded bg-ollo-light-300 dark:bg-ollo-dark-700 animate-pulse"></div>
+        <div className="w-24 h-3 rounded bg-ollo-light-200 dark:bg-ollo-dark-600 animate-pulse"></div>
+      </div>
+    </div>
+    <div className="space-y-3">
+      <div className="w-full h-4 rounded bg-ollo-light-200 dark:bg-ollo-dark-600 animate-pulse"></div>
+      <div className="w-5/6 h-4 rounded bg-ollo-light-200 dark:bg-ollo-dark-600 animate-pulse"></div>
+      <div className="w-2/3 h-4 rounded bg-ollo-light-200 dark:bg-ollo-dark-600 animate-pulse"></div>
+    </div>
+    <div className="mt-4 pt-4 border-t border-ollo-light-200 dark:border-ollo-dark-600 flex justify-between">
+      <div className="w-20 h-8 rounded bg-ollo-light-200 dark:bg-ollo-dark-600 animate-pulse"></div>
+      <div className="w-20 h-8 rounded bg-ollo-light-200 dark:bg-ollo-dark-600 animate-pulse"></div>
+    </div>
+  </div>
+);
 
 export default HomePage;

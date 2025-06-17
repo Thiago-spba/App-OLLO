@@ -1,181 +1,273 @@
-// PostForm.jsx - com Logo Correto:
-// junho de 2025
+//atualizando em junho de 2025
+import { useState, useEffect, useRef } from 'react';
+import {
+  PaperPlaneRight,
+  Image,
+  VideoCamera,
+  X,
+  Smiley,
+  MapPin,
+  Calendar,
+  SpinnerGap,
+} from '@phosphor-icons/react';
 
-import { useState, useEffect } from 'react';
-import { PaperPlaneRight, Image, VideoCamera, X } from '@phosphor-icons/react';
-
-export default function PostForm({ onPost }) {
+export default function PostForm({ onPost, currentUser }) {
   const [content, setContent] = useState('');
-  const [media, setMedia] = useState(null);
-  const [mediaPreview, setMediaPreview] = useState(null);
+  const [mediaPreviews, setMediaPreviews] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
+  const fileInputRef = useRef(null);
+  const textareaRef = useRef(null);
+  const formContainerRef = useRef(null);
 
-  // Clean up media URL on unmount
+  // Limpeza de previews ao desmontar
   useEffect(() => {
     return () => {
-      if (mediaPreview) URL.revokeObjectURL(mediaPreview);
+      mediaPreviews.forEach((preview) => URL.revokeObjectURL(preview.url));
     };
-  }, [mediaPreview]);
+  }, [mediaPreviews]);
+
+  // Ajustar altura quando o conteúdo ou previews mudarem
+  useEffect(() => {
+    if (formContainerRef.current) {
+      const resizeObserver = new ResizeObserver(() => {
+        formContainerRef.current.style.maxHeight = '80vh';
+        formContainerRef.current.style.overflowY = 'auto';
+      });
+
+      resizeObserver.observe(formContainerRef.current);
+
+      return () => {
+        resizeObserver.disconnect();
+      };
+    }
+  }, []);
 
   const handleMediaChange = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      alert('Arquivo muito grande (máximo 5MB)');
+    // Validação de tamanho (5MB máximo)
+    const invalidFiles = files.filter((file) => file.size > 5 * 1024 * 1024);
+    if (invalidFiles.length) {
+      alert('Alguns arquivos são muito grandes (máximo 5MB)');
       return;
     }
 
-    if (mediaPreview) URL.revokeObjectURL(mediaPreview);
-    setMedia(file);
-    setMediaPreview(URL.createObjectURL(file));
+    // Criar previews para os novos arquivos
+    const newPreviews = files.map((file) => ({
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      url: URL.createObjectURL(file),
+      type: file.type.startsWith('video') ? 'video' : 'image',
+      file,
+    }));
+
+    setMediaPreviews((prev) => [...prev, ...newPreviews]);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!content.trim() && !media) return;
+    if (!content.trim() && !mediaPreviews.length) return;
 
     setIsSubmitting(true);
     try {
+      // Simular upload (substituir por chamada real à API)
+      await new Promise((resolve) => setTimeout(resolve, 800));
+
       const newPost = {
-        id: Date.now(),
+        id: Date.now().toString(),
         content: content.trim(),
-        media: mediaPreview,
-        mediaType: media?.type.startsWith('video') ? 'video' : 'image',
+        media: mediaPreviews.map((preview) => ({
+          url: preview.url, // Em produção, substituir por URL permanente
+          type: preview.type,
+        })),
+        user: {
+          name: currentUser?.name || 'Usuário OLLO',
+          avatar: currentUser?.avatarUrl || '/images/default-avatar.png',
+        },
         createdAt: new Date().toISOString(),
+        likes: [],
+        comments: [],
       };
+
       await onPost(newPost);
       setContent('');
-      setMedia(null);
-      setMediaPreview(null);
+      setMediaPreviews([]);
+    } catch (error) {
+      console.error('Erro ao criar post:', error);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const removeMedia = () => {
-    URL.revokeObjectURL(mediaPreview);
-    setMedia(null);
-    setMediaPreview(null);
+  const removeMedia = (previewId) => {
+    const previewToRemove = mediaPreviews.find((p) => p.id === previewId);
+    if (previewToRemove) {
+      URL.revokeObjectURL(previewToRemove.url);
+      setMediaPreviews((prev) => prev.filter((p) => p.id !== previewId));
+    }
   };
 
-  return (
-    <div className="relative">
-      {/* Fundo com logo e blur */}
-      <div className="absolute -inset-2 overflow-hidden rounded-2xl z-0">
-        <div className="absolute inset-0 bg-olloPrimary100/20 dark:bg-olloDark700/30 backdrop-blur-sm" />
-        <div className="absolute right-4 top-4 opacity-20 dark:opacity-10">
-        </div>
-      </div>
+  const triggerFileInput = (type) => {
+    fileInputRef.current.accept = type === 'image' ? 'image/*' : 'video/*';
+    fileInputRef.current.click();
+  };
 
-      {/* Formulário */}
-      <form
-        onSubmit={handleSubmit}
-        className="relative z-10 bg-white/90 dark:bg-olloDark800/90 p-6 rounded-2xl shadow-xl border border-olloLight200/50 dark:border-olloDark600/50"
+  const handleAvatarError = () => {
+    setAvatarError(true);
+  };
+
+  const avatarSrc = avatarError
+    ? '/images/default-avatar.png'
+    : currentUser?.avatarUrl || '/images/default-avatar.png';
+
+  return (
+    <div className="relative w-full max-w-2xl mx-auto">
+      {/* Container principal com efeito de vidro */}
+      <div
+        ref={formContainerRef}
+        className="relative z-10 bg-white/80 dark:bg-ollo-dark-800/80 backdrop-blur-sm p-6 rounded-2xl shadow-lg border-2 border-green-300 dark:border-green-500/50 max-h-[80vh] overflow-y-auto"
       >
-        <div className="flex items-center gap-3 mb-6">
-          <div className="bg-olloPrimary500 p-2 rounded-lg">
-            <PaperPlaneRight size={24} weight="fill" className="text-white" />
+        {/* Cabeçalho */}
+        <div className="flex items-start gap-4 mb-6">
+          <div className="flex-shrink-0 h-12 w-12 rounded-full overflow-hidden border-2 border-ollo-primary-400">
+            <img
+              src={avatarSrc}
+              alt="Avatar"
+              className="h-full w-full object-cover"
+              onError={handleAvatarError}
+            />
           </div>
-          <div>
-            <h2 className="text-xl font-bold text-olloDark800 dark:text-olloLight100">
-              Criar Nova Postagem
+
+          <div className="flex-grow">
+            <h2 className="text-xl font-bold text-ollo-dark-900 dark:text-ollo-light-100 mb-1">
+              Criar publicação
             </h2>
-            <p className="text-sm text-olloDark500 dark:text-olloLight300">
-              Compartilhe com a comunidade OLLO
+            <p className="text-sm text-ollo-dark-500 dark:text-ollo-light-400">
+              Compartilhe algo incrível com a comunidade
             </p>
           </div>
         </div>
 
+        {/* Área de texto */}
         <textarea
+          ref={textareaRef}
           placeholder="No que você está pensando?"
-          className="w-full p-4 rounded-xl border border-olloLight300 dark:border-olloDark600 bg-white dark:bg-olloDark700 text-olloDark900 dark:text-olloLight100 placeholder-olloDark400 dark:placeholder-olloLight300 resize-none focus:ring-2 focus:ring-olloPrimary500 focus:border-transparent outline-none transition"
-          rows="4"
+          className="w-full min-h-[120px] p-4 rounded-xl bg-ollo-light-50 dark:bg-ollo-dark-700 border border-ollo-light-300/50 dark:border-ollo-dark-600/50 text-ollo-dark-800 dark:text-ollo-light-200 placeholder-ollo-dark-400/70 dark:placeholder-ollo-dark-400/70 resize-none focus:outline-none focus:ring-2 focus:ring-ollo-primary-400/50 focus:border-transparent transition-all"
           value={content}
           onChange={(e) => setContent(e.target.value)}
         />
 
-        <div className="mt-4 flex items-center gap-3">
-          {/* Botão Foto */}
-          <label className="flex items-center gap-2 px-4 py-2 bg-olloLight100 dark:bg-olloDark700 hover:bg-olloLight200 dark:hover:bg-olloDark600 rounded-lg cursor-pointer transition-colors">
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleMediaChange}
-              className="hidden"
-            />
-            <Image size={20} weight="duotone" className="text-olloPrimary500" />
-            <span className="text-sm font-medium text-olloDark700 dark:text-olloLight200">
-              Foto
-            </span>
-          </label>
-
-          {/* Botão Vídeo */}
-          <label className="flex items-center gap-2 px-4 py-2 bg-olloLight100 dark:bg-olloDark700 hover:bg-olloLight200 dark:hover:bg-olloDark600 rounded-lg cursor-pointer transition-colors">
-            <input
-              type="file"
-              accept="video/*"
-              onChange={handleMediaChange}
-              className="hidden"
-            />
-            <VideoCamera
-              size={20}
-              weight="duotone"
-              className="text-olloPrimary500"
-            />
-            <span className="text-sm font-medium text-olloDark700 dark:text-olloLight200">
-              Vídeo
-            </span>
-          </label>
-        </div>
-
-        {/* Preview da mídia */}
-        {mediaPreview && (
-          <div className="mt-4 relative group">
-            <div className="absolute -inset-1 bg-gradient-to-r from-olloPrimary300 to-olloPrimary500 rounded-xl opacity-20 group-hover:opacity-30 transition-opacity" />
-            <div className="relative overflow-hidden rounded-xl">
-              {media?.type.startsWith('video') ? (
-                <video
-                  src={mediaPreview}
-                  controls
-                  className="w-full max-h-96 object-cover"
-                />
-              ) : (
-                <img
-                  src={mediaPreview}
-                  alt="Preview"
-                  className="w-full max-h-96 object-cover"
-                />
-              )}
-
-              <button
-                type="button"
-                onClick={removeMedia}
-                className="absolute top-3 right-3 bg-olloDark800/90 hover:bg-olloDark900 text-white p-1.5 rounded-full shadow-md transition-all"
-                aria-label="Remover mídia"
+        {/* Pré-visualização de mídia */}
+        {mediaPreviews.length > 0 && (
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {mediaPreviews.map((preview) => (
+              <div
+                key={preview.id}
+                className="relative group rounded-lg overflow-hidden border border-ollo-primary-100/50 dark:border-ollo-dark-600/50 bg-ollo-light-100/30 dark:bg-ollo-dark-700/30"
               >
-                <X size={16} weight="bold" />
-              </button>
-            </div>
+                <div className="flex items-center justify-center max-h-[300px] overflow-hidden">
+                  {preview.type === 'video' ? (
+                    <video
+                      src={preview.url}
+                      controls
+                      className="w-full max-h-[300px] object-contain"
+                    />
+                  ) : (
+                    <img
+                      src={preview.url}
+                      alt="Preview"
+                      className="w-full max-h-[300px] object-contain"
+                    />
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeMedia(preview.id)}
+                  className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black/80 rounded-full backdrop-blur-sm transition-colors"
+                  aria-label="Remover mídia"
+                >
+                  <X size={16} weight="bold" className="text-white" />
+                </button>
+              </div>
+            ))}
           </div>
         )}
+
+        {/* Opções de mídia */}
+        <div className="mt-4 flex items-center justify-between p-3 rounded-xl bg-ollo-light-100/50 dark:bg-ollo-dark-700/50 border border-ollo-light-200/50 dark:border-ollo-dark-600/50">
+          <span className="text-sm font-medium text-ollo-dark-600 dark:text-ollo-light-300">
+            Adicionar à publicação
+          </span>
+
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => triggerFileInput('image')}
+              className="p-2 rounded-lg hover:bg-ollo-primary-50 dark:hover:bg-ollo-dark-600 transition-colors group"
+              title="Foto"
+            >
+              <Image
+                size={22}
+                weight="duotone"
+                className="text-ollo-primary-500 group-hover:text-ollo-primary-600 dark:text-ollo-primary-400 dark:group-hover:text-ollo-primary-300"
+              />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => triggerFileInput('video')}
+              className="p-2 rounded-lg hover:bg-ollo-accent-50 dark:hover:bg-ollo-dark-600 transition-colors group"
+              title="Vídeo"
+            >
+              <VideoCamera
+                size={22}
+                weight="duotone"
+                className="text-ollo-accent-500 group-hover:text-ollo-accent-600 dark:text-ollo-accent-400 dark:group-hover:text-ollo-accent-300"
+              />
+            </button>
+
+            <button
+              type="button"
+              className="p-2 rounded-lg hover:bg-ollo-yellow-50 dark:hover:bg-ollo-dark-600 transition-colors group"
+              title="Emoji"
+            >
+              <Smiley
+                size={22}
+                weight="duotone"
+                className="text-ollo-yellow-500 group-hover:text-ollo-yellow-600 dark:text-ollo-yellow-400 dark:group-hover:text-ollo-yellow-300"
+              />
+            </button>
+
+            <input
+              type="file"
+              ref={fileInputRef}
+              className="hidden"
+              onChange={handleMediaChange}
+              multiple
+            />
+          </div>
+        </div>
 
         {/* Botão de envio */}
         <div className="mt-6 flex justify-end">
           <button
             type="submit"
-            disabled={isSubmitting || (!content.trim() && !media)}
-            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all shadow-lg
-              ${
-                !content.trim() && !media
-                  ? 'bg-olloLight300 dark:bg-olloDark600 text-olloDark400 dark:text-olloLight500 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-olloPrimary500 to-olloPrimary600 hover:from-olloPrimary600 hover:to-olloPrimary700 text-white hover:shadow-xl'
-              }
-              ${isSubmitting ? 'opacity-80' : ''}
-            `}
+            onClick={handleSubmit}
+            disabled={
+              isSubmitting || (!content.trim() && !mediaPreviews.length)
+            }
+            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all ${
+              (!content.trim() && mediaPreviews.length === 0) || isSubmitting
+                ? 'bg-ollo-light-300 dark:bg-ollo-dark-600 text-ollo-dark-400 dark:text-ollo-dark-300 cursor-not-allowed'
+                : 'bg-gradient-to-r from-ollo-primary-500 to-ollo-primary-600 hover:from-ollo-primary-600 hover:to-ollo-primary-700 text-white shadow-md hover:shadow-lg'
+            }`}
           >
             {isSubmitting ? (
-              <span className="animate-pulse">Publicando...</span>
+              <>
+                <SpinnerGap size={20} className="animate-spin" />
+                Publicando...
+              </>
             ) : (
               <>
                 <PaperPlaneRight size={20} weight="bold" />
@@ -184,7 +276,10 @@ export default function PostForm({ onPost }) {
             )}
           </button>
         </div>
-      </form>
+      </div>
+
+      {/* Efeito de borda sutil */}
+      <div className="absolute -inset-0.5 rounded-2xl bg-gradient-to-r from-green-300/40 to-green-400/40 dark:from-green-500/30 dark:to-green-400/30 blur-sm -z-10" />
     </div>
   );
 }
