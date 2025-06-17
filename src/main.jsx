@@ -3,7 +3,10 @@ import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
 import './index.css';
 import { BrowserRouter } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext.jsx'; // Garanta que o caminho para AuthContext está correto
+import { AuthProvider } from './context/AuthContext.jsx';
+
+// ✅ Corrigido: caminho real do firebase-config
+import './lib/firebase-config.js';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
