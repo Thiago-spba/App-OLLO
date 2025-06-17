@@ -12,6 +12,7 @@
   "dependencies": {
     "@headlessui/react": "^2.2.4",
     "@heroicons/react": "^2.2.0",
+    "@phosphor-icons/react": "^2.1.10",
     "firebase": "^9.22.1",
     "react": "^19.0.0",
     "react-confetti": "^6.4.0",
