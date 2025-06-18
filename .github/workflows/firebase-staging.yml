@@ -25,8 +25,7 @@ jobs:
       - name: Deploy para Firebase Hosting (preview channel)
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
-          repoToken: "${{ secrets.GITHUB_TOKEN }}"
+          repoToken: '${{ secrets.GITHUB_TOKEN }}'
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_OLLO }}'
           channelId: staging
           projectId: ollo-app
-        env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
