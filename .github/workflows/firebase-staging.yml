@@ -7,22 +7,26 @@ on:
 
 jobs:
   deploy:
+    name: Deploy Firebase Hosting
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout do repositório
-        uses: actions/checkout@v4
+      - name: Checkout do código
+        uses: actions/checkout@v3
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
 
       - name: Instalar dependências
-        run: npm install
+        run: npm ci
 
-      - name: Build do projeto
-        run: npm run build
-
-      - name: Deploy para Firebase
+      - name: Deploy para Firebase Hosting (preview channel)
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: "${{ secrets.GITHUB_TOKEN }}"
-          firebaseServiceAccount: "${{ secrets.FIREBASE_SERVICE_ACCOUNT_OLLO }}"
           channelId: staging
           projectId: ollo-app
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
