@@ -1,5 +1,6 @@
 // src/App.jsx - Versão Refatorada e Otimizada
 
+console.log('deploy de teste');
 import { useState, useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';

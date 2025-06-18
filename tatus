@@ -1,0 +1,45 @@
+[33m661e079[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m Atualiza ProfilePage e estrutura geral com AuthWrapper, rotas e melhorias visuais
+[33m13882f4[m  Etapa 1.3: Firebase Auth, login, registro e reset integrados
+[33ma72a16c[m atualizar metatags sociais no index.html
+[33ma3f4794[m feat: aplicar rolagem no PostForm e corrigir layout de mídia
+[33mabcc1ba[m feat: ajustar PostForm com logo e estilos finais
+[33m62db609[m App.jsx: Versão aprimorada (mantendo todas as funcionalidades)
+[33m72a23e4[m RegisterPage.jsx: Versão aprimorada e consolidada
+[33mcc79c5d[m LoginPage.jsx: Versão aprimorada e consolidada
+[33ma380b51[m ForgotPasswordPage.jsx: Versão completa e robustecida
+[33mecddad5[m Versão corrigida da ResetPasswordPage.jsx com melhorias finais
+[33m81cee49[m Confirmação de alterações reais no AuthContext.jsx
+[33mf5176fb[m Melhoria no App.jsx: adicionado Toaster global, melhor gerenciamento de tema e organização do código
+[33me98695d[m docs: Atualizar README para acionar a Action
+[33mf7c51ba[m fix: Corrigir script de build nas GitHub Actions
+[33m6b69a95[m ci: Configurar deploy automático com GitHub Actions
+[33m982e3ae[m first commit
+[33mc53b316[m feat(auth): Finalizar fluxo de verificação e proteger rotas > > Esta atualização solidifica o sistema de autenticação, implementa a proteção de rotas e prepara a base para o fluxo de recuperação de senha. > > - **Autenticação Centralizada:** Toda a lógica de autenticação foi consolidada na Context API ('AuthContext'), eliminando sistemas paralelos e resolvendo bugs de estado e loops de renderização. > - **Verificação de E-mail Funcional:** O fluxo de registro agora redireciona corretamente o usuário para uma página de verificação ('/verify-email'), que por sua vez o instrui sobre os próximos passos. > - **Rotas Protegidas ('ProtectedRoute'):** Implementado um componente de rota protegida que verifica se o usuário está autenticado e se o e-mail foi verificado, redirecionando para '/login' ou '/verify-email' conforme necessário. A lógica lida de forma segura com o estado de carregamento assíncrono do Firebase. > - **Página de Perfil Restaurada:** A rota para a 'ProfilePage' foi corrigida e a navegação até ela foi implementada na 'SidebarNav', que agora exibe links contextuais (ex: 'Meu Perfil', 'Sair') com base no estado de autenticação. > - **Preparação para Reset de Senha:** Criadas as páginas e rotas necessárias para o fluxo de recuperação de senha, que será finalizado na próxima etapa.
+[33m86b56fe[m feat(auth): Implementar fluxo completo de autenticação e verificação
+[33mf63a4db[m redireciona para a página /verify-email
+[33mf18d1ca[m Adicionada a funcionalidade de verificação em duas etapas (2FA) via e-mail
+[33mdd7a523[m feat(auth): implementa cadastro de usuários com email/senha
+[33m3e757cd[m feat(marketplace): implementa visualização de anúncios
+[33m8dbd63c[m feat(marketplace): implementa exclusão de anúncios
+[33m8445fe0[m feat(marketplace): implementa visualização de anúncios do firestore
+[33m308bc6b[m feat(marketplace): implementa visualização de anúncios do firestore
+[33ma0c5382[m feat(marketplace): inicia estrutura e corrige tema
+[33m79b2ce1[m feat(marketplace): implementa busca e exibição de listings do firestore
+[33m381242a[m feat(deps): adiciona firebase sdk
+[33mfcfc340[m feat(deps): adiciona zustand, react-hook-form e headlessui
+[33mf157cae[m refactor(theme): unifica sistema de tema com modificadores dark:
+[33m0be6a28[m chore(config): refina e corrige a configuração base do projeto
+[33m3982fb5[m feat: Adiciona recuperação de senha e página de registro inicial
+[33m793b747[m fix(images): Atualiza URLs de imagens placeholder para corrigir erros de carregamento
+[33mc09ae9b[m eat(home): Implementa novo layout da HomePage com Stories e coluna lateral
+[33m62dfb18[m feat(auth): Configura base da autenticação com UI de login e navegação condicional
+[33mb4f844d[m feat: Implementar exclusão de posts e atualizar páginas de visualização
+[33m2976290[m Feat: Botão Seguir com persistência de sessão e contador corrigido
+[33m8512969[m Finaliza testes da ProfilePage, incluindo edição e perfis inexistentes, e ajusta localização do likedPostsMap
+[33m3109792[m feat(core): Implementa página de perfil e estabiliza rotas
+[33m5fda16d[m feat: Melhorias significativas no Perfil de Usuário e no fluxo de Criação de Post
+[33mdcb028a[m Style: Ajusta cores e fundo do card na ProfilePage conforme print
+[33mfcdc151[m Feat: Passa darkMode como prop para PostDetail e Terms placeholders
+[33m84ac993[m Atualiza index.html e adiciona favicon
+[33m5f671c6[m Update README.md
+[33m8384a52[m Commit inicial do projeto OLLO
