@@ -1,18 +1,22 @@
-// src/pages/ProfilePage.jsx
-
-import { useState, useEffect, useRef, useCallback } from 'react';
+// --- Imports Corrigidos e Validados ---
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import PostCard from '../components/PostCard';
+
+// Ícones da Heroicons
 import {
+  ExclamationTriangleIcon,
+  ArrowPathIcon,
   CameraIcon,
   PencilSquareIcon,
+  CheckIcon,
+  UserPlusIcon,
   ChatBubbleLeftEllipsisIcon,
   HeartIcon,
-  UserPlusIcon,
-  CheckIcon,
-  ArrowPathIcon,
-  ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
+
+// Componentes filhos com caminhos corrigidos
+import AuthWrapper from '../components/AuthWrapper';
+import PostCard from '../components/PostCard';
 
 // --- DADOS SIMULADOS (Mantidos) ---
 const usersProfileData = {
@@ -60,7 +64,7 @@ const generateAvatarUrl = (name, isDark) => {
   return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=${bgColor}&color=${textColor}&size=128&bold=true&format=svg`;
 };
 
-// Removido o prop 'darkMode'
+// --- COMPONENTE PRINCIPAL (ÚNICA DEFINIÇÃO) ---
 function ProfilePage({
   allPosts = [],
   onCommentSubmit,
@@ -72,7 +76,7 @@ function ProfilePage({
   const loggedInUserId = 'usuario-ollo';
   const effectiveProfileId = profileIdFromUrl || loggedInUserId;
 
-  // Seus estados...
+  // Estados
   const [profileData, setProfileData] = useState(null);
   const [profileNotFound, setProfileNotFound] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -87,11 +91,11 @@ function ProfilePage({
   const [activeTab, setActiveTab] = useState('posts');
   const [userComments, setUserComments] = useState([]);
 
-  // Seus refs...
+  // Refs
   const avatarInputRef = useRef(null);
   const coverInputRef = useRef(null);
 
-  // --- LÓGICA DE ESTADO E EFEITOS (Mantida e corrigida) ---
+  // --- LÓGICA DE ESTADO E EFEITOS ---
   useEffect(() => {
     const currentProfileToLoad = usersProfileData[effectiveProfileId];
     if (currentProfileToLoad) {
@@ -106,6 +110,7 @@ function ProfilePage({
       });
       setProfileNotFound(false);
       setIsEditing(false);
+
       if (editableAvatarPreview.startsWith('blob:'))
         URL.revokeObjectURL(editableAvatarPreview);
       if (editableCoverPreview.startsWith('blob:'))
@@ -185,7 +190,7 @@ function ProfilePage({
     };
   }, [editableAvatarPreview, editableCoverPreview]);
 
-  // *** FUNÇÕES COM A LÓGICA RESTAURADA ***
+  // --- FUNÇÕES DE MANIPULAÇÃO ---
   const handleImageChange = useCallback(
     (event, imageType) => {
       const file = event.target.files[0];
@@ -225,6 +230,7 @@ function ProfilePage({
     if (!profileData) return;
     const isDarkMode = document.documentElement.classList.contains('dark');
     let newAvatarUrl = profileData.avatarUrl;
+
     if (editableAvatarPreview) {
       newAvatarUrl = editableAvatarPreview;
     } else if (
@@ -233,6 +239,7 @@ function ProfilePage({
     ) {
       newAvatarUrl = generateAvatarUrl(editableName, isDarkMode);
     }
+
     setProfileData((prevData) => ({
       ...prevData,
       name: editableName,
@@ -267,8 +274,10 @@ function ProfilePage({
       typeof setSessionFollowStatus !== 'function'
     )
       return;
+
     setIsFollowLoading(true);
     const newFollowingState = !isFollowing;
+
     setTimeout(
       () => {
         setIsFollowing(newFollowingState);
@@ -293,22 +302,21 @@ function ProfilePage({
 
   // --- RENDERIZAÇÃO ---
   if (profileNotFound) {
+    // O AuthWrapper aqui foi removido, pois o ProfilePageWithAuth já o fornece.
     return (
       <div className="min-h-[calc(100vh-200px)] flex flex-col items-center justify-center p-8 text-center text-ollo-deep dark:text-ollo-light">
-        {' '}
-        <ExclamationTriangleIcon className="mx-auto h-20 w-20 mb-6 text-red-500 dark:text-red-400" />{' '}
-        <h1 className="text-3xl font-bold mb-2">Perfil Não Encontrado</h1>{' '}
+        <ExclamationTriangleIcon className="mx-auto h-20 w-20 mb-6 text-red-500 dark:text-red-400" />
+        <h1 className="text-3xl font-bold mb-2">Perfil Não Encontrado</h1>
         <p className="text-lg text-gray-600 dark:text-gray-400">
           O perfil que você está procurando não existe ou não pôde ser
           carregado.
-        </p>{' '}
+        </p>
         <button
           onClick={() => navigate('/')}
-          className="mt-8 px-6 py-2.5 rounded-lg font-semibold transition-colors bg-ollo-deep text-ollo-light hover:bg-opacity-90 dark:bg-ollo-accent-light dark:text-ollo-deep dark:hover:bg-opacity-90"
+          className="mt-8 px-6 py-2.5 rounded-lg font-semibold transition-colors bg-ollo-deep text-ollo-light hover:bg-opacity-90 dark:bg-ollo-accent-light dark:text-ollo-deep"
         >
-          {' '}
-          Voltar para a Página Inicial{' '}
-        </button>{' '}
+          Voltar para a Página Inicial
+        </button>
       </div>
     );
   }
@@ -316,9 +324,8 @@ function ProfilePage({
   if (!profileData) {
     return (
       <div className="min-h-[calc(100vh-200px)] flex items-center justify-center text-ollo-deep dark:text-ollo-light">
-        {' '}
-        <ArrowPathIcon className="h-12 w-12 animate-spin mr-3" />{' '}
-        <p className="text-xl">Carregando perfil...</p>{' '}
+        <ArrowPathIcon className="h-12 w-12 animate-spin mr-3" />
+        <p className="text-xl">Carregando perfil...</p>
       </div>
     );
   }
@@ -347,7 +354,7 @@ function ProfilePage({
   return (
     <div>
       <div className="bg-white/80 dark:bg-ollo-slate/90 border border-gray-200/50 dark:border-gray-700/50 backdrop-blur-md rounded-xl shadow-2xl overflow-hidden mb-6">
-        <div className="h-52 md:h-72 bg-gradient-to-r from-ollo-accent/30 to-ollo-steel/30 dark:from-ollo-deep via-teal-900 to-gray-900 relative">
+        <div className="h-52 md:h-72 bg-gradient-to-r from-ollo-accent/30 to-ollo-steel/30 dark:from-ollo-deep dark:via-teal-900 dark:to-gray-900 relative">
           <img
             className="h-full w-full object-cover"
             src={currentCoverDisplayUrl}
@@ -359,15 +366,14 @@ function ProfilePage({
               className="absolute top-4 right-4 p-2.5 rounded-full transition-all duration-150 ease-in-out shadow-lg z-10 bg-white/70 hover:bg-white/90 text-ollo-deep dark:bg-black/60 dark:hover:bg-black/80 dark:text-white"
               title="Alterar imagem de capa"
             >
-              {' '}
-              <CameraIcon className="h-5 w-5 sm:h-6 sm:w-6" />{' '}
+              <CameraIcon className="h-5 w-5 sm:h-6 sm:w-6" />
               <input
                 type="file"
                 ref={coverInputRef}
                 accept="image/*"
                 onChange={(e) => handleImageChange(e, 'cover')}
                 className="hidden"
-              />{' '}
+              />
             </button>
           )}
         </div>
@@ -385,15 +391,14 @@ function ProfilePage({
                   className="absolute bottom-1 right-1 p-2 rounded-full transition-all duration-150 ease-in-out shadow-lg bg-white/70 hover:bg-white/90 text-ollo-deep dark:bg-black/60 dark:hover:bg-black/80 dark:text-white"
                   title="Alterar avatar"
                 >
-                  {' '}
-                  <PencilSquareIcon className="h-4 w-4 sm:h-5 sm:w-5" />{' '}
+                  <PencilSquareIcon className="h-4 w-4 sm:h-5 sm:w-5" />
                   <input
                     type="file"
                     ref={avatarInputRef}
                     accept="image/*"
                     onChange={(e) => handleImageChange(e, 'avatar')}
                     className="hidden"
-                  />{' '}
+                  />
                 </button>
               )}
             </div>
@@ -429,13 +434,13 @@ function ProfilePage({
                 onClick={handleFollowToggle}
                 disabled={isFollowLoading}
                 className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 ease-in-out focus:outline-none focus:ring-4 shadow-md hover:shadow-lg flex items-center justify-center space-x-2 w-36 disabled:opacity-60 disabled:cursor-not-allowed 
-                                ${
-                                  isFollowLoading
-                                    ? 'bg-ollo-deep text-white dark:bg-ollo-accent-light dark:text-ollo-deep'
-                                    : isFollowing
-                                      ? 'bg-transparent border-2 border-gray-400 text-gray-500 hover:border-gray-500 hover:text-gray-700 focus:ring-gray-400/30 dark:border-gray-500 dark:text-gray-400 dark:hover:border-gray-400 dark:hover:text-gray-300 dark:focus:ring-gray-500/30'
-                                      : 'bg-ollo-deep text-white hover:bg-opacity-90 focus:ring-ollo-deep/30 dark:bg-ollo-accent-light dark:text-ollo-deep dark:hover:bg-opacity-90 dark:focus:ring-ollo-accent-light/30'
-                                }`}
+                  ${
+                    isFollowLoading
+                      ? 'bg-ollo-deep text-white dark:bg-ollo-accent-light dark:text-ollo-deep'
+                      : isFollowing
+                        ? 'bg-transparent border-2 border-gray-400 text-gray-500 hover:border-gray-500 hover:text-gray-700 focus:ring-gray-400/30 dark:border-gray-500 dark:text-gray-400 dark:hover:border-gray-400 dark:hover:text-gray-300 dark:focus:ring-gray-500/30'
+                        : 'bg-ollo-deep text-white hover:bg-opacity-90 focus:ring-ollo-deep/30 dark:bg-ollo-accent-light dark:text-ollo-deep dark:hover:bg-opacity-90 dark:focus:ring-ollo-accent-light/30'
+                  }`}
               >
                 {isFollowLoading ? (
                   <ArrowPathIcon className="h-5 w-5 animate-spin" />
@@ -501,31 +506,26 @@ function ProfilePage({
             )}
             <div className="flex flex-wrap justify-center gap-x-6 sm:gap-x-10 gap-y-3 text-sm">
               <div className="text-center">
-                {' '}
                 <span className="block font-bold text-xl sm:text-2xl text-ollo-deep dark:text-ollo-accent-light">
                   {filteredPosts.length}
-                </span>{' '}
-                <span className="text-gray-600 dark:text-gray-400">
-                  Posts
-                </span>{' '}
+                </span>
+                <span className="text-gray-600 dark:text-gray-400">Posts</span>
               </div>
               <div className="text-center">
-                {' '}
                 <span className="block font-bold text-xl sm:text-2xl text-ollo-deep dark:text-ollo-accent-light">
                   {followersCount}
-                </span>{' '}
+                </span>
                 <span className="text-gray-600 dark:text-gray-400">
                   Seguidores
-                </span>{' '}
+                </span>
               </div>
               <div className="text-center">
-                {' '}
                 <span className="block font-bold text-xl sm:text-2xl text-ollo-deep dark:text-ollo-accent-light">
                   {profileData.stats.following}
-                </span>{' '}
+                </span>
                 <span className="text-gray-600 dark:text-gray-400">
                   Seguindo
-                </span>{' '}
+                </span>
               </div>
             </div>
           </div>
@@ -561,7 +561,6 @@ function ProfilePage({
       <div className="max-w-xl mx-auto w-full px-4 sm:px-0 pb-12">
         {activeTab === 'posts' && (
           <div className="space-y-8">
-            {' '}
             {filteredPosts.length > 0 ? (
               filteredPosts.map((post) => (
                 <PostCard
@@ -572,7 +571,6 @@ function ProfilePage({
               ))
             ) : (
               <div className="rounded-xl p-8 sm:p-10 text-center shadow-xl mt-4 bg-white/60 dark:bg-ollo-slate/70">
-                {' '}
                 <svg
                   className="mx-auto h-16 w-16 text-gray-400 dark:text-gray-600"
                   fill="none"
@@ -586,66 +584,61 @@ function ProfilePage({
                     strokeWidth="1.5"
                     d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"
                   />
-                </svg>{' '}
+                </svg>
                 <h3 className="mt-4 text-xl font-semibold text-ollo-deep dark:text-white">
                   Sem posts por aqui ainda...
-                </h3>{' '}
+                </h3>
                 <p className="mt-2 text-base text-gray-500 dark:text-gray-400">
                   Quando {profileData.name} compartilhar algo, seus posts
                   aparecerão aqui.
-                </p>{' '}
+                </p>
               </div>
-            )}{' '}
+            )}
           </div>
         )}
         {activeTab === 'comments' && (
           <div className="space-y-6">
-            {' '}
             {userComments.length > 0 ? (
               userComments.map((comment) => (
                 <div
                   key={comment.id}
                   className="bg-white/80 dark:bg-ollo-slate/90 p-5 rounded-xl shadow-lg border border-gray-200/50 dark:border-gray-700/50"
                 >
-                  {' '}
                   <p className="text-base text-ollo-deep dark:text-white mb-3">
                     "{comment.text}"
-                  </p>{' '}
+                  </p>
                   <div className="text-xs text-gray-500 dark:text-gray-400 border-t border-gray-200/80 dark:border-gray-700/50 pt-3">
-                    {' '}
                     <p>
                       Comentado em{' '}
                       <span className="font-semibold">
                         {comment.timestamp || 'data indisponível'}
                       </span>
-                    </p>{' '}
+                    </p>
                     <p className="mt-1">
                       No post:{' '}
                       <span className="italic">
                         "{comment.originalPost.contentPreview}"
                       </span>
-                    </p>{' '}
-                  </div>{' '}
+                    </p>
+                  </div>
                 </div>
               ))
             ) : (
               <div className="rounded-xl p-8 sm:p-10 text-center shadow-xl bg-white/60 dark:bg-ollo-slate/70">
-                {' '}
-                <ChatBubbleLeftEllipsisIcon className="mx-auto h-16 w-16 text-gray-400 dark:text-gray-600" />{' '}
+                <ChatBubbleLeftEllipsisIcon className="mx-auto h-16 w-16 text-gray-400 dark:text-gray-600" />
                 <h3 className="mt-4 text-xl font-semibold text-ollo-deep dark:text-white">
                   Nenhum comentário encontrado.
-                </h3>{' '}
+                </h3>
                 <p className="mt-2 text-base text-gray-500 dark:text-gray-400">
                   Quando {profileData.name} comentar, seus comentários
                   aparecerão aqui.
-                </p>{' '}
+                </p>
               </div>
-            )}{' '}
+            )}
           </div>
         )}
         {activeTab === 'likes' && (
           <div className="space-y-8">
-            {' '}
             {actualLikedPosts.length > 0 ? (
               actualLikedPosts.map((post) => (
                 <PostCard
@@ -656,16 +649,15 @@ function ProfilePage({
               ))
             ) : (
               <div className="rounded-xl p-8 sm:p-10 text-center shadow-xl mt-4 bg-white/60 dark:bg-ollo-slate/70">
-                {' '}
-                <HeartIcon className="mx-auto h-16 w-16 text-gray-400 dark:text-gray-600" />{' '}
+                <HeartIcon className="mx-auto h-16 w-16 text-gray-400 dark:text-gray-600" />
                 <h3 className="mt-4 text-xl font-semibold text-ollo-deep dark:text-white">
                   Nenhuma curtida por aqui...
-                </h3>{' '}
+                </h3>
                 <p className="mt-2 text-base text-gray-500 dark:text-gray-400">
                   Quando {profileData.name} curtir algo, aparecerá aqui.
-                </p>{' '}
+                </p>
               </div>
-            )}{' '}
+            )}
           </div>
         )}
       </div>
@@ -673,4 +665,14 @@ function ProfilePage({
   );
 }
 
-export default ProfilePage;
+// O componente Wrapper que será exportado.
+// Ele garante que qualquer renderização de ProfilePage esteja dentro do AuthWrapper.
+function ProfilePageWithAuth(props) {
+  return (
+    <AuthWrapper>
+      <ProfilePage {...props} />
+    </AuthWrapper>
+  );
+}
+
+export default ProfilePageWithAuth;
