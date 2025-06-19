@@ -35,3 +35,4 @@ jobs:
           firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_OLLO_APP_E5224 }}'
           projectId: ollo-app-e5224
           # A ausência de 'channelId' faz o deploy para o canal 'live' por padrão.
+          # Adicionando este comentário para forçar uma nova atualização do arquivo.
