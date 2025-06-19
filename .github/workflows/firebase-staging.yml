@@ -1,4 +1,6 @@
-name: Deploy para Firebase Staging
+# Arquivo: .github/workflows/firebase-staging.yml (COM A CORREÇÃO)
+
+name: Deploy to Firebase Hosting (Staging)
 
 on:
   push:
@@ -6,26 +8,27 @@ on:
       - staging
 
 jobs:
-  deploy:
-    name: Deploy Firebase Hosting
+  build_and_deploy_staging:
+    name: Build and Deploy to Staging
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout do código
-        uses: actions/checkout@v3
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-      - name: Instalar Node.js
-        uses: actions/setup-node@v3
+      # ETAPA CORRIGIDA
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '20.x' # Garante a versão correta do Node
+          cache: 'npm'       # Opcional, mas recomendado para velocidade
 
-      - name: Instalar dependências
-        run: npm ci
+      - name: Install Dependencies and Build Project
+        run: npm ci && npm run build
 
-      - name: Deploy para Firebase Hosting (preview channel)
+      - name: Deploy to Firebase Hosting Staging Channel
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: '${{ secrets.GITHUB_TOKEN }}'
-          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_OLLO }}'
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_OLLO_APP_E5224 }}'
+          projectId: ollo-app-e5224
           channelId: staging
-          projectId: ollo-app
