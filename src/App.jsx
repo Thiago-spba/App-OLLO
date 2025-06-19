@@ -1,9 +1,12 @@
-// src/App.jsx - Versão Refatorada e Otimizada
+// src/App.jsx - Versão com Autenticação do Firebase Integrada
 
-console.log('deploy de teste');
 import { useState, useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
+
+// Importações do Firebase para monitorar a autenticação
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from './firebase/config'; // Confirme que este é o caminho para sua config do Firebase
 
 // Layouts e Rotas
 import MainLayout from './layouts/MainLayout';
@@ -31,6 +34,7 @@ import ResetPasswordPage from './pages/ResetPasswordPage';
 import ActionHandlerPage from './pages/ActionHandlerPage';
 
 function App() {
+  // --- ESTADOS ---
   const [darkMode, setDarkMode] = useState(
     () => localStorage.getItem('darkMode') === 'true'
   );
@@ -48,11 +52,32 @@ function App() {
   ]);
   const [isCreatePostModalOpen, setIsCreatePostModalOpen] = useState(false);
 
+  // -- NOVOS ESTADOS DE AUTENTICAÇÃO --
+  const [user, setUser] = useState(null);
+  const [authIsReady, setAuthIsReady] = useState(false);
+
+  // --- EFEITOS ---
+
+  // Efeito para o tema escuro
   useEffect(() => {
     localStorage.setItem('darkMode', darkMode);
     document.documentElement.classList.toggle('dark', darkMode);
   }, [darkMode]);
 
+  // NOVO EFEITO: Monitora o estado de autenticação do Firebase
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (_user) => {
+      setUser(_user);
+      setAuthIsReady(true);
+      console.log(
+        'Estado de autenticação verificado, usuário:',
+        _user ? _user.uid : 'Nenhum'
+      );
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // --- FUNÇÕES ---
   const toggleTheme = () => setDarkMode(!darkMode);
   const openCreatePostModal = () => setIsCreatePostModalOpen(true);
   const closeCreatePostModal = () => setIsCreatePostModalOpen(false);
@@ -77,93 +102,104 @@ function App() {
         }}
       />
 
-      <Routes>
-        {/* GRUPO 1: Rotas sem layout principal (Login, Registro, etc.) */}
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-        <Route path="/verify-email" element={<VerifyEmailPage />} />
-        <Route path="/reset-password" element={<ResetPasswordPage />} />
-        <Route path="/actions" element={<ActionHandlerPage />} />
+      {/* Só renderiza o app após a verificação inicial do Firebase, evitando "piscar" de tela */}
+      {authIsReady && (
+        <>
+          <Routes>
+            {/* GRUPO 1: Rotas públicas sem layout principal */}
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/verify-email" element={<VerifyEmailPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/actions" element={<ActionHandlerPage />} />
 
-        {/* GRUPO 2: Rotas Públicas com o MainLayout */}
-        <Route
-          element={
-            <MainLayout
-              openCreatePostModal={openCreatePostModal}
-              toggleTheme={toggleTheme}
-              darkMode={darkMode}
-            />
-          }
-        >
-          <Route
-            path="/"
-            element={
-              <HomePage
-                posts={posts}
-                onTriggerCreatePost={openCreatePostModal}
-                onCommentSubmit={() => {}}
-                onDeletePost={() => {}}
-              />
-            }
-          />
-          <Route
-            path="/explore"
-            element={
-              <ExplorePage allPosts={posts} onCommentSubmit={() => {}} />
-            }
-          />
-          <Route path="/marketplace" element={<MarketplacePage />} />
-          <Route
-            path="/marketplace/detalhes/:listingId"
-            element={<ListingDetailPage />}
-          />
-          <Route
-            path="/posts/:postId"
-            element={<PostDetailPage allPosts={posts} />}
-          />
-          <Route path="/terms" element={<TermsPage />} />
-        </Route>
-
-        {/* GRUPO 3: Rotas Protegidas com o MainLayout */}
-        <Route element={<PrivateRoute />}>
-          <Route
-            element={
-              <MainLayout
-                openCreatePostModal={openCreatePostModal}
-                toggleTheme={toggleTheme}
-                darkMode={darkMode}
-              />
-            }
-          >
+            {/* GRUPO 2: Rotas Públicas com o MainLayout */}
             <Route
-              path="/profile/:profileId?"
               element={
-                <ProfilePage
-                  allPosts={posts}
-                  onCommentSubmit={() => {}}
-                  sessionFollowStatus={sessionFollowStatus}
-                  setSessionFollowStatus={setSessionFollowStatus}
+                <MainLayout
+                  openCreatePostModal={openCreatePostModal}
+                  toggleTheme={toggleTheme}
+                  darkMode={darkMode}
                 />
               }
+            >
+              <Route
+                path="/"
+                element={
+                  <HomePage
+                    posts={posts}
+                    onTriggerCreatePost={openCreatePostModal}
+                    onCommentSubmit={() => {}}
+                    onDeletePost={() => {}}
+                  />
+                }
+              />
+              <Route
+                path="/explore"
+                element={
+                  <ExplorePage allPosts={posts} onCommentSubmit={() => {}} />
+                }
+              />
+              <Route path="/marketplace" element={<MarketplacePage />} />
+              <Route
+                path="/marketplace/detalhes/:listingId"
+                element={<ListingDetailPage />}
+              />
+              <Route
+                path="/posts/:postId"
+                element={<PostDetailPage allPosts={posts} />}
+              />
+              <Route path="/terms" element={<TermsPage />} />
+            </Route>
+
+            {/* GRUPO 3: Rotas Protegidas com o MainLayout */}
+            <Route element={<PrivateRoute user={user} />}>
+              {' '}
+              {/* Passando o usuário para a rota privada */}
+              <Route
+                element={
+                  <MainLayout
+                    openCreatePostModal={openCreatePostModal}
+                    toggleTheme={toggleTheme}
+                    darkMode={darkMode}
+                  />
+                }
+              >
+                <Route
+                  path="/profile/:profileId?"
+                  element={
+                    <ProfilePage
+                      user={user} // Passando o usuário para a página de perfil
+                      allPosts={posts}
+                      onCommentSubmit={() => {}}
+                      sessionFollowStatus={sessionFollowStatus}
+                      setSessionFollowStatus={setSessionFollowStatus}
+                    />
+                  }
+                />
+                <Route
+                  path="/marketplace/criar"
+                  element={<CreateListingPage />}
+                />
+                <Route path="/notifications" element={<NotificationsPage />} />
+              </Route>
+            </Route>
+          </Routes>
+
+          <Footer darkMode={darkMode} />
+
+          {isCreatePostModalOpen && (
+            <CreatePostModal
+              onClose={closeCreatePostModal}
+              onAddPost={(newPost) => {
+                setPosts([newPost, ...posts]);
+                closeCreatePostModal();
+              }}
+              darkMode={darkMode}
             />
-            <Route path="/marketplace/criar" element={<CreateListingPage />} />
-            <Route path="/notifications" element={<NotificationsPage />} />
-          </Route>
-        </Route>
-      </Routes>
-
-      <Footer darkMode={darkMode} />
-
-      {isCreatePostModalOpen && (
-        <CreatePostModal
-          onClose={closeCreatePostModal}
-          onAddPost={(newPost) => {
-            setPosts([newPost, ...posts]);
-            closeCreatePostModal();
-          }}
-          darkMode={darkMode}
-        />
+          )}
+        </>
       )}
     </div>
   );

@@ -1,11 +1,12 @@
-// src/context/firebase/config.js
+// ARQUIVO PARA SUBSTITUIR: src/firebase/config.js
+// Versão atualizada para incluir o Firebase Storage
 
 import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
 import { getAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage"; // 1. Importa a função do Storage
 
-// As chaves secretas são lidas do arquivo .env de forma segura
+// Sua configuração com variáveis de ambiente (está correto)
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -15,10 +16,12 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
-// O resto do seu arquivo, que já estava correto, permanece o mesmo
+// Inicializa o app
 const app = initializeApp(firebaseConfig);
 
-export const db = getFirestore(app);
-export const storage = getStorage(app);
+// Cria e exporta as instâncias de todos os serviços que vamos usar
 export const auth = getAuth(app);
+export const db = getFirestore(app);
+export const storage = getStorage(app); // 2. Cria e exporta a instância do Storage
+
 export default app;
