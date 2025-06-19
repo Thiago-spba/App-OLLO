@@ -1,7 +1,7 @@
 // --- Imports Corrigidos e Validados ---
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import apiClient from '../API/axios';
+import apiClient from '../api/axios';
 
 // Ícones da Heroicons
 import {
