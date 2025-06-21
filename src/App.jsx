@@ -1,12 +1,11 @@
-// src/App.jsx - Versão com Autenticação do Firebase Integrada
-
 import { useState, useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
+import toast from 'react-hot-toast';
 
 // Importações do Firebase para monitorar a autenticação
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from './firebase/config'; // Confirme que este é o caminho para sua config do Firebase
+import { auth } from './firebase/config';
 
 // Layouts e Rotas
 import MainLayout from './layouts/MainLayout';
@@ -39,32 +38,22 @@ function App() {
     () => localStorage.getItem('darkMode') === 'true'
   );
   const [sessionFollowStatus, setSessionFollowStatus] = useState({});
-  const [posts, setPosts] = useState([
-    {
-      id: 1,
-      postId: 'bem-vindo-ollo',
-      userName: 'Usuário OLLO',
-      comments: [],
-      likeCount: Math.floor(Math.random() * 101),
-      content:
-        'Bem-vindo ao OLLO! Uma nova plataforma para conectar e compartilhar. Explore, crie e divirta-se!',
-    },
-  ]);
+  // O estado posts pode ser removido se o feed buscar do Firestore:
+  // const [posts, setPosts] = useState([]);
+
   const [isCreatePostModalOpen, setIsCreatePostModalOpen] = useState(false);
 
-  // -- NOVOS ESTADOS DE AUTENTICAÇÃO --
+  // --- NOVOS ESTADOS DE AUTENTICAÇÃO ---
   const [user, setUser] = useState(null);
   const [authIsReady, setAuthIsReady] = useState(false);
 
   // --- EFEITOS ---
 
-  // Efeito para o tema escuro
   useEffect(() => {
     localStorage.setItem('darkMode', darkMode);
     document.documentElement.classList.toggle('dark', darkMode);
   }, [darkMode]);
 
-  // NOVO EFEITO: Monitora o estado de autenticação do Firebase
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (_user) => {
       setUser(_user);
@@ -82,6 +71,14 @@ function App() {
   const openCreatePostModal = () => setIsCreatePostModalOpen(true);
   const closeCreatePostModal = () => setIsCreatePostModalOpen(false);
 
+  // Função de callback para posts criados pelo modal
+  const handlePostSuccess = (/* newPost */) => {
+    toast.success('🎉 Post publicado com sucesso no OLLO!');
+    closeCreatePostModal();
+    // Se quiser atualizar posts locais (se não buscar do Firestore), descomente:
+    // setPosts([newPost, ...posts]);
+  };
+
   const themeClasses = darkMode
     ? 'bg-gray-900 text-gray-100'
     : 'bg-gray-50 text-gray-900';
@@ -98,11 +95,13 @@ function App() {
             background: darkMode ? '#1f2937' : '#ffffff',
             color: darkMode ? '#f3f4f6' : '#111827',
             boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+            borderRadius: '1rem',
+            fontSize: '1rem',
           },
         }}
       />
 
-      {/* Só renderiza o app após a verificação inicial do Firebase, evitando "piscar" de tela */}
+      {/* Só renderiza o app após a verificação inicial do Firebase */}
       {authIsReady && (
         <>
           <Routes>
@@ -128,7 +127,7 @@ function App() {
                 path="/"
                 element={
                   <HomePage
-                    posts={posts}
+                    // posts={posts}
                     onTriggerCreatePost={openCreatePostModal}
                     onCommentSubmit={() => {}}
                     onDeletePost={() => {}}
@@ -138,7 +137,10 @@ function App() {
               <Route
                 path="/explore"
                 element={
-                  <ExplorePage allPosts={posts} onCommentSubmit={() => {}} />
+                  <ExplorePage
+                    // allPosts={posts}
+                    onCommentSubmit={() => {}}
+                  />
                 }
               />
               <Route path="/marketplace" element={<MarketplacePage />} />
@@ -148,15 +150,13 @@ function App() {
               />
               <Route
                 path="/posts/:postId"
-                element={<PostDetailPage allPosts={posts} />}
+                element={<PostDetailPage /* allPosts={posts} */ />}
               />
               <Route path="/terms" element={<TermsPage />} />
             </Route>
 
             {/* GRUPO 3: Rotas Protegidas com o MainLayout */}
             <Route element={<PrivateRoute user={user} />}>
-              {' '}
-              {/* Passando o usuário para a rota privada */}
               <Route
                 element={
                   <MainLayout
@@ -170,8 +170,8 @@ function App() {
                   path="/profile/:profileId?"
                   element={
                     <ProfilePage
-                      user={user} // Passando o usuário para a página de perfil
-                      allPosts={posts}
+                      user={user}
+                      // allPosts={posts}
                       onCommentSubmit={() => {}}
                       sessionFollowStatus={sessionFollowStatus}
                       setSessionFollowStatus={setSessionFollowStatus}
@@ -192,11 +192,9 @@ function App() {
           {isCreatePostModalOpen && (
             <CreatePostModal
               onClose={closeCreatePostModal}
-              onAddPost={(newPost) => {
-                setPosts([newPost, ...posts]);
-                closeCreatePostModal();
-              }}
+              onAddPost={handlePostSuccess}
               darkMode={darkMode}
+              currentUser={user}
             />
           )}
         </>

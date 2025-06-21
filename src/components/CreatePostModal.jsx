@@ -1,11 +1,11 @@
 // src/components/CreatePostModal.jsx
-// Atualizado em junho de 2025
+// Versão definitiva OLLO - Junho de 2025
 
 import { useEffect, useRef } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/solid';
-import PostForm from './PostForm/PostForm'; // Atualizamos aqui
+import PostForm from './PostForm/PostForm';
 
-function CreatePostModal({ onClose, onAddPost }) {
+function CreatePostModal({ onClose, onAddPost, currentUser }) {
   const modalRef = useRef();
 
   // Fecha ao clicar fora
@@ -43,11 +43,12 @@ function CreatePostModal({ onClose, onAddPost }) {
     >
       <div
         ref={modalRef}
-        className="w-full max-w-lg relative rounded-xl shadow-2xl p-6 
-                   bg-ollo-light dark:bg-ollo-deep 
-                   border border-gray-300 dark:border-gray-700 
+        className="w-full max-w-lg relative rounded-xl shadow-2xl p-6
+                   bg-white dark:bg-ollo-dark-900
+                   border border-gray-300 dark:border-gray-700
                    text-ollo-deep dark:text-gray-200"
       >
+        {/* Cabeçalho do modal */}
         <div className="flex items-center justify-between mb-4">
           <h2
             id="create-post-modal-title"
@@ -57,7 +58,7 @@ function CreatePostModal({ onClose, onAddPost }) {
           </h2>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-full transition-colors duration-150 ease-in-out
+            className="p-1.5 rounded-full transition-colors duration-150
                        text-gray-500 hover:text-ollo-deep hover:bg-gray-200/50
                        dark:text-gray-400 dark:hover:text-ollo-accent-light dark:hover:bg-gray-700/50
                        focus:outline-none focus-visible:ring-2 focus-visible:ring-ollo-deep dark:focus-visible:ring-ollo-accent-light"
@@ -67,8 +68,8 @@ function CreatePostModal({ onClose, onAddPost }) {
           </button>
         </div>
 
-        {/* Aqui trocamos CreatePost por PostForm */}
-        <PostForm onPost={onAddPost} />
+        {/* Formulário de postagem */}
+        <PostForm onPost={onAddPost} currentUser={currentUser} />
       </div>
     </div>
   );

@@ -1,5 +1,3 @@
- // HomePage.jsx atualizando em junho de 2025
- 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -9,6 +7,8 @@ import {
   ArrowClockwise,
   Image as ImageIcon,
 } from '@phosphor-icons/react';
+import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebase/config';
 import PostCard from '../components/PostCard';
 import StoriesReel from '../components/StoriesReel';
 import CreatePostModal from '../components/CreatePostModal';
@@ -21,38 +21,23 @@ const HomePage = ({ onCommentSubmit, onDeletePost }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Busca em tempo real dos posts do Firestore
   useEffect(() => {
-    const loadPosts = async () => {
-      setIsLoading(true);
-      try {
-        await new Promise((resolve) => setTimeout(resolve, 800));
-        const savedPosts = JSON.parse(localStorage.getItem('ollo-posts')) || [];
-        setPosts(savedPosts);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    loadPosts();
+    setIsLoading(true);
+    const q = query(collection(db, 'posts'), orderBy('timestamp', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const postsArray = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setPosts(postsArray);
+      setIsLoading(false);
+    });
+    return () => unsubscribe();
   }, []);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      localStorage.setItem('ollo-posts', JSON.stringify(posts));
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [posts]);
-
-  const handleNewPost = (newPost) => {
-    setPosts((prev) => [
-      {
-        ...newPost,
-        user: {
-          name: currentUser?.name || 'Usuário OLLO',
-          avatar: currentUser?.avatarUrl || '/images/default-avatar.png',
-        },
-      },
-      ...prev,
-    ]);
+  // Novo post: só fecha modal (ao salvar, o onSnapshot já recarrega o feed)
+  const handleNewPost = () => {
     setIsModalOpen(false);
   };
 
@@ -83,19 +68,17 @@ const HomePage = ({ onCommentSubmit, onDeletePost }) => {
                   }}
                 />
               </div>
-
               <button
                 onClick={handleOpenModal}
                 className="flex-grow px-5 py-3 rounded-xl text-left bg-ollo-light-100 hover:bg-ollo-light-200 dark:bg-ollo-dark-700 dark:hover:bg-ollo-dark-600 text-ollo-dark-600 dark:text-ollo-light-300 transition-colors"
               >
                 <span className="font-medium">
                   {currentUser
-                    ? `No que você está pensando, ${currentUser.name.split(' ')[0]}?`
+                    ? `No que você está pensando, ${currentUser.name?.split(' ')[0] || 'Usuário'}?`
                     : 'Faça login para compartilhar'}
                 </span>
               </button>
             </div>
-
             <div className="mt-4 flex justify-between">
               <button
                 onClick={handleOpenModal}
@@ -104,7 +87,6 @@ const HomePage = ({ onCommentSubmit, onDeletePost }) => {
                 <ImageIcon size={20} weight="duotone" />
                 <span>Foto/Vídeo</span>
               </button>
-
               <button
                 onClick={handleOpenModal}
                 className="flex items-center gap-2 px-4 py-2 text-ollo-accent-600 dark:text-ollo-accent-400 hover:bg-ollo-accent-50 dark:hover:bg-ollo-dark-700 rounded-lg transition-colors"
@@ -120,11 +102,14 @@ const HomePage = ({ onCommentSubmit, onDeletePost }) => {
               <h2 className="text-2xl font-bold text-ollo-dark-900 dark:text-ollo-light-100">
                 Atualizações Recentes
               </h2>
-              <button className="text-ollo-primary-500 hover:text-ollo-primary-600 dark:text-ollo-primary-400 dark:hover:text-ollo-primary-300 transition-colors">
+              <button
+                className="text-ollo-primary-500 hover:text-ollo-primary-600 dark:text-ollo-primary-400 dark:hover:text-ollo-primary-300 transition-colors"
+                onClick={() => window.location.reload()}
+                title="Recarregar Feed"
+              >
                 <ArrowClockwise size={20} />
               </button>
             </div>
-
             {isLoading ? (
               <div className="space-y-6">
                 {[...Array(3)].map((_, i) => (

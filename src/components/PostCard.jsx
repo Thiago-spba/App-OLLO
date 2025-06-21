@@ -1,5 +1,3 @@
-// src/components/PostCard.jsx
-
 import { useState, useRef, useEffect } from 'react';
 import {
   HandThumbUpIcon,
@@ -15,18 +13,47 @@ import {
   HeartIcon as HeartSolid,
 } from '@heroicons/react/24/solid';
 
-function PostCard({ postData, onCommentSubmit, onDeletePost, variant }) {
-  if (!postData) {
-    return null;
+// Função para formatar timestamp Firestore/ISO/string para string legível
+function formatDate(ts) {
+  if (!ts) return '';
+  if (typeof ts === 'object' && ts.seconds) {
+    // Firestore Timestamp
+    const date = new Date(ts.seconds * 1000);
+    return date.toLocaleString('pt-BR', {
+      dateStyle: 'short',
+      timeStyle: 'short',
+    });
   }
+  if (typeof ts === 'string') {
+    return new Date(ts).toLocaleString('pt-BR', {
+      dateStyle: 'short',
+      timeStyle: 'short',
+    });
+  }
+  return '';
+}
 
-  const { postId: postIdString, userName, timestamp, content } = postData;
-  const currentComments = postData.comments || [];
+function PostCard({ postData, onCommentSubmit, onDeletePost, variant }) {
+  if (!postData) return null;
 
-  // Seus estados... (sem alterações)
+  // Corrigido para o modelo OLLO: userName e userAvatar
+  const {
+    postId: postIdString,
+    userName,
+    userAvatar,
+    timestamp,
+    content,
+    media = [],
+    comments = [],
+    likes = [],
+  } = postData;
+
+  const currentComments = comments;
+
+  // Estados internos
   const [isLiked, setIsLiked] = useState(false);
   const [currentLikeCount, setCurrentLikeCount] = useState(
-    postData.likeCount || Math.floor(Math.random() * 100)
+    Array.isArray(likes) ? likes.length : 0
   );
   const [showComments, setShowComments] = useState(false);
   const [newCommentText, setNewCommentText] = useState('');
@@ -40,7 +67,7 @@ function PostCard({ postData, onCommentSubmit, onDeletePost, variant }) {
     content &&
     (content.length > 200 || content.split('\n').length > NUM_LINES_TO_CLAMP);
 
-  // Seus efeitos e handlers... (sem alterações)
+  // Reações dos comentários
   useEffect(() => {
     const initialReactions = {};
     if (currentComments.length > 0) {
@@ -64,7 +91,7 @@ function PostCard({ postData, onCommentSubmit, onDeletePost, variant }) {
   const handleCommentToggle = () => setShowComments(!showComments);
   const handleCommentSubmit = () => {
     if (newCommentText.trim()) {
-      onCommentSubmit(postIdString, newCommentText);
+      onCommentSubmit && onCommentSubmit(postIdString, newCommentText);
       setNewCommentText('');
     }
   };
@@ -117,14 +144,17 @@ function PostCard({ postData, onCommentSubmit, onDeletePost, variant }) {
     });
   };
 
-  const getAvatarUrl = (name) => {
+  // Avatar: preferencialmente do userAvatar do banco
+  const getAvatarUrl = () => {
+    if (userAvatar && userAvatar !== '/images/default-avatar.png')
+      return userAvatar;
+    // Se não houver, usa avatar automático:
     const isDarkMode = document.documentElement.classList.contains('dark');
     const bgColor = isDarkMode ? '00A896' : '0D1B2A';
     const textColor = isDarkMode ? '0D1B2A' : 'E0E1DD';
-    return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=${bgColor}&color=${textColor}&bold=true&size=128`;
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(userName || 'OLLO')}&background=${bgColor}&color=${textColor}&bold=true&size=128`;
   };
-
-  return (
+    return (
     <div
       className={`
         bg-white/90 dark:bg-ollo-slate/90 
@@ -139,10 +169,9 @@ function PostCard({ postData, onCommentSubmit, onDeletePost, variant }) {
       >
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center min-w-0">
-            {/* CORRIGIDO: Removido conflito de ring */}
             <img
               className="h-10 w-10 sm:h-11 sm:w-11 rounded-full mr-3 sm:mr-3.5 object-cover ring-2 ring-offset-2 ring-ollo-accent-light/80 dark:ring-ollo-accent-light ring-offset-white dark:ring-offset-ollo-slate"
-              src={getAvatarUrl(userName)}
+              src={getAvatarUrl()}
               alt={`Avatar de ${userName}`}
             />
             <div className="min-w-0">
@@ -150,10 +179,11 @@ function PostCard({ postData, onCommentSubmit, onDeletePost, variant }) {
                 {userName}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 cursor-pointer transition-colors">
-                {timestamp}
+                {formatDate(timestamp)}
               </p>
             </div>
           </div>
+          {/* Excluir disponível só para autor, se quiser: */}
           {userName === 'Usuário OLLO' && onDeletePost && (
             <button
               onClick={handleDeleteClick}
@@ -181,6 +211,29 @@ function PostCard({ postData, onCommentSubmit, onDeletePost, variant }) {
             </button>
           )}
         </div>
+
+        {/* Exibir imagens/vídeos do post */}
+        {media.length > 0 && (
+          <div className="mb-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {media.map((m, idx) =>
+              m.type === 'video' ? (
+                <video
+                  key={idx}
+                  src={m.url}
+                  controls
+                  className="w-full max-h-[320px] rounded-lg object-contain"
+                />
+              ) : (
+                <img
+                  key={idx}
+                  src={m.url}
+                  alt="Mídia do post"
+                  className="w-full max-h-[320px] rounded-lg object-contain"
+                />
+              )
+            )}
+          </div>
+        )}
 
         {(currentLikeCount > 0 || currentComments.length > 0) && (
           <div className="flex items-center space-x-3 sm:space-x-4 text-xs text-gray-500 dark:text-gray-400 mt-2 mb-4">
@@ -244,10 +297,9 @@ function PostCard({ postData, onCommentSubmit, onDeletePost, variant }) {
       {showComments && (
         <div className="px-4 sm:px-5 md:px-6 pb-5 pt-4 border-t border-gray-200/90 dark:border-gray-700/50">
           <div className="flex items-start space-x-2 sm:space-x-3 mb-4">
-            {/* CORRIGIDO: Removido conflito de ring */}
             <img
               className="h-8 w-8 sm:h-9 sm:w-9 rounded-full object-cover flex-shrink-0 ring-1 ring-offset-1 ring-gray-300 dark:ring-gray-600 ring-offset-white dark:ring-offset-ollo-slate"
-              src={getAvatarUrl('Eu')}
+              src={getAvatarUrl()}
               alt="Seu avatar"
             />
             <div className="flex-1">
@@ -286,10 +338,9 @@ function PostCard({ postData, onCommentSubmit, onDeletePost, variant }) {
                     key={commentId}
                     className="text-xs sm:text-sm flex items-start space-x-2 sm:space-2.5"
                   >
-                    {/* CORRIGIDO: Removido conflito de ring */}
                     <img
                       className="h-6 w-6 sm:h-7 sm:w-7 rounded-full object-cover flex-shrink-0 mt-0.5 ring-1 ring-offset-1 ring-gray-300 dark:ring-gray-600 ring-offset-white dark:ring-offset-ollo-slate"
-                      src={getAvatarUrl(comment.user)}
+                      src={getAvatarUrl()}
                       alt={`Avatar de ${comment.user}`}
                     />
                     <div className="bg-gray-100/90 dark:bg-gray-800/70 backdrop-blur-sm rounded-lg px-3 py-2 sm:px-3.5 sm:py-2.5 flex-1 shadow-sm border border-gray-200/70 dark:border-gray-700/50">
