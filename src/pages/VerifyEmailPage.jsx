@@ -8,7 +8,7 @@ import {
   sendEmailVerification,
   onAuthStateChanged,
 } from 'firebase/auth'; // Importa onAuthStateChanged
-import { auth } from '../firebase/config';
+import { auth } from '../firebase';
 import toast, { Toaster } from 'react-hot-toast';
 
 const VerifyEmailPage = () => {

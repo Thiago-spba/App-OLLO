@@ -3,7 +3,7 @@
 import React, { useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { applyActionCode } from 'firebase/auth';
-import { auth } from '../firebase/config';
+import { auth } from '../firebase';
 import toast, { Toaster } from 'react-hot-toast';
 
 const ActionHandlerPage = () => {

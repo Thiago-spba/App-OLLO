@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
-import { db, storage } from '../firebase/config.js';
+import { db, storage } from '../firebase';
 import { useAuth } from '../context/AuthContext'; // MUDANÇA 1: Importa o useAuth
 import {
   TagIcon,

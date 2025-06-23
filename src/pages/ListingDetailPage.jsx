@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { db } from '../firebase/config.js';
+import { db } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import {
   ArrowPathIcon,

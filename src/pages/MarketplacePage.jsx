@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { db } from '../firebase/config.js';
+import { db } from '../firebase';
 // 👇 ADICIONADO: 'doc' e 'deleteDoc' para a funcionalidade de exclusão
 import {
   collection,

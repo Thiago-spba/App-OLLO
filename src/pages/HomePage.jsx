@@ -8,7 +8,7 @@ import {
   Image as ImageIcon,
 } from '@phosphor-icons/react';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
-import { db } from '../firebase/config';
+import { db } from '../firebase';
 import PostCard from '../components/PostCard';
 import StoriesReel from '../components/StoriesReel';
 import CreatePostModal from '../components/CreatePostModal';

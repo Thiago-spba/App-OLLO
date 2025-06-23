@@ -1,5 +1,13 @@
 // src/context/AuthContext.jsx
-import React, { createContext, useState, useContext, useEffect } from 'react';
+
+import { auth, db } from '../firebase'; // <-- ESTE IMPORT RESOLVE O ERRO
+import React, {
+  createContext,
+  useState,
+  useContext,
+  useEffect,
+  useRef,
+} from 'react';
 import {
   onAuthStateChanged,
   signOut,
@@ -9,7 +17,6 @@ import {
   sendPasswordResetEmail,
   updateProfile,
 } from 'firebase/auth';
-import { auth, db } from '../firebase/config';
 import {
   doc,
   getDoc,
@@ -20,21 +27,58 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
+// Cria o contexto de autenticação
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [profileIncomplete, setProfileIncomplete] = useState(false);
   const navigate = useNavigate();
 
-  // Obter URL base dinamicamente
+  // REF para evitar loops infinitos
+  const profileCheckRef = useRef(false);
+
+  // Helper para URL base do app
   const getBaseUrl = () => {
     return import.meta.env.MODE === 'production'
       ? import.meta.env.VITE_APP_URL || window.location.origin
       : window.location.origin;
   };
 
-  // Atualizar estado de autenticação
+  // Função para checar se o perfil está completo
+  const isProfileComplete = (userData) => {
+    if (!userData) return false;
+    return (
+      typeof userData.name === 'string' &&
+      userData.name.trim().length > 1 &&
+      typeof userData.location === 'string' &&
+      userData.location.trim().length > 1
+    );
+  };
+
+  // Função separada para checagem de perfil (chamada apenas quando necessário)
+  const checkAndRedirectProfile = (userObj) => {
+    const completo = isProfileComplete(userObj);
+    setProfileIncomplete(!completo);
+
+    // Só redireciona se perfil incompleto E não estiver já na página de perfil
+    if (
+      !completo &&
+      !window.location.pathname.includes('/profile') &&
+      !profileCheckRef.current
+    ) {
+      profileCheckRef.current = true;
+      toast.info('Complete seu perfil para acessar o OLLO.');
+      navigate('/profile', { replace: true });
+      // Reset o ref após um tempo para permitir futuras checagens se necessário
+      setTimeout(() => {
+        profileCheckRef.current = false;
+      }, 1000);
+    }
+  };
+
+  // EFEITO PRINCIPAL - SÓ ESCUTA AUTENTICAÇÃO, SEM DEPENDÊNCIA DE LOCATION
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
@@ -42,17 +86,12 @@ export const AuthProvider = ({ children }) => {
           const userDocRef = doc(db, 'users', firebaseUser.uid);
           const docSnap = await getDoc(userDocRef);
 
+          let userData;
           if (docSnap.exists()) {
-            const userData = docSnap.data();
-            setCurrentUser({
-              uid: firebaseUser.uid,
-              email: firebaseUser.email,
-              emailVerified: firebaseUser.emailVerified,
-              ...userData,
-            });
+            userData = docSnap.data();
           } else {
-            // Criar documento se não existir
-            await setDoc(userDocRef, {
+            // Cria documento se não existir (novo usuário)
+            userData = {
               uid: firebaseUser.uid,
               email: firebaseUser.email,
               name: firebaseUser.displayName || 'Usuário OLLO',
@@ -60,37 +99,46 @@ export const AuthProvider = ({ children }) => {
               bio: 'Novo membro da comunidade OLLO!',
               avatarUrl:
                 firebaseUser.photoURL ||
-                `https://ui-avatars.com/api/?name=${encodeURIComponent(firebaseUser.email.split('@')[0])}&background=4f46e5&color=fff&bold=true`,
+                `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                  firebaseUser.email.split('@')[0]
+                )}&background=4f46e5&color=fff&bold=true`,
               createdAt: serverTimestamp(),
               lastLogin: serverTimestamp(),
-            });
-
-            setCurrentUser({
-              uid: firebaseUser.uid,
-              email: firebaseUser.email,
-              emailVerified: firebaseUser.emailVerified,
-              name: firebaseUser.displayName || 'Usuário OLLO',
-              username: firebaseUser.email.split('@')[0],
-              avatarUrl:
-                firebaseUser.photoURL ||
-                `https://ui-avatars.com/api/?name=${encodeURIComponent(firebaseUser.email.split('@')[0])}&background=4f46e5&color=fff&bold=true`,
-            });
+              location: '', // Inicia com localização vazia
+            };
+            await setDoc(userDocRef, userData);
           }
+
+          const userObj = {
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            emailVerified: firebaseUser.emailVerified,
+            ...userData,
+          };
+
+          setCurrentUser(userObj);
+
+          // Checa perfil completo apenas na primeira carga
+          checkAndRedirectProfile(userObj);
         } catch (err) {
           console.error('Erro ao buscar dados do usuário:', err);
           toast.error('Erro ao carregar dados do usuário');
           setCurrentUser(null);
+          setProfileIncomplete(true);
         }
       } else {
         setCurrentUser(null);
+        setProfileIncomplete(false);
+        profileCheckRef.current = false; // Reset na saída
       }
       setLoading(false);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, []); // SEM DEPENDÊNCIAS DE LOCATION - essa era a causa do problema!
 
-  // Registrar novo usuário
+  // ========== FUNÇÕES DE AUTENTICAÇÃO ==========
+
   const registerWithEmail = async (email, password, additionalData) => {
     try {
       const userCredential = await createUserWithEmailAndPassword(
@@ -100,12 +148,10 @@ export const AuthProvider = ({ children }) => {
       );
       const firebaseUser = userCredential.user;
 
-      // Atualizar perfil no Firebase Auth
       await updateProfile(firebaseUser, {
         displayName: additionalData.name,
       });
 
-      // Criar documento no Firestore
       const userDocRef = doc(db, 'users', firebaseUser.uid);
       await setDoc(userDocRef, {
         uid: firebaseUser.uid,
@@ -115,18 +161,20 @@ export const AuthProvider = ({ children }) => {
         bio: additionalData.bio || 'Novo membro da comunidade OLLO!',
         avatarUrl:
           additionalData.avatarUrl ||
-          `https://ui-avatars.com/api/?name=${encodeURIComponent(additionalData.name)}&background=4f46e5&color=fff&bold=true`,
+          `https://ui-avatars.com/api/?name=${encodeURIComponent(
+            additionalData.name
+          )}&background=4f46e5&color=fff&bold=true`,
         createdAt: serverTimestamp(),
         lastLogin: serverTimestamp(),
+        location: '',
       });
 
-      // Enviar email de verificação
       await sendEmailVerification(firebaseUser, {
         url: `${getBaseUrl()}/login?email_verified=true`,
         handleCodeInApp: false,
       });
 
-      toast.success('Conta criada com sucesso! Verifique seu email.');
+      toast.success('Conta criada! Verifique seu email.');
       return { success: true, user: firebaseUser };
     } catch (error) {
       console.error('Erro no registro:', error);
@@ -135,7 +183,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Login com email e senha
   const loginWithEmail = async (email, password) => {
     try {
       const userCredential = await signInWithEmailAndPassword(
@@ -145,7 +192,6 @@ export const AuthProvider = ({ children }) => {
       );
       const firebaseUser = userCredential.user;
 
-      // Atualizar último login no Firestore
       const userDocRef = doc(db, 'users', firebaseUser.uid);
       await updateDoc(userDocRef, {
         lastLogin: serverTimestamp(),
@@ -162,7 +208,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Redefinir senha
   const forgotPassword = async (email) => {
     try {
       await sendPasswordResetEmail(auth, email, {
@@ -180,7 +225,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Logout
   const logout = async () => {
     try {
       await signOut(auth);
@@ -192,12 +236,10 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Atualizar perfil
   const updateUserProfile = async (updates) => {
     try {
       if (!currentUser) throw new Error('Nenhum usuário logado');
 
-      // Atualizar no Firebase Auth se houver displayName ou photoURL
       if (updates.name || updates.avatarUrl) {
         await updateProfile(auth.currentUser, {
           displayName: updates.name || currentUser.name,
@@ -205,15 +247,19 @@ export const AuthProvider = ({ children }) => {
         });
       }
 
-      // Atualizar no Firestore
       const userDocRef = doc(db, 'users', currentUser.uid);
       await updateDoc(userDocRef, updates);
 
-      // Atualizar estado local
-      setCurrentUser((prev) => ({
-        ...prev,
+      const updatedUser = {
+        ...currentUser,
         ...updates,
-      }));
+      };
+
+      setCurrentUser(updatedUser);
+
+      // Recheca se o perfil ficou completo após a atualização
+      const isComplete = isProfileComplete(updatedUser);
+      setProfileIncomplete(!isComplete);
 
       toast.success('Perfil atualizado com sucesso!');
       return { success: true };
@@ -227,6 +273,7 @@ export const AuthProvider = ({ children }) => {
   const value = {
     currentUser,
     loading,
+    profileIncomplete,
     registerWithEmail,
     loginWithEmail,
     logout,
@@ -235,22 +282,7 @@ export const AuthProvider = ({ children }) => {
     setCurrentUser,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {!loading ? (
-        children
-      ) : (
-        <div className="flex items-center justify-center min-h-screen bg-ollo-light-50 dark:bg-ollo-dark-900">
-          <div className="text-center">
-            <div className="w-16 h-16 border-4 border-ollo-primary-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
-            <p className="mt-4 text-ollo-dark-700 dark:text-ollo-light-300">
-              Carregando autenticação...
-            </p>
-          </div>
-        </div>
-      )}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {

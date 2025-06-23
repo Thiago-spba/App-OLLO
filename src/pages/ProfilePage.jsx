@@ -1,5 +1,6 @@
 import { useRef, useState, useCallback, useMemo, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { uploadFileToFirebase } from '../firebase/upload';
 
 const OLLO_COLOR = '#06b6a3';
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -13,6 +14,7 @@ const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/ogg'];
 const MAX_NAME_LENGTH = 32;
 const MAX_LOCATION_LENGTH = 40;
 const MAX_BIO_LENGTH = 150;
+const DEFAULT_AVATAR = '/default-avatar.png';
 
 const generateId = () => Math.random().toString(36).substr(2, 8);
 
@@ -46,12 +48,11 @@ export default function ProfilePage() {
   const [modalMedia, setModalMedia] = useState(null);
   const fileRef = useRef(null);
   const galleryInputRef = useRef(null);
-  const [objectUrls, setObjectUrls] = useState(new Set());
 
   useEffect(() => {
     if (currentUser) {
       setProfile({
-        avatar: currentUser.avatarUrl || '/default-avatar.png',
+        avatar: currentUser.avatarUrl || DEFAULT_AVATAR,
         name: currentUser.name || 'Seu Nome',
         location: currentUser.location || 'Sua cidade, país',
         bio: currentUser.bio || 'Fale sobre você...',
@@ -63,7 +64,7 @@ export default function ProfilePage() {
             ? currentUser.showGallery
             : true,
       });
-      setAvatarPreview(currentUser.avatarUrl || '/default-avatar.png');
+      setAvatarPreview(currentUser.avatarUrl || DEFAULT_AVATAR);
       setEditing(false);
       setForm(null);
       setSuccess('');
@@ -71,81 +72,79 @@ export default function ProfilePage() {
     }
   }, [currentUser]);
 
-  useEffect(() => {
-    return () => {
-      objectUrls.forEach((url) => URL.revokeObjectURL(url));
-    };
-  }, [objectUrls]);
-
-  const processFile = useCallback((file, onSuccess, onError) => {
+  const handleImageUpload = useCallback(async (file) => {
+    if (!file) return;
     const validation = validateFile(file);
     if (!validation.isValid) {
-      onError(validation.errors.join(' '));
+      setError(validation.errors.join(' '));
+      setTimeout(() => setError(''), 3000);
       return;
     }
-    const reader = new FileReader();
-    reader.onload = (ev) => onSuccess(ev.target.result, validation.type);
-    reader.onerror = () => onError('Erro ao processar arquivo.');
-    reader.readAsDataURL(file);
+    try {
+      setLoading(true);
+      const url = await uploadFileToFirebase(file, 'avatars');
+      setAvatarPreview(url);
+      setForm((f) => ({ ...f, avatar: url }));
+      setError('');
+    } catch (error) {
+      setError('Falha ao fazer upload do avatar.');
+      setTimeout(() => setError(''), 3000);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const handleImageUpload = useCallback(
-    (file) => {
-      if (!file) return;
-      processFile(
-        file,
-        (result) => {
-          setAvatarPreview(result);
-          setForm((f) => ({ ...f, avatar: result }));
-          setError('');
-        },
-        (errorMessage) => {
-          setError(errorMessage);
-          setTimeout(() => setError(''), 3000);
-        }
-      );
-    },
-    [processFile]
-  );
-
   const handleAvatarChange = useCallback(
-    (e) => {
+    async (e) => {
       const file = e.target.files?.[0];
-      handleImageUpload(file);
+      if (!file) return;
+      await handleImageUpload(file);
     },
     [handleImageUpload]
   );
 
   const handleAvatarDrop = useCallback(
-    (e) => {
+    async (e) => {
       e.preventDefault();
       const file = e.dataTransfer.files?.[0];
-      handleImageUpload(file);
+      if (!file) return;
+      await handleImageUpload(file);
     },
     [handleImageUpload]
   );
 
-  const handleGalleryChange = useCallback((e) => {
+  const handleGalleryChange = useCallback(async (e) => {
     const files = Array.from(e.target.files || []);
-    const validFiles = [];
     const errors = [];
-    files.forEach((file) => {
-      const validation = validateFile(file);
-      if (validation.isValid) {
-        const url = URL.createObjectURL(file);
-        setObjectUrls((prev) => new Set(prev).add(url));
-        validFiles.push({
-          id: generateId(),
-          url,
-          type: validation.type,
-          public: true,
-        });
-      } else {
-        errors.push(`${file.name}: ${validation.errors.join(' ')}`);
-      }
-    });
-    if (validFiles.length > 0) {
-      setForm((f) => ({ ...f, gallery: [...f.gallery, ...validFiles] }));
+    setLoading(true);
+    const newItems = await Promise.all(
+      files.map(async (file) => {
+        const validation = validateFile(file);
+        if (!validation.isValid) {
+          errors.push(`${file.name}: ${validation.errors.join(' ')}`);
+          return null;
+        }
+        try {
+          const url = await uploadFileToFirebase(file, 'gallery');
+          return {
+            id: generateId(),
+            url,
+            type: validation.type,
+            public: true,
+          };
+        } catch {
+          errors.push(`${file.name}: Falha ao subir arquivo para o servidor.`);
+          return null;
+        }
+      })
+    );
+    setLoading(false);
+    const validItems = newItems.filter(Boolean);
+    if (validItems.length > 0) {
+      setForm((f) => ({
+        ...f,
+        gallery: [...f.gallery, ...validItems],
+      }));
     }
     if (errors.length > 0) {
       setError(errors.join('\n'));
@@ -155,21 +154,10 @@ export default function ProfilePage() {
   }, []);
 
   const handleRemoveMedia = useCallback((id) => {
-    setForm((f) => {
-      const itemToRemove = f.gallery.find((item) => item.id === id);
-      if (itemToRemove?.url.startsWith('blob:')) {
-        URL.revokeObjectURL(itemToRemove.url);
-        setObjectUrls((prev) => {
-          const newSet = new Set(prev);
-          newSet.delete(itemToRemove.url);
-          return newSet;
-        });
-      }
-      return {
-        ...f,
-        gallery: f.gallery.filter((item) => item.id !== id),
-      };
-    });
+    setForm((f) => ({
+      ...f,
+      gallery: f.gallery.filter((item) => item.id !== id),
+    }));
   }, []);
 
   const toggleMediaVisibility = useCallback((id) => {
@@ -203,19 +191,9 @@ export default function ProfilePage() {
     setEditing(false);
     setSuccess('');
     setError('');
-    if (form) {
-      form.gallery.forEach((item) => {
-        if (
-          item.url.startsWith('blob:') &&
-          !profile.gallery.some((p) => p.url === item.url)
-        ) {
-          URL.revokeObjectURL(item.url);
-        }
-      });
-    }
     setForm(profile);
     setAvatarPreview(profile.avatar);
-  }, [form, profile]);
+  }, [profile]);
 
   const handleSave = useCallback(async () => {
     if (!form.name.trim() || !form.location.trim()) {
@@ -319,6 +297,10 @@ export default function ProfilePage() {
     [editing]
   );
 
+  const handleImageError = (e) => {
+    e.target.src = DEFAULT_AVATAR;
+  };
+
   if (authLoading || !profile) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
@@ -328,8 +310,6 @@ export default function ProfilePage() {
       </div>
     );
   }
-
-  // =================== JSX INTEGRADO ABAIXO ===================
 
   return (
     <section className="max-w-2xl mx-auto bg-white dark:bg-gray-900 shadow-lg rounded-lg overflow-hidden my-4 sm:my-8">
@@ -359,6 +339,7 @@ export default function ProfilePage() {
                   className="w-full h-full object-cover rounded-full"
                   draggable={false}
                   loading="lazy"
+                  onError={handleImageError}
                 />
               </div>
               {editing && (
@@ -614,6 +595,9 @@ export default function ProfilePage() {
                         alt="Mídia da galeria"
                         className="w-full h-full object-cover transition-transform group-hover:scale-105"
                         loading="lazy"
+                        onError={(e) => {
+                          e.target.src = DEFAULT_AVATAR;
+                        }}
                       />
                     ) : (
                       <video
@@ -725,6 +709,9 @@ export default function ProfilePage() {
                       src={modalMedia.url}
                       alt="Preview em tela cheia"
                       className="max-h-[85vh] max-w-full rounded-lg object-contain shadow-lg"
+                      onError={(e) => {
+                        e.target.src = DEFAULT_AVATAR;
+                      }}
                     />
                   ) : (
                     <video

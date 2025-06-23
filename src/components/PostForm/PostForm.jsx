@@ -9,7 +9,7 @@ import {
 } from '@phosphor-icons/react';
 import toast from 'react-hot-toast';
 
-import { db, storage } from '../../firebase/config';
+import { db, storage } from '../../firebase'; 
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
