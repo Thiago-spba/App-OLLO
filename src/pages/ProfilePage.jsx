@@ -1,782 +1,878 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
-import {
-  doc,
-  getDoc,
-  setDoc,
-  collection,
-  query,
-  where,
-  getDocs,
-  deleteDoc,
-} from 'firebase/firestore';
-import {
-  ref as storageRef,
-  uploadBytes,
-  getDownloadURL,
-  deleteObject,
-} from 'firebase/storage';
-import { db, auth, storage } from '../firebase/config';
-import AuthWrapper from '../components/AuthWrapper';
-import {
-  PencilSquareIcon,
-  Cog6ToothIcon,
-  EyeIcon,
-  EyeSlashIcon,
-  EnvelopeIcon,
-  ChatBubbleLeftEllipsisIcon,
-  UserPlusIcon,
-  InformationCircleIcon,
-} from '@heroicons/react/24/outline';
-import { Camera, Trash } from '@phosphor-icons/react';
+import { useRef, useState, useCallback, useMemo, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
 
-const AVATAR_DEFAULT =
-  'https://ui-avatars.com/api/?name=OLLO+User&background=0D1B2A&color=fff&size=128';
-const COVER_DEFAULT =
-  'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1350&q=80';
+const OLLO_COLOR = '#06b6a3';
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = [
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+];
+const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/ogg'];
+const MAX_NAME_LENGTH = 32;
+const MAX_LOCATION_LENGTH = 40;
+const MAX_BIO_LENGTH = 150;
 
-function ProfilePage() {
-  const { profileId } = useParams();
-  const navigate = useNavigate();
+const generateId = () => Math.random().toString(36).substr(2, 8);
+
+const validateFile = (file) => {
+  const errors = [];
+  if (file.size > MAX_FILE_SIZE) {
+    errors.push('Arquivo muito grande. Máximo 10MB.');
+  }
+  const isImage = ALLOWED_IMAGE_TYPES.includes(file.type);
+  const isVideo = ALLOWED_VIDEO_TYPES.includes(file.type);
+  if (!isImage && !isVideo) {
+    errors.push('Tipo de arquivo não suportado.');
+  }
+  return {
+    isValid: errors.length === 0,
+    errors,
+    type: isImage ? 'image' : 'video',
+  };
+};
+
+export default function ProfilePage() {
+  const { currentUser, updateUserProfile, loading: authLoading } = useAuth();
 
   const [profile, setProfile] = useState(null);
   const [editing, setEditing] = useState(false);
-  const [gallery, setGallery] = useState([]);
-  const [posts, setPosts] = useState([]);
-  const [comments, setComments] = useState([]);
+  const [form, setForm] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState('');
-  const [coverPreview, setCoverPreview] = useState('');
-  const [videoPreview, setVideoPreview] = useState('');
-  const [videoFile, setVideoFile] = useState(null);
-  const [galleryUpload, setGalleryUpload] = useState(null);
-
-  const avatarInputRef = useRef(null);
-  const coverInputRef = useRef(null);
-  const videoInputRef = useRef(null);
+  const [success, setSuccess] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [modalMedia, setModalMedia] = useState(null);
+  const fileRef = useRef(null);
   const galleryInputRef = useRef(null);
+  const [objectUrls, setObjectUrls] = useState(new Set());
 
-  const [currentUser, setCurrentUser] = useState(null);
-  const [publicFields, setPublicFields] = useState({
-    name: true,
-    location: true,
-    bio: true,
-    video: true,
-  });
-
-  // React Hook Form
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors },
-    watch,
-  } = useForm({ defaultValues: { name: '', bio: '', location: '' } });
-
-  // Carrega dados de perfil, galeria, posts e comentários
   useEffect(() => {
-    setCurrentUser(auth.currentUser);
-    async function fetchProfile() {
-      const uid = profileId || (auth.currentUser ? auth.currentUser.uid : null);
-      const empty = {
-        id: uid,
-        name: '',
-        bio: '',
-        location: '',
-        avatarUrl: '',
-        coverUrl: '',
-        videoUrl: '',
-        gallery: [],
-        stats: { views: 0, followers: 0, posts: 0 },
-      };
-      if (!uid) {
-        setProfile(empty);
-        reset({ name: '', bio: '', location: '' });
-        setAvatarPreview('');
-        setCoverPreview('');
-        setVideoPreview('');
-        setGallery([]);
-        setPosts([]);
-        setComments([]);
-        return;
-      }
-      // Perfil
-      const docRef = doc(db, 'users', uid);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        setProfile({ ...data, id: uid });
-        reset({
-          name: data.name ?? '',
-          bio: data.bio ?? '',
-          location: data.location ?? '',
+    if (currentUser) {
+      setProfile({
+        avatar: currentUser.avatarUrl || '/default-avatar.png',
+        name: currentUser.name || 'Seu Nome',
+        location: currentUser.location || 'Sua cidade, país',
+        bio: currentUser.bio || 'Fale sobre você...',
+        showBio:
+          typeof currentUser.showBio === 'boolean' ? currentUser.showBio : true,
+        gallery: currentUser.gallery || [],
+        showGallery:
+          typeof currentUser.showGallery === 'boolean'
+            ? currentUser.showGallery
+            : true,
+      });
+      setAvatarPreview(currentUser.avatarUrl || '/default-avatar.png');
+      setEditing(false);
+      setForm(null);
+      setSuccess('');
+      setError('');
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    return () => {
+      objectUrls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [objectUrls]);
+
+  const processFile = useCallback((file, onSuccess, onError) => {
+    const validation = validateFile(file);
+    if (!validation.isValid) {
+      onError(validation.errors.join(' '));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => onSuccess(ev.target.result, validation.type);
+    reader.onerror = () => onError('Erro ao processar arquivo.');
+    reader.readAsDataURL(file);
+  }, []);
+
+  const handleImageUpload = useCallback(
+    (file) => {
+      if (!file) return;
+      processFile(
+        file,
+        (result) => {
+          setAvatarPreview(result);
+          setForm((f) => ({ ...f, avatar: result }));
+          setError('');
+        },
+        (errorMessage) => {
+          setError(errorMessage);
+          setTimeout(() => setError(''), 3000);
+        }
+      );
+    },
+    [processFile]
+  );
+
+  const handleAvatarChange = useCallback(
+    (e) => {
+      const file = e.target.files?.[0];
+      handleImageUpload(file);
+    },
+    [handleImageUpload]
+  );
+
+  const handleAvatarDrop = useCallback(
+    (e) => {
+      e.preventDefault();
+      const file = e.dataTransfer.files?.[0];
+      handleImageUpload(file);
+    },
+    [handleImageUpload]
+  );
+
+  const handleGalleryChange = useCallback((e) => {
+    const files = Array.from(e.target.files || []);
+    const validFiles = [];
+    const errors = [];
+    files.forEach((file) => {
+      const validation = validateFile(file);
+      if (validation.isValid) {
+        const url = URL.createObjectURL(file);
+        setObjectUrls((prev) => new Set(prev).add(url));
+        validFiles.push({
+          id: generateId(),
+          url,
+          type: validation.type,
+          public: true,
         });
-        setAvatarPreview(data.avatarUrl || '');
-        setCoverPreview(data.coverUrl || '');
-        setVideoPreview(data.videoUrl || '');
-        setGallery(data.gallery || []);
       } else {
-        setProfile(empty);
-        reset({ name: '', bio: '', location: '' });
-        setGallery([]);
+        errors.push(`${file.name}: ${validation.errors.join(' ')}`);
       }
-      // Posts
-      const postQ = query(collection(db, 'posts'), where('userId', '==', uid));
-      const postSnap = await getDocs(postQ);
-      setPosts(postSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      // Comentários
-      const commentQ = query(
-        collection(db, 'comments'),
-        where('userId', '==', uid)
-      );
-      const commentSnap = await getDocs(commentQ);
-      setComments(commentSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
+    if (validFiles.length > 0) {
+      setForm((f) => ({ ...f, gallery: [...f.gallery, ...validFiles] }));
     }
-    fetchProfile();
-  }, [profileId, reset]);
-
-  // Preview local de imagens/avatar/cover
-  const handleImageUpload = (e, type) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (type === 'avatar') setAvatarPreview(reader.result);
-      if (type === 'cover') setCoverPreview(reader.result);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  // Preview local de vídeo
-  const handleVideoSelect = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setVideoFile(file);
-    const reader = new FileReader();
-    reader.onload = () => setVideoPreview(reader.result);
-    reader.readAsDataURL(file);
-  };
-
-  // Preview local de mídia da galeria
-  const handleGallerySelect = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setGalleryUpload(file);
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      setGallery((prev) => [
-        ...prev,
-        {
-          type: file.type.startsWith('video/') ? 'video' : 'image',
-          url: reader.result,
-          name: file.name,
-        },
-      ]);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  // Salvar no Firestore + Storage
-  const onSubmit = async (data) => {
-    if (!currentUser) return;
-    const uid = profile.id || currentUser.uid;
-    let videoUrl = profile.videoUrl || '';
-    // Upload do vídeo (se selecionado)
-    if (videoFile) {
-      const vidRef = storageRef(
-        storage,
-        `users/${uid}/videos/${videoFile.name}`
-      );
-      await uploadBytes(vidRef, videoFile);
-      videoUrl = await getDownloadURL(vidRef);
+    if (errors.length > 0) {
+      setError(errors.join('\n'));
+      setTimeout(() => setError(''), 5000);
     }
-    // Upload de mídia da galeria
-    let updatedGallery = [...gallery];
-    if (galleryUpload) {
-      const file = galleryUpload;
-      const galRef = storageRef(storage, `users/${uid}/gallery/${file.name}`);
-      await uploadBytes(galRef, file);
-      const galUrl = await getDownloadURL(galRef);
-      updatedGallery = [
-        ...gallery,
-        {
-          type: file.type.startsWith('video/') ? 'video' : 'image',
-          url: galUrl,
-          name: file.name,
-        },
-      ];
-      setGallery(updatedGallery);
-    }
-    await setDoc(
-      doc(db, 'users', uid),
-      {
-        name: data.name,
-        bio: data.bio,
-        location: data.location,
-        avatarUrl: avatarPreview || '',
-        coverUrl: coverPreview || '',
-        videoUrl,
-        gallery: updatedGallery,
-        stats: profile.stats || { views: 0, followers: 0, posts: 0 },
-      },
-      { merge: true }
-    );
-    setEditing(false);
-    alert('Perfil salvo!');
-    setProfile((prev) => ({
-      ...prev,
-      ...data,
-      avatarUrl: avatarPreview || '',
-      coverUrl: coverPreview || '',
-      videoUrl,
-      gallery: updatedGallery,
+    e.target.value = '';
+  }, []);
+
+  const handleRemoveMedia = useCallback((id) => {
+    setForm((f) => {
+      const itemToRemove = f.gallery.find((item) => item.id === id);
+      if (itemToRemove?.url.startsWith('blob:')) {
+        URL.revokeObjectURL(itemToRemove.url);
+        setObjectUrls((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(itemToRemove.url);
+          return newSet;
+        });
+      }
+      return {
+        ...f,
+        gallery: f.gallery.filter((item) => item.id !== id),
+      };
+    });
+  }, []);
+
+  const toggleMediaVisibility = useCallback((id) => {
+    setForm((f) => ({
+      ...f,
+      gallery: f.gallery.map((item) =>
+        item.id === id ? { ...item, public: !item.public } : item
+      ),
     }));
-  };
+  }, []);
 
-  // Excluir mídia da galeria
-  const handleDeleteMedia = async (media) => {
-    if (!window.confirm('Excluir essa mídia da galeria?')) return;
-    // Remove do Storage
-    try {
-      const ref = storageRef(
-        storage,
-        `users/${profile.id}/gallery/${media.name}`
-      );
-      await deleteObject(ref);
-    } catch (err) {
-      // Caso seja só preview local
+  const handleChange = useCallback((e) => {
+    const { name, value } = e.target;
+    setForm((f) => ({ ...f, [name]: value }));
+    setError('');
+  }, []);
+
+  const toggleVisibility = useCallback((field) => {
+    setForm((f) => ({ ...f, [field]: !f[field] }));
+  }, []);
+
+  const handleEdit = useCallback(() => {
+    setForm(profile);
+    setAvatarPreview(profile.avatar);
+    setEditing(true);
+    setSuccess('');
+    setError('');
+  }, [profile]);
+
+  const handleCancel = useCallback(() => {
+    setEditing(false);
+    setSuccess('');
+    setError('');
+    if (form) {
+      form.gallery.forEach((item) => {
+        if (
+          item.url.startsWith('blob:') &&
+          !profile.gallery.some((p) => p.url === item.url)
+        ) {
+          URL.revokeObjectURL(item.url);
+        }
+      });
     }
-    // Remove do state/local
-    const updatedGallery = gallery.filter((g) => g.url !== media.url);
-    setGallery(updatedGallery);
-    // Atualiza no Firestore
-    await setDoc(
-      doc(db, 'users', profile.id),
-      { gallery: updatedGallery },
-      { merge: true }
-    );
-  };
+    setForm(profile);
+    setAvatarPreview(profile.avatar);
+  }, [form, profile]);
 
-  // Excluir perfil
-  const handleDeleteProfile = async () => {
-    if (!window.confirm('Tem certeza? Esta ação é irreversível!')) return;
-    await deleteDoc(doc(db, 'users', currentUser.uid));
-    // Se quiser, remova do Auth (auth.currentUser.delete())
-    alert('Perfil excluído.');
-    navigate('/');
-  };
+  const handleSave = useCallback(async () => {
+    if (!form.name.trim() || !form.location.trim()) {
+      setError('Nome e Localização são obrigatórios.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      await updateUserProfile({
+        avatarUrl: avatarPreview,
+        name: form.name,
+        location: form.location,
+        bio: form.bio,
+        showBio: form.showBio,
+        gallery: form.gallery,
+        showGallery: form.showGallery,
+      });
+      setEditing(false);
+      setSuccess('Perfil atualizado com sucesso!');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError('Erro ao salvar perfil.');
+    } finally {
+      setLoading(false);
+    }
+  }, [form, avatarPreview, updateUserProfile]);
 
-  if (!profile) {
+  const handleShare = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setSuccess('Link copiado para a área de transferência!');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch {
+      setError('Erro ao copiar link.');
+    }
+  }, []);
+
+  const isDirty = useMemo(
+    () =>
+      editing &&
+      form &&
+      profile &&
+      (JSON.stringify(form) !== JSON.stringify(profile) ||
+        avatarPreview !== profile.avatar),
+    [form, profile, avatarPreview, editing]
+  );
+
+  const galleryToShow = useMemo(
+    () =>
+      editing && form
+        ? form.gallery
+        : profile && profile.showGallery
+          ? profile.gallery.filter((item) => item.public)
+          : [],
+    [editing, form, profile]
+  );
+
+  const EyeIcon = useMemo(
+    () =>
+      ({ visible = true, className = '' }) =>
+        visible ? (
+          <svg
+            width="22"
+            height="22"
+            fill="none"
+            stroke={OLLO_COLOR}
+            strokeWidth="2"
+            viewBox="0 0 24 24"
+            className={className}
+            aria-hidden="true"
+          >
+            <ellipse cx="12" cy="12" rx="9" ry="5" />
+            <circle cx="12" cy="12" r="2.5" />
+          </svg>
+        ) : (
+          <svg
+            width="22"
+            height="22"
+            fill="none"
+            stroke={OLLO_COLOR}
+            strokeWidth="2"
+            viewBox="0 0 24 24"
+            className={className}
+            aria-hidden="true"
+          >
+            <ellipse cx="12" cy="12" rx="9" ry="5" />
+            <circle cx="12" cy="12" r="2.5" />
+            <line x1="4" y1="20" x2="20" y2="4" />
+          </svg>
+        ),
+    []
+  );
+
+  const closeModal = useCallback(() => setModalMedia(null), []);
+
+  const handleDragOver = useCallback(
+    (e) => {
+      if (editing) e.preventDefault();
+    },
+    [editing]
+  );
+
+  if (authLoading || !profile) {
     return (
-      <div className="flex justify-center items-center h-screen">
-        Carregando...
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <span className="text-gray-600 dark:text-gray-300">
+          Carregando perfil...
+        </span>
       </div>
     );
   }
 
-  const nameField = watch('name');
-  const bioField = watch('bio');
-  const locationField = watch('location');
+  // =================== JSX INTEGRADO ABAIXO ===================
 
   return (
-    <main className="bg-gray-50 dark:bg-gray-950 min-h-screen pb-16">
-      {/* Cover */}
-      <section className="relative h-48 md:h-64 w-full">
-        <img
-          src={coverPreview || profile.coverUrl || COVER_DEFAULT}
-          alt="Imagem de capa"
-          className="w-full h-full object-cover"
-        />
-        {currentUser && (!profileId || currentUser.uid === profileId) && (
-          <>
-            <button
-              aria-label="Alterar capa"
-              className="absolute bottom-3 right-3 bg-black bg-opacity-60 text-white rounded-full p-2 hover:bg-opacity-80 transition"
-              onClick={() => coverInputRef.current.click()}
+    <section className="max-w-2xl mx-auto bg-white dark:bg-gray-900 shadow-lg rounded-lg overflow-hidden my-4 sm:my-8">
+      <div className="w-full">
+        <div className="px-4 sm:px-6 md:px-8 pt-12 pb-6 relative">
+          {/* Avatar */}
+          <div className="flex justify-center mb-4">
+            <div
+              className="relative group"
+              onDrop={handleAvatarDrop}
+              onDragOver={handleDragOver}
+              tabIndex={editing ? 0 : -1}
+              role="button"
+              aria-label={
+                editing
+                  ? 'Área para upload de avatar - clique ou arraste uma imagem'
+                  : undefined
+              }
             >
-              <Camera size={20} weight="bold" />
-            </button>
-            <input
-              ref={coverInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => handleImageUpload(e, 'cover')}
-            />
-          </>
-        )}
-      </section>
-
-      {/* Avatar, Nome, Bio, Localização */}
-      <section className="relative max-w-3xl mx-auto px-4 flex flex-col items-center">
-        <div className="relative -mt-20 w-32 h-32 md:w-40 md:h-40">
-          <img
-            src={avatarPreview || profile.avatarUrl || AVATAR_DEFAULT}
-            alt="Foto de perfil"
-            className="w-full h-full object-cover rounded-full border-4 border-white dark:border-gray-900 shadow-lg"
-          />
-          {currentUser && (!profileId || currentUser.uid === profileId) && (
-            <>
-              <button
-                aria-label="Alterar avatar"
-                className="absolute bottom-2 right-2 bg-ollo-deep text-white rounded-full p-2 hover:bg-ollo transition"
-                onClick={() => avatarInputRef.current.click()}
+              <div
+                className="w-32 h-32 sm:w-40 sm:h-40 rounded-full border-8 bg-white"
+                style={{ borderColor: OLLO_COLOR }}
               >
-                <Camera size={18} weight="bold" />
-              </button>
-              <input
-                ref={avatarInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => handleImageUpload(e, 'avatar')}
-              />
-            </>
-          )}
-        </div>
-        {/* Formulário de edição */}
-        <div className="mt-3 w-full text-center md:text-left">
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-              <div>
-                {/* Nome */}
-                <h1 className="text-2xl md:text-3xl font-bold">
-                  {editing ? (
-                    <>
-                      <input
-                        type="text"
-                        {...register('name', { required: true })}
-                        className="border-b px-2 py-1 rounded w-full bg-gray-100 dark:bg-gray-900"
-                        placeholder="Nome"
-                      />
-                      {errors.name && (
-                        <span className="text-red-500 text-xs block">
-                          Nome obrigatório
-                        </span>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      {nameField}
-                      <button
-                        type="button"
-                        className="ml-2 align-middle"
-                        onClick={() =>
-                          setPublicFields((f) => ({
-                            ...f,
-                            name: !f.name,
-                          }))
-                        }
-                        aria-label={
-                          publicFields.name ? 'Nome público' : 'Nome privado'
-                        }
-                      >
-                        {publicFields.name ? (
-                          <EyeIcon className="h-5 w-5 inline text-green-600" />
-                        ) : (
-                          <EyeSlashIcon className="h-5 w-5 inline text-red-500" />
-                        )}
-                      </button>
-                    </>
-                  )}
-                </h1>
-
-                {/* Bio */}
-                <p className="text-gray-500 mt-1 max-w-xl">
-                  {editing ? (
-                    <>
-                      <textarea
-                        {...register('bio', { maxLength: 180 })}
-                        className="border rounded px-2 py-1 w-full bg-gray-100 dark:bg-gray-900"
-                        placeholder="Bio"
-                        rows={2}
-                      />
-                      {errors.bio && (
-                        <span className="text-red-500 text-xs block">
-                          Bio muito longa
-                        </span>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      {bioField}
-                      <button
-                        type="button"
-                        className="ml-2 align-middle"
-                        onClick={() =>
-                          setPublicFields((f) => ({
-                            ...f,
-                            bio: !f.bio,
-                          }))
-                        }
-                        aria-label={
-                          publicFields.bio ? 'Bio pública' : 'Bio privada'
-                        }
-                      >
-                        {publicFields.bio ? (
-                          <EyeIcon className="h-4 w-4 inline text-green-600" />
-                        ) : (
-                          <EyeSlashIcon className="h-4 w-4 inline text-red-500" />
-                        )}
-                      </button>
-                    </>
-                  )}
-                </p>
-
-                {/* Localização */}
-                <p className="text-gray-400 text-sm mt-2 flex items-center gap-2">
-                  <span>
-                    <svg width="16" height="16" fill="none" className="inline">
-                      <path
-                        d="M8 1.333a5.667 5.667 0 100 11.334A5.667 5.667 0 008 1.333zm0 10A4.333 4.333 0 118 2.667a4.333 4.333 0 010 8.666z"
-                        fill="currentColor"
-                      />
-                      <circle cx="8" cy="7" r="2" fill="currentColor" />
-                    </svg>
-                  </span>
-                  {editing ? (
-                    <input
-                      type="text"
-                      {...register('location')}
-                      className="border-b px-2 bg-gray-100 dark:bg-gray-900 rounded"
-                      placeholder="Localização"
-                    />
-                  ) : (
-                    <>
-                      {locationField}
-                      <button
-                        type="button"
-                        className="ml-2 align-middle"
-                        onClick={() =>
-                          setPublicFields((f) => ({
-                            ...f,
-                            location: !f.location,
-                          }))
-                        }
-                        aria-label={
-                          publicFields.location
-                            ? 'Localização pública'
-                            : 'Localização privada'
-                        }
-                      >
-                        {publicFields.location ? (
-                          <EyeIcon className="h-4 w-4 inline text-green-600" />
-                        ) : (
-                          <EyeSlashIcon className="h-4 w-4 inline text-red-500" />
-                        )}
-                      </button>
-                    </>
-                  )}
-                </p>
+                <img
+                  src={editing ? avatarPreview : profile.avatar}
+                  alt="Avatar do usuário"
+                  className="w-full h-full object-cover rounded-full"
+                  draggable={false}
+                  loading="lazy"
+                />
               </div>
-              {/* Botões */}
-              <div className="flex gap-2 justify-center md:justify-end">
-                {currentUser &&
-                (!profileId || currentUser.uid === profileId) ? (
-                  editing ? (
-                    <>
-                      <button
-                        type="submit"
-                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
-                      >
-                        Salvar
-                      </button>
-                      <button
-                        type="button"
-                        className="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition"
-                        onClick={() => setEditing(false)}
-                      >
-                        Cancelar
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      type="button"
-                      className="p-2 rounded-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition"
-                      onClick={() => setEditing(true)}
-                      aria-label="Editar perfil"
+              {editing && (
+                <>
+                  <button
+                    className="absolute bottom-0 right-0 bg-white border-2 border-green-500 text-green-500 p-2 rounded-full shadow-lg hover:bg-green-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                    onClick={() => fileRef.current?.click()}
+                    aria-label="Alterar foto do perfil"
+                    type="button"
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      fill="none"
+                      stroke={OLLO_COLOR}
+                      strokeWidth="2"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
                     >
-                      <PencilSquareIcon className="h-5 w-5" />
-                    </button>
-                  )
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      className="px-3 py-2 bg-ollo-deep text-white rounded-lg flex items-center gap-1 hover:bg-ollo transition"
+                      <rect x="3" y="7" width="18" height="13" rx="2" />
+                      <circle cx="12" cy="13.5" r="4" />
+                      <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+                    </svg>
+                  </button>
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    className="sr-only"
+                    accept={ALLOWED_IMAGE_TYPES.join(',')}
+                    onChange={handleAvatarChange}
+                    aria-label="Selecionar foto do perfil"
+                  />
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Nome e Localização */}
+          <div className="text-center mb-4 space-y-2">
+            {editing ? (
+              <div className="space-y-3">
+                <div>
+                  <input
+                    type="text"
+                    name="name"
+                    value={form.name}
+                    onChange={handleChange}
+                    maxLength={MAX_NAME_LENGTH}
+                    required
+                    className="w-full text-xl sm:text-2xl font-bold text-center bg-transparent border-b-2 border-gray-300 focus:border-green-500 focus:outline-none transition-colors px-2 py-1"
+                    placeholder="Seu Nome"
+                    aria-label="Nome"
+                    autoFocus
+                  />
+                  <div className="text-xs text-gray-500 mt-1">
+                    {form.name.length}/{MAX_NAME_LENGTH}
+                  </div>
+                </div>
+                <div>
+                  <input
+                    type="text"
+                    name="location"
+                    value={form.location}
+                    onChange={handleChange}
+                    maxLength={MAX_LOCATION_LENGTH}
+                    required
+                    className="w-full text-base sm:text-lg text-gray-600 dark:text-gray-300 text-center bg-transparent border-b border-gray-300 focus:border-green-500 focus:outline-none transition-colors px-2 py-1"
+                    placeholder="Localização"
+                    aria-label="Localização"
+                  />
+                  <div className="text-xs text-gray-500 mt-1">
+                    {form.location.length}/{MAX_LOCATION_LENGTH}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <>
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-white break-words">
+                  {profile.name}
+                </h1>
+                <p className="text-base sm:text-lg text-gray-600 dark:text-gray-300 break-words">
+                  {profile.location}
+                </p>
+              </>
+            )}
+          </div>
+
+          {/* Bio */}
+          <div className="mb-6">
+            {editing ? (
+              <div className="relative">
+                <textarea
+                  name="bio"
+                  value={form.bio}
+                  onChange={handleChange}
+                  rows={3}
+                  maxLength={MAX_BIO_LENGTH}
+                  className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent resize-none text-sm sm:text-base"
+                  placeholder="Conte um pouco sobre você..."
+                  aria-label="Biografia"
+                />
+                <div className="flex justify-between items-center mt-2">
+                  <span className="text-xs text-gray-500">
+                    {form.bio.length}/{MAX_BIO_LENGTH}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggleVisibility('showBio')}
+                    className="text-gray-500 hover:text-green-600 transition-colors p-1 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
+                    aria-label={
+                      form.showBio
+                        ? 'Ocultar bio do público'
+                        : 'Mostrar bio ao público'
+                    }
+                    title={
+                      form.showBio ? 'Ocultar do público' : 'Mostrar ao público'
+                    }
+                  >
+                    <EyeIcon visible={form.showBio} />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              profile.showBio && (
+                <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 text-center relative">
+                  <p className="text-gray-700 dark:text-gray-300 text-sm sm:text-base break-words">
+                    {profile.bio}
+                  </p>
+                  <span
+                    className="absolute bottom-2 right-2 text-green-600"
+                    title="Visível ao público"
+                    aria-label="Biografia visível ao público"
+                  >
+                    <EyeIcon visible={true} />
+                  </span>
+                </div>
+              )
+            )}
+          </div>
+
+          {/* Galeria */}
+          <div className="mb-6">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-3 gap-2">
+              <h2 className="text-lg font-semibold text-gray-800 dark:text-white">
+                Galeria
+              </h2>
+              {editing && (
+                <div className="flex items-center space-x-2 justify-center sm:justify-end">
+                  <button
+                    type="button"
+                    onClick={() => toggleVisibility('showGallery')}
+                    className="text-gray-500 hover:text-green-600 transition-colors p-1 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
+                    aria-label={
+                      form.showGallery
+                        ? 'Ocultar galeria do público'
+                        : 'Mostrar galeria ao público'
+                    }
+                    title={
+                      form.showGallery
+                        ? 'Ocultar do público'
+                        : 'Mostrar ao público'
+                    }
+                  >
+                    <EyeIcon visible={form.showGallery} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => galleryInputRef.current?.click()}
+                    className="flex items-center text-sm px-3 py-2 rounded-lg font-medium transition-colors hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                    style={{ background: OLLO_COLOR, color: '#fff' }}
+                  >
+                    <svg
+                      className="w-4 h-4 mr-1"
+                      fill="none"
+                      stroke="#fff"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
                     >
-                      <UserPlusIcon className="h-5 w-5" />
-                      Seguir
-                    </button>
-                    <button
-                      type="button"
-                      className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg flex items-center gap-1"
-                    >
-                      <EnvelopeIcon className="h-5 w-5" />
-                      Mensagem
-                    </button>
-                  </>
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                      />
+                    </svg>
+                    Adicionar
+                  </button>
+                  <input
+                    ref={galleryInputRef}
+                    type="file"
+                    className="sr-only"
+                    accept={[
+                      ...ALLOWED_IMAGE_TYPES,
+                      ...ALLOWED_VIDEO_TYPES,
+                    ].join(',')}
+                    multiple
+                    onChange={handleGalleryChange}
+                    aria-label="Selecionar arquivos para galeria"
+                  />
+                </div>
+              )}
+            </div>
+            {galleryToShow.length === 0 ? (
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-6 sm:p-8 text-center">
+                <svg
+                  className="w-12 h-12 mx-auto text-gray-400 mb-3"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                  />
+                </svg>
+                <p className="text-gray-500 mb-4 text-sm sm:text-base">
+                  Nenhuma mídia adicionada ainda
+                </p>
+                {editing && (
+                  <button
+                    type="button"
+                    onClick={() => galleryInputRef.current?.click()}
+                    className="px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-medium transition-colors hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 text-sm sm:text-base"
+                    style={{ background: OLLO_COLOR, color: '#fff' }}
+                  >
+                    Adicionar Fotos/Vídeos
+                  </button>
                 )}
               </div>
-            </div>
-          </form>
-        </div>
-      </section>
-
-      {/* Card de Vídeo */}
-      <section className="max-w-md mx-auto mt-8 px-4">
-        <h2 className="text-lg font-semibold mb-2">Vídeo</h2>
-        <div className="relative bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden aspect-video max-w-md mx-auto">
-          {videoPreview || profile.videoUrl ? (
-            <video
-              src={videoPreview || profile.videoUrl}
-              controls
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="flex items-center justify-center w-full h-full text-gray-500">
-              Sem vídeo
-            </div>
-          )}
-          {currentUser && (!profileId || currentUser.uid === profileId) && (
-            <>
-              <button
-                aria-label="Editar vídeo"
-                className="absolute bottom-2 right-2 bg-black bg-opacity-60 text-white rounded-full p-2 hover:bg-opacity-80 transition"
-                onClick={() => videoInputRef.current.click()}
-              >
-                <Camera size={18} weight="bold" />
-              </button>
-              <input
-                ref={videoInputRef}
-                type="file"
-                accept="video/*"
-                className="hidden"
-                onChange={handleVideoSelect}
-              />
-            </>
-          )}
-        </div>
-      </section>
-
-      {/* Galeria */}
-      <section className="max-w-3xl mx-auto mt-8 px-4">
-        <h2 className="text-lg font-semibold mb-2">Galeria</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {(!gallery || gallery.length === 0) && (
-            <div className="col-span-full text-gray-500 text-center p-6">
-              Galeria vazia
-            </div>
-          )}
-          {gallery?.map((media, idx) => (
-            <div key={media.url} className="relative group">
-              {media.type === 'image' ? (
-                <img
-                  src={media.url}
-                  alt={`Galeria ${idx + 1}`}
-                  className="object-cover rounded-lg aspect-video cursor-pointer shadow hover:scale-105 transition"
-                  onClick={() => window.open(media.url, '_blank')}
-                />
-              ) : (
-                <video
-                  src={media.url}
-                  controls
-                  className="object-cover rounded-lg aspect-video cursor-pointer shadow hover:scale-105 transition"
-                />
-              )}
-              {currentUser && (!profileId || currentUser.uid === profileId) && (
-                <button
-                  className="absolute top-2 right-2 bg-red-600 text-white p-1 rounded-full opacity-80 hover:opacity-100 transition"
-                  onClick={() => handleDeleteMedia(media)}
-                  title="Excluir mídia"
-                >
-                  <Trash size={16} />
-                </button>
-              )}
-            </div>
-          ))}
-          {currentUser && (!profileId || currentUser.uid === profileId) && (
-            <div
-              onClick={() => galleryInputRef.current.click()}
-              className="flex items-center justify-center border-2 border-dashed border-gray-300 rounded cursor-pointer h-24"
-            >
-              <span>Adicionar mídia</span>
-              <input
-                ref={galleryInputRef}
-                type="file"
-                accept="image/*,video/*"
-                className="hidden"
-                onChange={handleGallerySelect}
-              />
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* Posts */}
-      <section className="max-w-3xl mx-auto mt-8 px-4">
-        <h2 className="text-lg font-semibold mb-2">Posts</h2>
-        <div className="grid gap-3">
-          {posts.length === 0 && (
-            <div className="text-gray-500">Nenhum post.</div>
-          )}
-          {posts.map((post) => (
-            <div
-              key={post.id}
-              className="p-3 rounded shadow bg-white dark:bg-gray-900"
-            >
-              <div className="font-semibold">{post.title}</div>
-              <div>{post.content}</div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Comentários */}
-      <section className="max-w-3xl mx-auto mt-8 px-4">
-        <h2 className="text-lg font-semibold mb-2">Comentários</h2>
-        <div className="grid gap-3">
-          {comments.length === 0 && (
-            <div className="text-gray-500">Nenhum comentário.</div>
-          )}
-          {comments.map((comment) => (
-            <div
-              key={comment.id}
-              className="p-3 rounded shadow bg-white dark:bg-gray-900"
-            >
-              <div>{comment.content}</div>
-              <div className="text-xs text-gray-400">
-                {comment.createdAt &&
-                  new Date(comment.createdAt.seconds * 1000).toLocaleString()}
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
+                {galleryToShow.map((item) => (
+                  <div
+                    key={item.id}
+                    className="relative rounded-lg overflow-hidden aspect-square bg-gray-100 dark:bg-gray-700 cursor-pointer group"
+                    onClick={() => setModalMedia(item)}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Ver ${item.type === 'image' ? 'imagem' : 'vídeo'} em tela cheia`}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setModalMedia(item);
+                      }
+                    }}
+                  >
+                    {item.type === 'image' ? (
+                      <img
+                        src={item.url}
+                        alt="Mídia da galeria"
+                        className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <video
+                        src={item.url}
+                        className="w-full h-full object-cover"
+                        controls={editing}
+                        muted
+                        playsInline
+                      />
+                    )}
+                    {editing && (
+                      <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center space-x-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveMedia(item.id);
+                          }}
+                          className="bg-red-500 text-white p-2 rounded-full hover:bg-red-600 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500"
+                          aria-label="Remover mídia"
+                          title="Remover"
+                        >
+                          <svg
+                            width="16"
+                            height="16"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                            aria-hidden="true"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleMediaVisibility(item.id);
+                          }}
+                          className="bg-white text-gray-800 p-2 rounded-full hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500"
+                          aria-label={
+                            item.public ? 'Tornar privado' : 'Tornar público'
+                          }
+                          title={
+                            item.public ? 'Tornar privado' : 'Tornar público'
+                          }
+                        >
+                          <EyeIcon visible={item.public} />
+                        </button>
+                      </div>
+                    )}
+                    {!editing && item.public && (
+                      <span
+                        className="absolute bottom-1 right-1 bg-white/80 dark:bg-gray-800/80 rounded-full p-1"
+                        style={{ color: OLLO_COLOR }}
+                        title="Visível ao público"
+                        aria-label="Mídia visível ao público"
+                      >
+                        <EyeIcon visible={true} />
+                      </span>
+                    )}
+                  </div>
+                ))}
               </div>
+            )}
+            {/* Modal de visualização de mídia */}
+            {modalMedia && (
+              <div
+                className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+                onClick={closeModal}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="modal-title"
+              >
+                <div
+                  className="relative max-w-4xl w-full max-h-[90vh] flex flex-col items-center"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <button
+                    onClick={closeModal}
+                    className="absolute -top-10 right-0 sm:top-0 sm:-right-12 bg-gray-200/50 dark:bg-gray-700/50 rounded-full p-2 text-white hover:bg-gray-300/70 dark:hover:bg-gray-600/70 transition-colors focus:outline-none focus:ring-2 focus:ring-white z-10"
+                    aria-label="Fechar modal"
+                  >
+                    <svg
+                      width="20"
+                      height="20"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                  </button>
+                  <h2 id="modal-title" className="sr-only">
+                    Visualização de{' '}
+                    {modalMedia.type === 'image' ? 'imagem' : 'vídeo'}
+                  </h2>
+                  {modalMedia.type === 'image' ? (
+                    <img
+                      src={modalMedia.url}
+                      alt="Preview em tela cheia"
+                      className="max-h-[85vh] max-w-full rounded-lg object-contain shadow-lg"
+                    />
+                  ) : (
+                    <video
+                      src={modalMedia.url}
+                      controls
+                      autoPlay
+                      className="max-h-[85vh] max-w-full rounded-lg object-contain shadow-lg"
+                    />
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Mensagens de erro e sucesso */}
+          {(error || success) && (
+            <div className="mb-4">
+              {error && (
+                <div
+                  className="bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 px-4 py-3 rounded-lg shadow text-sm flex items-start gap-2"
+                  role="alert"
+                >
+                  <svg
+                    className="w-5 h-5 mt-0.5 flex-shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                  <span className="whitespace-pre-line">{error}</span>
+                </div>
+              )}
+              {success && (
+                <div
+                  className="bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 px-4 py-3 rounded-lg shadow text-sm flex items-center gap-2"
+                  role="alert"
+                >
+                  <svg
+                    className="w-5 h-5 flex-shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                  {success}
+                </div>
+              )}
             </div>
-          ))}
-        </div>
-      </section>
+          )}
 
-      {/* Estatísticas */}
-      <section className="max-w-3xl mx-auto mt-8 px-4">
-        <div className="flex gap-4 flex-wrap justify-between items-center bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
-          <div className="flex flex-col items-center flex-1 min-w-[90px]">
-            <span className="text-lg font-semibold">
-              {profile.stats?.followers ?? 0}
-            </span>
-            <span className="text-xs text-gray-500">Seguidores</span>
-          </div>
-          <div className="flex flex-col items-center flex-1 min-w-[90px]">
-            <span className="text-lg font-semibold">
-              {profile.stats?.views ?? 0}
-            </span>
-            <span className="text-xs text-gray-500">Visualizações</span>
-          </div>
-          <div className="flex flex-col items-center flex-1 min-w-[90px]">
-            <span className="text-lg font-semibold">
-              {profile.stats?.posts ?? 0}
-            </span>
-            <span className="text-xs text-gray-500">Posts</span>
-          </div>
-        </div>
-      </section>
-
-      {/* Privacidade e Personalização */}
-      <section className="max-w-3xl mx-auto mt-8 px-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
-          <h3 className="font-semibold flex items-center gap-2 mb-2">
-            <Cog6ToothIcon className="h-5 w-5" /> Configurações de Privacidade
-          </h3>
-          <div className="flex flex-col gap-2">
-            {['name', 'location', 'bio', 'video'].map((field) => (
-              <label key={field} className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={publicFields[field]}
-                  onChange={() =>
-                    setPublicFields((f) => ({
-                      ...f,
-                      [field]: !f[field],
-                    }))
+          {/* Botões de ação */}
+          <div className="flex flex-col sm:flex-row justify-center gap-3 sm:gap-4">
+            {!editing ? (
+              <>
+                <button
+                  onClick={handleEdit}
+                  className="px-6 sm:px-8 py-3 rounded-lg font-bold transition-colors hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 text-sm sm:text-base"
+                  style={{ background: OLLO_COLOR, color: '#fff' }}
+                >
+                  Editar Perfil
+                </button>
+                <button
+                  onClick={handleShare}
+                  className="px-6 sm:px-8 py-3 rounded-lg font-bold transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 text-sm sm:text-base"
+                  style={{
+                    background: '#fff',
+                    color: OLLO_COLOR,
+                    border: `1.5px solid ${OLLO_COLOR}`,
+                  }}
+                >
+                  Compartilhar
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={handleCancel}
+                  disabled={loading}
+                  className="px-6 sm:px-8 py-3 rounded-lg transition-colors hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
+                  style={{ background: '#eee', color: '#333' }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={
+                    !isDirty ||
+                    loading ||
+                    !form.name.trim() ||
+                    !form.location.trim()
                   }
-                />
-                {field === 'video'
-                  ? 'Vídeo é público'
-                  : `${field.charAt(0).toUpperCase() + field.slice(1)} é público`}
-              </label>
-            ))}
-            <div className="mt-2 text-xs text-gray-400">
-              Defina quem pode ver suas informações.{' '}
-              <InformationCircleIcon className="h-4 w-4 inline" /> Só você vê o
-              que está privado.
+                  className="px-6 sm:px-8 py-3 rounded-lg font-bold transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:cursor-not-allowed text-sm sm:text-base"
+                  style={{
+                    background:
+                      !isDirty ||
+                      loading ||
+                      !form.name.trim() ||
+                      !form.location.trim()
+                        ? '#A0E1D6'
+                        : OLLO_COLOR,
+                    color: '#fff',
+                  }}
+                >
+                  {loading ? 'Salvando...' : 'Salvar'}
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* Rodapé */}
+          <div className="mt-8 w-full flex flex-col items-center gap-2 text-xs text-gray-400 text-center border-t border-green-100 dark:border-gray-700 pt-4">
+            <div className="flex gap-4 justify-center">
+              <a
+                href="/privacidade"
+                className="hover:underline focus:outline-none focus:underline"
+                tabIndex={0}
+              >
+                Privacidade
+              </a>
+              <a
+                href="/regulamento"
+                className="hover:underline focus:outline-none focus:underline"
+                tabIndex={0}
+              >
+                Regulamento
+              </a>
+            </div>
+            <div className="max-w-md">
+              Perfil OLLO — Todos os campos são editáveis, privacidade sob
+              controle do usuário.
             </div>
           </div>
         </div>
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
-          <h3 className="font-semibold flex items-center gap-2 mb-2">
-            <Cog6ToothIcon className="h-5 w-5" /> Personalização
-          </h3>
-          <div className="flex flex-col gap-2 text-gray-500">
-            <span>
-              Em breve: cores, layout, modo dark/light, reordenar seções...
-            </span>
-            <button
-              className="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded-lg font-medium text-xs mt-2"
-              disabled
-            >
-              Editar tema (em breve)
-            </button>
-          </div>
-        </div>
-      </section>
-
-      {/* Suporte & FAQ */}
-      <section className="max-w-3xl mx-auto mt-8 px-4">
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
-          <h3 className="font-semibold flex items-center gap-2 mb-2">
-            <ChatBubbleLeftEllipsisIcon className="h-5 w-5" /> Suporte & FAQ
-          </h3>
-          <div className="flex flex-col gap-2">
-            <a href="/faq" className="text-blue-600 hover:underline text-sm">
-              Perguntas Frequentes
-            </a>
-            <a
-              href="/contato"
-              className="text-blue-600 hover:underline text-sm"
-            >
-              Falar com Suporte
-            </a>
-            <form className="mt-2 flex gap-2">
-              <input
-                type="text"
-                placeholder="Seu feedback"
-                className="flex-1 border rounded px-2 py-1 text-sm bg-gray-100 dark:bg-gray-900"
-              />
-              <button className="bg-ollo-deep text-white px-4 py-1 rounded">
-                Enviar
-              </button>
-            </form>
-          </div>
-        </div>
-      </section>
-
-      {/* Excluir Perfil */}
-      {currentUser && (!profileId || currentUser.uid === profileId) && (
-        <section className="max-w-3xl mx-auto mt-10 px-4 text-center">
-          <button
-            className="px-5 py-2 bg-red-600 text-white rounded-lg shadow hover:bg-red-800 transition"
-            onClick={handleDeleteProfile}
-          >
-            Excluir meu perfil
-          </button>
-        </section>
-      )}
-    </main>
-  );
-}
-
-export default function ProfilePageWithAuth(props) {
-  return (
-    <AuthWrapper>
-      <ProfilePage {...props} />
-    </AuthWrapper>
+      </div>
+    </section>
   );
 }

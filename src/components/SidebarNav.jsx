@@ -1,5 +1,3 @@
-// src/components/SidebarNav.jsx
-
 import { NavLink, useNavigate, Link } from 'react-router-dom'; // Adicionado Link
 import {
   HomeIcon,
@@ -10,20 +8,18 @@ import {
   ArrowRightOnRectangleIcon,
   ArrowLeftOnRectangleIcon,
   BuildingStorefrontIcon,
+  // Você pode adicionar outros ícones se quiser!
 } from '@heroicons/react/24/outline';
 import { useAuth } from '../context/AuthContext';
 
-function SidebarNav({ openCreatePostModal }) {
-  // MUDANÇA CRUCIAL: Usamos 'currentUser' em vez de 'isAuthenticated'
+function SidebarNav({ openCreatePostModal, darkMode, toggleTheme }) {
+  // <<--- Adicionadas as props
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
     try {
       await logout();
-      // Após o logout, o listener no AuthContext vai atualizar o estado
-      // e a UI vai re-renderizar, nos enviando para o login se tentarmos
-      // acessar uma rota protegida. Navegar para a home é seguro.
       navigate('/');
     } catch (error) {
       console.error('Erro ao fazer logout:', error);
@@ -54,7 +50,7 @@ function SidebarNav({ openCreatePostModal }) {
           title="Página Inicial OLLO"
         >
           <img
-            src="/images/logo_ollo.jpeg" // Certifique-se que este caminho está correto na sua pasta `public`
+            src="/images/logo_ollo.jpeg"
             alt="Logo OLLO"
             className="h-16 w-auto"
           />
@@ -83,7 +79,6 @@ function SidebarNav({ openCreatePostModal }) {
           <span className="hidden lg:inline">Mercado</span>
         </NavLink>
 
-        {/* MUDANÇA: A condição agora é 'currentUser' */}
         {currentUser && (
           <>
             <NavLink
@@ -94,7 +89,6 @@ function SidebarNav({ openCreatePostModal }) {
               <BellIcon className="h-6 w-6 flex-shrink-0 lg:mr-3" />
               <span className="hidden lg:inline">Notificações</span>
             </NavLink>
-            {/* O link para o perfil agora funciona */}
             <NavLink
               to="/profile"
               title="Meu Perfil"
@@ -108,7 +102,6 @@ function SidebarNav({ openCreatePostModal }) {
       </nav>
 
       <div className="mt-auto flex-shrink-0 pb-2 space-y-2">
-        {/* MUDANÇA: A condição agora é 'currentUser' */}
         {currentUser ? (
           <>
             <button
@@ -138,6 +131,27 @@ function SidebarNav({ openCreatePostModal }) {
             <span className="hidden lg:inline">Entrar</span>
           </NavLink>
         )}
+
+        {/* === Botão de alternância de tema === */}
+        <button
+          type="button"
+          onClick={toggleTheme}
+          className="w-full flex items-center justify-center mt-2 px-3 lg:px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 bg-gray-200 hover:bg-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700 border border-gray-300 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-ollo-accent dark:focus:ring-ollo-accent-light focus:ring-offset-2"
+          title="Alternar tema"
+        >
+          {darkMode ? (
+            <>
+              <span className="mr-2">🌙</span>
+              <span className="hidden lg:inline">Modo Escuro</span>
+            </>
+          ) : (
+            <>
+              <span className="mr-2">☀️</span>
+              <span className="hidden lg:inline">Modo Claro</span>
+            </>
+          )}
+        </button>
+        {/* === FIM DO BOTÃO DE TEMA === */}
       </div>
     </div>
   );
