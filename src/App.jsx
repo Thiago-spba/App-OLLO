@@ -1,8 +1,7 @@
-// src/App.jsx - Versão Refatorada e Otimizada
-
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
+import { ThemeProvider, useTheme } from './context/ThemeContext';
 
 // Layouts e Rotas
 import MainLayout from './layouts/MainLayout';
@@ -29,10 +28,9 @@ import VerifyEmailPage from './pages/VerifyEmailPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import ActionHandlerPage from './pages/ActionHandlerPage';
 
-function App() {
-  const [darkMode, setDarkMode] = useState(
-    () => localStorage.getItem('darkMode') === 'true'
-  );
+function AppContent() {
+  const { darkMode, toggleTheme } = useTheme();
+
   const [sessionFollowStatus, setSessionFollowStatus] = useState({});
   const [posts, setPosts] = useState([
     {
@@ -47,12 +45,6 @@ function App() {
   ]);
   const [isCreatePostModalOpen, setIsCreatePostModalOpen] = useState(false);
 
-  useEffect(() => {
-    localStorage.setItem('darkMode', darkMode);
-    document.documentElement.classList.toggle('dark', darkMode);
-  }, [darkMode]);
-
-  const toggleTheme = () => setDarkMode(!darkMode);
   const openCreatePostModal = () => setIsCreatePostModalOpen(true);
   const closeCreatePostModal = () => setIsCreatePostModalOpen(false);
 
@@ -165,6 +157,15 @@ function App() {
         />
       )}
     </div>
+  );
+}
+
+// Use o ThemeProvider aqui
+function App() {
+  return (
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
   );
 }
 
