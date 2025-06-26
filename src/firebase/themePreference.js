@@ -1,5 +1,5 @@
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { db } from "../context/firebase/config"; // <-- Caminho correto!
+import { db } from "./config";
 
 export async function saveUserTheme(uid, theme) {
   if (!uid) return;

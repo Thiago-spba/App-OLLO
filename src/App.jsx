@@ -7,9 +7,10 @@ import { ThemeProvider, useTheme } from './context/ThemeContext';
 import MainLayout from './layouts/MainLayout';
 import PrivateRoute from './routes/PrivateRoute';
 
-// Componentes
+// Componentes globais
 import Footer from './components/Footer';
 import CreatePostModal from './components/CreatePostModal';
+import PWABanner from './components/PWABanner';
 
 // Páginas
 import HomePage from './pages/HomePage';
@@ -56,6 +57,7 @@ function AppContent() {
     <div
       className={`min-h-screen flex flex-col font-sans transition-colors duration-300 ${themeClasses}`}
     >
+      {/* Toast global para avisos do app */}
       <Toaster
         position="top-center"
         toastOptions={{
@@ -68,8 +70,9 @@ function AppContent() {
         }}
       />
 
+      {/* Rotas públicas e privadas */}
       <Routes>
-        {/* GRUPO 1: Rotas sem layout principal (Login, Registro, etc.) */}
+        {/* Rotas sem layout principal */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -77,7 +80,7 @@ function AppContent() {
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/actions" element={<ActionHandlerPage />} />
 
-        {/* GRUPO 2: Rotas Públicas com o MainLayout */}
+        {/* Rotas públicas com MainLayout */}
         <Route
           element={
             <MainLayout
@@ -116,7 +119,7 @@ function AppContent() {
           <Route path="/terms" element={<TermsPage />} />
         </Route>
 
-        {/* GRUPO 3: Rotas Protegidas com o MainLayout */}
+        {/* Rotas protegidas com MainLayout */}
         <Route element={<PrivateRoute />}>
           <Route
             element={
@@ -144,8 +147,13 @@ function AppContent() {
         </Route>
       </Routes>
 
+      {/* Banner PWA aparece sempre acima do footer */}
+      <PWABanner />
+
+      {/* Footer global */}
       <Footer darkMode={darkMode} />
 
+      {/* Modal para criar post */}
       {isCreatePostModalOpen && (
         <CreatePostModal
           onClose={closeCreatePostModal}
@@ -160,7 +168,7 @@ function AppContent() {
   );
 }
 
-// Use o ThemeProvider aqui
+// ThemeProvider global
 function App() {
   return (
     <ThemeProvider>
