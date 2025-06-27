@@ -1,5 +1,6 @@
 // src/components/PWABanner.jsx
 import React, { useEffect, useState } from 'react';
+import { safeGetItem, safeSetItem } from '../utils/safeLocalStorage';
 
 function CloseIcon({ className }) {
   return (
@@ -28,7 +29,7 @@ const PWABanner = () => {
   const [showBanner, setShowBanner] = useState(false);
 
   useEffect(() => {
-    const alreadyClosed = localStorage.getItem(STORAGE_KEY);
+    const alreadyClosed = safeGetItem(STORAGE_KEY);
     if (alreadyClosed) return;
 
     const handler = (e) => {
@@ -50,20 +51,19 @@ const PWABanner = () => {
       await deferredPrompt.userChoice;
       setShowBanner(false);
       setDeferredPrompt(null);
-      localStorage.setItem(STORAGE_KEY, 'yes');
+      safeSetItem(STORAGE_KEY, 'yes');
     }
   };
 
   const handleClose = () => {
     setShowBanner(false);
-    localStorage.setItem(STORAGE_KEY, 'yes');
+    safeSetItem(STORAGE_KEY, 'yes');
   };
 
   if (!showBanner) return null;
 
   return (
     <div
-      // Centralizado, mas sem bloquear clicks atrás
       className="fixed inset-0 z-50 pointer-events-none flex items-center justify-center"
       style={{ animation: 'fadeInBg 0.2s' }}
     >

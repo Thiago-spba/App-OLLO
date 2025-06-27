@@ -1,37 +1,33 @@
+// src/context/ThemeContext.jsx
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useAuth } from './AuthContext';
 import { saveUserTheme, fetchUserTheme } from '../firebase/themePreference';
-
-// Helper seguro para checar se o localStorage está disponível
-function isLocalStorageAvailable() {
-  try {
-    const testKey = '__ollo_test__';
-    window.localStorage.setItem(testKey, testKey);
-    window.localStorage.removeItem(testKey);
-    return true;
-  } catch (e) {
-    return false;
-  }
-}
+import { safeGetItem, safeSetItem } from '../utils/safeLocalStorage';
 
 const ThemeContext = createContext();
 
 export function ThemeProvider({ children }) {
   const { currentUser } = useAuth();
+  const [darkMode, setDarkMode] = useState(false);
+  const [themeLoaded, setThemeLoaded] = useState(false);
 
-  // Inicializa o tema com segurança, respeitando preferência do sistema e o localStorage se disponível
-  const [darkMode, setDarkMode] = useState(() => {
-    if (typeof window !== 'undefined' && isLocalStorageAvailable()) {
-      const saved = window.localStorage.getItem('ollo-theme');
-      if (saved) return saved === 'dark';
-      // Detecta preferência do sistema se não houver escolha salva
-      return window.matchMedia('(prefers-color-scheme: dark)').matches;
-    }
-    // Default: claro, para SSR ou navegadores sem suporte
-    return false;
-  });
+  // Carrega tema (localStorage -> sistema -> padrão)
+  useEffect(() => {
+    let defaultTheme = false;
+    try {
+      const saved = safeGetItem('ollo-theme');
+      if (saved) defaultTheme = saved === 'dark';
+      else if (typeof window !== 'undefined') {
+        defaultTheme = window.matchMedia(
+          '(prefers-color-scheme: dark)'
+        ).matches;
+      }
+    } catch {}
+    setDarkMode(defaultTheme);
+    setThemeLoaded(true);
+  }, []);
 
-  // Busca do Firestore quando logado (preferência persistente do usuário)
+  // Carrega do Firestore se usuário logado
   useEffect(() => {
     async function loadTheme() {
       if (currentUser) {
@@ -40,46 +36,34 @@ export function ThemeProvider({ children }) {
           if (theme === 'dark' || theme === 'light') {
             setDarkMode(theme === 'dark');
           }
-        } catch (e) {
-          // Pode logar ou notificar erro se desejar
-          // console.error('Falha ao buscar tema do usuário:', e);
-        }
+        } catch {}
       }
     }
     loadTheme();
   }, [currentUser]);
 
-  // Aplica/Salva tema sempre que muda
+  // Salva tema, aplica classe, salva no Firestore
   useEffect(() => {
-    // Salva no localStorage, se disponível
-    if (isLocalStorageAvailable()) {
-      try {
-        window.localStorage.setItem('ollo-theme', darkMode ? 'dark' : 'light');
-      } catch (e) {
-        // Falha no armazenamento: ignora silenciosamente
-      }
-    }
-    // Aplica classe ao HTML para suportar tailwind ou css do modo escuro
+    if (!themeLoaded) return;
+    try {
+      safeSetItem('ollo-theme', darkMode ? 'dark' : 'light');
+    } catch {}
     document.documentElement.classList.toggle('dark', darkMode);
 
-    // Salva no Firestore se estiver logado
     if (currentUser) {
       saveUserTheme(currentUser.uid, darkMode ? 'dark' : 'light');
     }
-  }, [darkMode, currentUser]);
+  }, [darkMode, currentUser, themeLoaded]);
 
-  // Alternar tema
   const toggleTheme = () => setDarkMode((prev) => !prev);
 
-  // Valor exposto no contexto
-  const value = { darkMode, toggleTheme };
-
   return (
-    <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
+    <ThemeContext.Provider value={{ darkMode, toggleTheme }}>
+      {themeLoaded ? children : null}
+    </ThemeContext.Provider>
   );
 }
 
-// Hook para consumir tema facilmente
 export function useTheme() {
   return useContext(ThemeContext);
 }
