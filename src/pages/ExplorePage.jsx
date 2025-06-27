@@ -1,10 +1,12 @@
-// src/pages/ExplorePage.jsx
-
 import { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import PostCard from '../components/PostCard';
 
-// Prop 'darkMode' foi removido
 function ExplorePage({ allPosts, onCommentSubmit }) {
+  const { currentUser } = useAuth();
+  const navigate = useNavigate();
+
   const [activeFilter, setActiveFilter] = useState('recentes');
   const [sortOrder, setSortOrder] = useState('recentes');
   const [displayedPosts, setDisplayedPosts] = useState([]);
@@ -25,20 +27,16 @@ function ExplorePage({ allPosts, onCommentSubmit }) {
 
     let postsParaProcessar = [...allPosts];
 
-    // 1. Aplicar Filtro (sua lógica foi mantida)
     if (activeFilter === 'seguindo') {
       postsParaProcessar = postsParaProcessar.filter(
         (post) => post.userName === 'Usuário OLLO'
       );
     } else if (activeFilter === 'populares') {
-      // No modo "populares", vamos dar um bônus de ordenação por likes,
-      // mas a ordenação final ainda será controlada pelo select.
       postsParaProcessar.sort(
         (a, b) => (b.likeCount || 0) - (a.likeCount || 0)
       );
     }
 
-    // 2. Aplicar Ordenação (sua lógica foi mantida)
     if (sortOrder === 'recentes') {
       postsParaProcessar.sort((a, b) => b.id - a.id);
     } else if (sortOrder === 'antigos') {
@@ -52,7 +50,16 @@ function ExplorePage({ allPosts, onCommentSubmit }) {
     setDisplayedPosts(postsParaProcessar);
   }, [allPosts, activeFilter, sortOrder]);
 
-  // Função para gerar classes do botão de filtro
+  // Função para checar login antes de interagir
+  const handleInteraction = () => {
+    if (!currentUser) {
+      navigate('/login', { state: { message: 'Faça login para interagir!' } });
+      return false;
+    }
+    return true;
+  };
+
+  // Botão de filtro
   const getFilterButtonClasses = (filterName) => {
     const isActive = activeFilter === filterName;
     const baseClasses =
@@ -128,22 +135,33 @@ function ExplorePage({ allPosts, onCommentSubmit }) {
             <PostCard
               key={post.id}
               postData={post}
-              onCommentSubmit={onCommentSubmit}
+              currentUserId={currentUser?.uid}
+              // Bloqueia toda interação para não logado!
+              onCommentSubmit={(commentData) => {
+                if (!handleInteraction()) return;
+                if (onCommentSubmit) onCommentSubmit(commentData);
+              }}
+              onLike={() => {
+                if (!handleInteraction()) return;
+                // Adapte a lógica de curtir aqui
+              }}
+              onShare={() => {
+                if (!handleInteraction()) return;
+                // Adapte a lógica de compartilhar aqui
+              }}
               variant="explore"
-              // O prop 'darkMode' foi removido daqui
             />
           ))
         ) : (
           <div
-            className="sm:col-span-full rounded-xl p-8 sm:p-12 text-center 
-                                  bg-white/80 dark:bg-ollo-slate/70
-                                  backdrop-blur-sm shadow-lg 
-                                  border border-gray-200/80 dark:border-gray-700/50"
+            className="sm:col-span-full rounded-xl p-8 sm:p-12 text-center
+              bg-gray-100 dark:bg-gray-800
+              shadow-lg border border-gray-200 dark:border-gray-700"
           >
-            <p className="text-base sm:text-lg text-gray-700 dark:text-gray-300">
+            <p className="text-base sm:text-lg text-gray-700 dark:text-gray-200">
               Oops! Parece que não há posts para explorar com os filtros atuais.
             </p>
-            <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">
+            <p className="text-sm text-gray-400 dark:text-gray-400 mt-2">
               {activeFilter !== 'recentes' || sortOrder !== 'recentes'
                 ? 'Tente outros filtros ou opções de ordenação!'
                 : 'Por que não criar o primeiro post?'}

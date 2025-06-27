@@ -1,14 +1,25 @@
-// src/components/CreatePostModal.jsx
-// Atualizado em junho de 2025
-
 import { useEffect, useRef } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import { XMarkIcon } from '@heroicons/react/24/solid';
-import PostForm from './PostForm/PostForm'; // Atualizamos aqui
+import PostForm from './PostForm/PostForm';
 
 function CreatePostModal({ onClose, onAddPost }) {
   const modalRef = useRef();
+  const { currentUser } = useAuth();
+  const navigate = useNavigate();
 
-  // Fecha ao clicar fora
+  useEffect(() => {
+    if (!currentUser) {
+      if (onClose) onClose();
+      navigate('/login', {
+        state: { message: 'Faça login para criar um post!' },
+      });
+    }
+  }, [currentUser, navigate, onClose]);
+
+  if (!currentUser) return null;
+
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (modalRef.current && !modalRef.current.contains(event.target)) {
@@ -21,7 +32,6 @@ function CreatePostModal({ onClose, onAddPost }) {
     };
   }, [onClose]);
 
-  // Fecha com tecla Esc
   useEffect(() => {
     const handleEsc = (event) => {
       if (event.key === 'Escape') {
@@ -43,31 +53,24 @@ function CreatePostModal({ onClose, onAddPost }) {
     >
       <div
         ref={modalRef}
-        className="w-full max-w-lg relative rounded-xl shadow-2xl p-6 
-                   bg-ollo-light dark:bg-ollo-deep 
-                   border border-gray-300 dark:border-gray-700 
-                   text-ollo-deep dark:text-gray-200"
+        className="w-full max-w-lg relative rounded-xl shadow-2xl p-6 bg-gray-100/90 dark:bg-gray-900/90 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100"
       >
         <div className="flex items-center justify-between mb-4">
           <h2
             id="create-post-modal-title"
-            className="text-2xl font-bold text-ollo-deep dark:text-ollo-accent-light"
+            className="text-2xl font-bold text-ollo-accent-light dark:text-ollo-deep"
           >
             Criar Nova Postagem
           </h2>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-full transition-colors duration-150 ease-in-out
-                       text-gray-500 hover:text-ollo-deep hover:bg-gray-200/50
-                       dark:text-gray-400 dark:hover:text-ollo-accent-light dark:hover:bg-gray-700/50
-                       focus:outline-none focus-visible:ring-2 focus-visible:ring-ollo-deep dark:focus-visible:ring-ollo-accent-light"
+            className="p-1.5 rounded-full transition-colors duration-150 ease-in-out text-gray-400 hover:text-ollo-accent-light hover:bg-gray-700/50 dark:text-gray-500 dark:hover:text-ollo-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ollo-accent-light dark:focus-visible:ring-ollo-accent"
             aria-label="Fechar modal"
           >
             <XMarkIcon className="h-6 w-6" />
           </button>
         </div>
 
-        {/* Aqui trocamos CreatePost por PostForm */}
         <PostForm onPost={onAddPost} />
       </div>
     </div>

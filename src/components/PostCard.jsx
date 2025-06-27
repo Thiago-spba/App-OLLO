@@ -1,6 +1,6 @@
-// src/components/PostCard.jsx
-
 import { useState, useRef, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import {
   HandThumbUpIcon,
   HandThumbDownIcon,
@@ -16,6 +16,9 @@ import {
 } from '@heroicons/react/24/solid';
 
 function PostCard({ postData, onCommentSubmit, onDeletePost, variant }) {
+  const { currentUser } = useAuth();
+  const navigate = useNavigate();
+
   if (!postData) {
     return null;
   }
@@ -23,7 +26,6 @@ function PostCard({ postData, onCommentSubmit, onDeletePost, variant }) {
   const { postId: postIdString, userName, timestamp, content } = postData;
   const currentComments = postData.comments || [];
 
-  // Seus estados... (sem alterações)
   const [isLiked, setIsLiked] = useState(false);
   const [currentLikeCount, setCurrentLikeCount] = useState(
     postData.likeCount || Math.floor(Math.random() * 100)
@@ -40,7 +42,21 @@ function PostCard({ postData, onCommentSubmit, onDeletePost, variant }) {
     content &&
     (content.length > 200 || content.split('\n').length > NUM_LINES_TO_CLAMP);
 
-  // Seus efeitos e handlers... (sem alterações)
+  // Proteção: redireciona para login ao tentar interagir sem login
+  const blockIfNotLogged =
+    (action) =>
+    (...args) => {
+      if (!currentUser) {
+        navigate('/login', {
+          state: { message: 'Faça login para interagir!' },
+        });
+        return;
+      }
+      if (typeof action === 'function') {
+        action(...args);
+      }
+    };
+
   useEffect(() => {
     const initialReactions = {};
     if (currentComments.length > 0) {
@@ -57,27 +73,35 @@ function PostCard({ postData, onCommentSubmit, onDeletePost, variant }) {
   }, [currentComments]);
 
   const toggleExpand = () => setIsExpanded(!isExpanded);
-  const handleLikeClick = () => {
+
+  // Todos os handlers de interação são protegidos!
+  const handleLikeClick = blockIfNotLogged(() => {
     setIsLiked(!isLiked);
     setCurrentLikeCount(isLiked ? currentLikeCount - 1 : currentLikeCount + 1);
-  };
-  const handleCommentToggle = () => setShowComments(!showComments);
-  const handleCommentSubmit = () => {
+  });
+
+  const handleCommentToggle = blockIfNotLogged(() =>
+    setShowComments(!showComments)
+  );
+
+  const handleCommentSubmit = blockIfNotLogged(() => {
     if (newCommentText.trim()) {
       onCommentSubmit(postIdString, newCommentText);
       setNewCommentText('');
     }
-  };
-  const handleShareClick = () => {
+  });
+
+  const handleShareClick = blockIfNotLogged(() => {
     alert('Compartilhar: Funcionalidade em desenvolvimento!');
-  };
-  const handleDeleteClick = () => {
+  });
+
+  const handleDeleteClick = blockIfNotLogged(() => {
     if (onDeletePost) {
       onDeletePost(postIdString);
     }
-  };
+  });
 
-  const handleCommentReaction = (commentId, reactionType) => {
+  const handleCommentReaction = blockIfNotLogged((commentId, reactionType) => {
     setCommentReactions((prevReactions) => {
       const current = prevReactions[commentId];
       if (!current) return prevReactions;
@@ -115,7 +139,7 @@ function PostCard({ postData, onCommentSubmit, onDeletePost, variant }) {
         },
       };
     });
-  };
+  });
 
   const getAvatarUrl = (name) => {
     const isDarkMode = document.documentElement.classList.contains('dark');
@@ -127,23 +151,27 @@ function PostCard({ postData, onCommentSubmit, onDeletePost, variant }) {
   return (
     <div
       className={`
-        bg-white/90 dark:bg-ollo-slate/90 
-        backdrop-blur-md rounded-xl shadow-lg mb-8 
-        border border-gray-200/70 dark:border-gray-700/50 
-        text-sm sm:text-base
+        bg-gray-100 dark:bg-gray-800
+        backdrop-blur-md rounded-xl shadow-lg mb-8
+        border border-gray-200/70 dark:border-gray-700/50
+        text-sm sm:text-base transition-all
         ${variant === 'explore' ? 'min-h-[400px] flex flex-col' : ''}
       `}
-    >
+    >     
       <div
         className={`p-4 sm:p-5 md:p-6 flex flex-col h-full ${variant === 'explore' ? 'flex-grow' : ''}`}
       >
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center min-w-0">
-            {/* CORRIGIDO: Removido conflito de ring */}
+            {/* Avatar */}
             <img
-              className="h-10 w-10 sm:h-11 sm:w-11 rounded-full mr-3 sm:mr-3.5 object-cover ring-2 ring-offset-2 ring-ollo-accent-light/80 dark:ring-ollo-accent-light ring-offset-white dark:ring-offset-ollo-slate"
+              className="h-11 w-11 sm:h-12 sm:w-12 rounded-full object-cover mr-3 border-2 border-ollo-primary-400 dark:border-ollo-primary-600"
               src={getAvatarUrl(userName)}
               alt={`Avatar de ${userName}`}
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.style.display = 'none';
+              }}
             />
             <div className="min-w-0">
               <p className="font-semibold text-sm sm:text-base text-ollo-deep dark:text-ollo-light leading-tight truncate">
@@ -202,11 +230,11 @@ function PostCard({ postData, onCommentSubmit, onDeletePost, variant }) {
         )}
 
         <div
-          className={`flex justify-around items-center border-t border-gray-200/90 dark:border-gray-700/50 pt-3 ${variant === 'explore' && !showComments ? 'mt-auto' : 'mt-3'}`}
+          className={`flex justify-around items-center border-t border-ollo-light-200/90 dark:border-ollo-dark-600/50 pt-3 ${variant === 'explore' && !showComments ? 'mt-auto' : 'mt-3'}`}
         >
           <button
             onClick={handleLikeClick}
-            className={`group flex items-center space-x-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700/50 px-2 sm:px-3 py-1.5 transition-colors duration-150 ${isLiked ? 'text-red-600 dark:text-red-500' : 'text-gray-500 dark:text-gray-400 hover:text-ollo-deep dark:hover:text-gray-200'}`}
+            className={`group flex items-center space-x-1 rounded hover:bg-ollo-light-200 dark:hover:bg-ollo-dark-700/50 px-2 sm:px-3 py-1.5 transition-colors duration-150 ${isLiked ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400 hover:text-ollo-deep dark:hover:text-gray-200'}`}
             title="Gostar"
           >
             {isLiked ? (
@@ -220,7 +248,7 @@ function PostCard({ postData, onCommentSubmit, onDeletePost, variant }) {
           </button>
           <button
             onClick={handleCommentToggle}
-            className="group flex items-center space-x-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700/50 px-2 sm:px-3 py-1.5 transition-colors duration-150 text-gray-500 dark:text-gray-400 hover:text-ollo-deep dark:hover:text-gray-200"
+            className="group flex items-center space-x-1 rounded hover:bg-ollo-light-200 dark:hover:bg-ollo-dark-700/50 px-2 sm:px-3 py-1.5 transition-colors duration-150 text-gray-500 dark:text-gray-400 hover:text-ollo-deep dark:hover:text-gray-200"
             title={showComments ? 'Ocultar comentários' : 'Comentar'}
           >
             <ChatBubbleLeftRightIcon className="w-5 h-5" />
@@ -230,7 +258,7 @@ function PostCard({ postData, onCommentSubmit, onDeletePost, variant }) {
           </button>
           <button
             onClick={handleShareClick}
-            className="group flex items-center space-x-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700/50 px-2 sm:px-3 py-1.5 transition-colors duration-150 text-gray-500 dark:text-gray-400 hover:text-ollo-deep dark:hover:text-gray-200"
+            className="group flex items-center space-x-1 rounded hover:bg-ollo-light-200 dark:hover:bg-ollo-dark-700/50 px-2 sm:px-3 py-1.5 transition-colors duration-150 text-gray-500 dark:text-gray-400 hover:text-ollo-deep dark:hover:text-gray-200"
             title="Partilhar"
           >
             <ShareIcon className="w-5 h-5" />
@@ -240,20 +268,18 @@ function PostCard({ postData, onCommentSubmit, onDeletePost, variant }) {
           </button>
         </div>
       </div>
-
       {showComments && (
-        <div className="px-4 sm:px-5 md:px-6 pb-5 pt-4 border-t border-gray-200/90 dark:border-gray-700/50">
+        <div className="px-4 sm:px-5 md:px-6 pb-5 pt-4 border-t border-ollo-light-200/90 dark:border-ollo-dark-600/50">
           <div className="flex items-start space-x-2 sm:space-x-3 mb-4">
-            {/* CORRIGIDO: Removido conflito de ring */}
             <img
-              className="h-8 w-8 sm:h-9 sm:w-9 rounded-full object-cover flex-shrink-0 ring-1 ring-offset-1 ring-gray-300 dark:ring-gray-600 ring-offset-white dark:ring-offset-ollo-slate"
+              className="h-8 w-8 sm:h-9 sm:w-9 rounded-full object-cover flex-shrink-0 ring-1 ring-offset-1 ring-ollo-light-200 dark:ring-ollo-dark-600 ring-offset-white dark:ring-offset-ollo-slate"
               src={getAvatarUrl('Eu')}
               alt="Seu avatar"
             />
             <div className="flex-1">
               <textarea
                 rows="2"
-                className="w-full p-2 sm:p-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 placeholder-gray-500 dark:placeholder-gray-400 focus:ring-1 focus:ring-ollo-deep dark:focus:ring-ollo-accent-light focus:border-transparent text-xs sm:text-sm shadow-sm transition-colors"
+                className="w-full p-2 sm:p-2.5 border border-ollo-light-200 dark:border-ollo-dark-600 rounded-lg bg-ollo-light-100 dark:bg-ollo-dark-700 text-ollo-dark-700 dark:text-ollo-light-300 placeholder-gray-500 dark:placeholder-gray-400 focus:ring-1 focus:ring-ollo-deep dark:focus:ring-ollo-accent-light focus:border-transparent text-xs sm:text-sm shadow-sm transition-colors"
                 placeholder="Escreva um comentário..."
                 value={newCommentText}
                 onChange={(e) => setNewCommentText(e.target.value)}
@@ -286,14 +312,13 @@ function PostCard({ postData, onCommentSubmit, onDeletePost, variant }) {
                     key={commentId}
                     className="text-xs sm:text-sm flex items-start space-x-2 sm:space-2.5"
                   >
-                    {/* CORRIGIDO: Removido conflito de ring */}
                     <img
-                      className="h-6 w-6 sm:h-7 sm:w-7 rounded-full object-cover flex-shrink-0 mt-0.5 ring-1 ring-offset-1 ring-gray-300 dark:ring-gray-600 ring-offset-white dark:ring-offset-ollo-slate"
+                      className="h-6 w-6 sm:h-7 sm:w-7 rounded-full object-cover flex-shrink-0 mt-0.5 ring-1 ring-offset-1 ring-ollo-light-200 dark:ring-ollo-dark-600 ring-offset-white dark:ring-offset-ollo-slate"
                       src={getAvatarUrl(comment.user)}
                       alt={`Avatar de ${comment.user}`}
                     />
-                    <div className="bg-gray-100/90 dark:bg-gray-800/70 backdrop-blur-sm rounded-lg px-3 py-2 sm:px-3.5 sm:py-2.5 flex-1 shadow-sm border border-gray-200/70 dark:border-gray-700/50">
-                      <p className="text-gray-700 dark:text-gray-300 leading-snug">
+                    <div className="bg-ollo-light-200/90 dark:bg-ollo-dark-800/70 backdrop-blur-sm rounded-lg px-3 py-2 sm:px-3.5 sm:py-2.5 flex-1 shadow-sm border border-ollo-light-200/70 dark:border-ollo-dark-600/50">
+                      <p className="text-ollo-dark-700 dark:text-ollo-light-300 leading-snug">
                         <span className="font-semibold text-ollo-deep dark:text-ollo-light mr-1.5">
                           {comment.user}:
                         </span>

@@ -9,8 +9,12 @@
   <!-- Favicon OLLO - Olhos nas abas do navegador -->
   <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png" />
   <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/images/android-chrome-192x192.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="/images/android-chrome-512x512.png" />
   <link rel="shortcut icon" href="/images/favicon.ico" />
   <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png" />
+  <!-- Se tiver SVG da logo, adicione a linha abaixo para Safari/iOS (pode remover se não tiver) -->
+  <!-- <link rel="mask-icon" href="/images/logo_ollo.svg" color="#05ffb0" /> -->
   <link rel="manifest" href="/site.webmanifest" />
 
   <!-- Open Graph (preview para redes sociais e WhatsApp) -->
@@ -38,6 +42,15 @@
 
 <body>
   <div id="root"></div>
+
+  <!-- Service Worker (opcional, pode já estar no seu main.jsx, confira se existe para evitar duplicidade) -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/service-worker.js');
+      });
+    }
+  </script>
 </body>
 
 </html>

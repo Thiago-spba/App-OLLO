@@ -1,4 +1,4 @@
-//atualizando em junho de 2025
+// atualizado em junho de 2025
 import { useState, useEffect, useRef } from 'react';
 import {
   PaperPlaneRight,
@@ -20,14 +20,12 @@ export default function PostForm({ onPost, currentUser }) {
   const textareaRef = useRef(null);
   const formContainerRef = useRef(null);
 
-  // Limpeza de previews ao desmontar
   useEffect(() => {
     return () => {
       mediaPreviews.forEach((preview) => URL.revokeObjectURL(preview.url));
     };
   }, [mediaPreviews]);
 
-  // Ajustar altura quando o conteúdo ou previews mudarem
   useEffect(() => {
     if (formContainerRef.current) {
       const resizeObserver = new ResizeObserver(() => {
@@ -47,14 +45,12 @@ export default function PostForm({ onPost, currentUser }) {
     const files = Array.from(e.target.files);
     if (!files.length) return;
 
-    // Validação de tamanho (5MB máximo)
     const invalidFiles = files.filter((file) => file.size > 5 * 1024 * 1024);
     if (invalidFiles.length) {
       alert('Alguns arquivos são muito grandes (máximo 5MB)');
       return;
     }
 
-    // Criar previews para os novos arquivos
     const newPreviews = files.map((file) => ({
       id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       url: URL.createObjectURL(file),
@@ -71,14 +67,13 @@ export default function PostForm({ onPost, currentUser }) {
 
     setIsSubmitting(true);
     try {
-      // Simular upload (substituir por chamada real à API)
       await new Promise((resolve) => setTimeout(resolve, 800));
 
       const newPost = {
         id: Date.now().toString(),
         content: content.trim(),
         media: mediaPreviews.map((preview) => ({
-          url: preview.url, // Em produção, substituir por URL permanente
+          url: preview.url,
           type: preview.type,
         })),
         user: {
@@ -123,10 +118,10 @@ export default function PostForm({ onPost, currentUser }) {
 
   return (
     <div className="relative w-full max-w-2xl mx-auto">
-      {/* Container principal com efeito de vidro */}
+      {/* Container principal com efeito vidro e cores ajustadas */}
       <div
         ref={formContainerRef}
-        className="relative z-10 bg-white/80 dark:bg-ollo-dark-800/80 backdrop-blur-sm p-6 rounded-2xl shadow-lg border-2 border-green-300 dark:border-green-500/50 max-h-[80vh] overflow-y-auto"
+        className="relative z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm p-6 rounded-2xl shadow-lg border-2 border-green-300 dark:border-green-600 max-h-[80vh] overflow-y-auto"
       >
         {/* Cabeçalho */}
         <div className="flex items-start gap-4 mb-6">
@@ -153,7 +148,7 @@ export default function PostForm({ onPost, currentUser }) {
         <textarea
           ref={textareaRef}
           placeholder="No que você está pensando?"
-          className="w-full min-h-[120px] p-4 rounded-xl bg-ollo-light-50 dark:bg-ollo-dark-700 border border-ollo-light-300/50 dark:border-ollo-dark-600/50 text-ollo-dark-800 dark:text-ollo-light-200 placeholder-ollo-dark-400/70 dark:placeholder-ollo-dark-400/70 resize-none focus:outline-none focus:ring-2 focus:ring-ollo-primary-400/50 focus:border-transparent transition-all"
+          className="w-full min-h-[120px] p-4 rounded-xl bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-ollo-primary-400/50 focus:border-transparent transition-all"
           value={content}
           onChange={(e) => setContent(e.target.value)}
         />
