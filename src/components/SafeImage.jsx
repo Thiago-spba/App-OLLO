@@ -1,15 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 
-const SafeImage = ({ src, alt, ...props }) => (
-  <img
-    src={src}
-    alt={alt}
-    onError={(e) => {
-      e.target.onerror = null;
-      e.target.style.display = 'none'; // ou coloque um src de placeholder
-    }}
-    {...props}
-  />
-);
+const SafeImage = ({ src, alt, placeholder, ...props }) => {
+  const [error, setError] = useState(false);
+
+  if (error && placeholder) {
+    return <img src={placeholder} alt="placeholder" {...props} />;
+  }
+
+  return <img src={src} alt={alt} onError={() => setError(true)} {...props} />;
+};
 
 export default SafeImage;
