@@ -3,3 +3,6 @@ node_modules
 # Logs
 logs
 dist/
+.firebase/hosting.*
+# Dependency directories
+jspm_packages/
