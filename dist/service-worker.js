@@ -2,22 +2,15 @@
 
 const CACHE_NAME = 'ollo-cache-v1';
 
-// Adicione todos os arquivos essenciais para o funcionamento offline
+// Adicione aqui todos os arquivos essenciais para o funcionamento offline
 const ASSETS_TO_CACHE = [
   '/',
   '/offline.html',
-  '/site.webmanifest',
   '/images/android-chrome-192x192.png',   // Ícone OLLO
-  '/images/android-chrome-512x512.png',
-  '/images/logo_ollo.jpeg',
-  '/images/apple-touch-icon.png',
-  '/images/favicon-32x32.png',
-  '/images/favicon-16x16.png',
-  // Acrescente aqui seus principais arquivos JS/CSS caso queira rodar 100% offline
-  // '/src/main.jsx',  // Se necessário
+  '/images/logo_ollo.jpeg',               // Logo principal
+  // Adicione outros arquivos importantes se quiser
 ];
 
-// Instala o service worker e faz cache dos assets essenciais
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
@@ -26,7 +19,6 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Ativa o service worker e remove caches antigos
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
@@ -41,19 +33,17 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Intercepta todas as requisições e tenta buscar online primeiro, caindo para o cache/offline.html se offline
+// Intercepta todas as requisições
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
   event.respondWith(
     fetch(event.request)
-      .then((response) => {
-        // Se quiser cache dinâmico, pode salvar aqui
-        return response;
-      })
       .catch(() => {
+        // Se estiver offline, tenta o cache primeiro
         return caches.match(event.request)
           .then((response) => {
+            // Se não achar o arquivo no cache, serve o offline.html para páginas de navegação
             if (response) return response;
             if (event.request.mode === 'navigate') {
               return caches.match('/offline.html');
@@ -61,11 +51,4 @@ self.addEventListener('fetch', (event) => {
           });
       })
   );
-});
-
-// (Opcional) Suporte a atualização forçada via postMessage
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SKIP_WAITING') {
-    self.skipWaiting();
-  }
 });
