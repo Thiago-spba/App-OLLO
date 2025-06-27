@@ -1,9 +1,5 @@
 # OLLO
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/Thiago-spba/App-OLLO/main/public/images/032aa53f-61c0-4423-9351-815d0dc5b608.png" width="180" alt="OLLO Logo Dois Olhos"/>
-</p>
-
 ![Status](https://img.shields.io/badge/status-EM_DESENVOLVIMENTO-yellow?style=for-the-badge)
 ![Versão](https://img.shields.io/badge/versão-Frontend_Protótipo-blue?style=for-the-badge)
 ![Tecnologia](https://img.shields.io/badge/tecnologia-React_/_Tailwind_-005A4B?logo=react&style=for-the-badge)
@@ -18,7 +14,7 @@
 ---
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Thiago-spba/App-OLLO/main/public/images/032aa53f-61c0-4423-9351-815d0dc5b608.png" width="160" alt="OLLO Logo Dois Olhos"/>
+  <span style="font-size: 2.2rem; font-weight: bold;">OLLO</span>
 </p>
 <p align="center"><em>Sua nova janela para o mundo digital, com um toque de cultura galega.</em></p>
 
@@ -56,7 +52,7 @@ Inspirado pelo termo galego "ollo" (olho, atenção), nosso foco é navegação 
 - Pipeline de build/testes/commit limpo, prático e confiável
 - Documentação contínua do histórico de desenvolvimento e decisões técnicas
 - Registro dos principais diferenciais implementados (upload múltiplo, avatar automático, modais acessíveis, feedbacks animados)
-- Correções e avanços do fluxo de cadastro e edição de perfil: obrigatoriedade e validação de nome/local, upload de imagem com preview, feedback visual de progresso, privacidade customizada por campo, impedimento de navegação sem cadastro mínimo, UX aprimorada e acessibilidade total:contentReference[oaicite:0]{index=0}.
+- Correções e avanços do fluxo de cadastro e edição de perfil: obrigatoriedade e validação de nome/local, upload de imagem com preview, feedback visual de progresso, privacidade customizada por campo, impedimento de navegação sem cadastro mínimo, UX aprimorada e acessibilidade total.
 
 ---
 
@@ -66,7 +62,7 @@ Inspirado pelo termo galego "ollo" (olho, atenção), nosso foco é navegação 
   - Métricas de engajamento (posts, curtidas, seguidores, comentários)
   - Visualização gráfica (cards, tabelas, gráficos Chart.js)
   - Expansível para vendas/eventos no futuro
-  - Proteção por rota autenticada, expansível para dados reais via Firebase:contentReference[oaicite:1]{index=1}.
+  - Proteção por rota autenticada, expansível para dados reais via Firebase.
 
 - **Checklist já realizado**:
   - Estrutura inicial do projeto com React, Vite, Tailwind, Firebase, Git e Firebase Hosting
@@ -112,7 +108,7 @@ Inspirado pelo termo galego "ollo" (olho, atenção), nosso foco é navegação 
 - Heroicons  
 - Chart.js / React-Chartjs-2  
 - ESLint, Git & GitHub  
-- Deploy: [https://ollo-app-e5224.web.app](https://ollo-app-e5224.web.app)
+- Deploy: [https://olloapp.com.br](https://olloapp.com.br)
 
 ---
 
