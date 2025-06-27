@@ -1,103 +1,110 @@
 # OLLO 🦉
 
-![Status](https://img.shields.io/badge/status-em_desenvolvimento-yellow)
-![Versão](https://img.shields.io/badge/versão-frontend_protótipo-blue)
-![Tecnologia](https://img.shields.io/badge/tecnologia-React_/_Tailwind-_005A4B?logo=react)
+![Status](https://img.shields.io/badge/status-EM_DESENVOLVIMENTO-yellow?style=for-the-badge)
+![Versão](https://img.shields.io/badge/versão-Frontend_Protótipo-blue?style=for-the-badge)
+![Tecnologia](https://img.shields.io/badge/tecnologia-React_/_Tailwind_-005A4B?logo=react&style=for-the-badge)
 
-*Sua nova janela para o mundo digital, com um toque de cultura galega.*
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Thiago-spba/App-OLLO/main/public/images/logo_ollo.jpeg" width="180" alt="OLLO Logo" style="border-radius: 20px; box-shadow: 0 2px 8px #ccc;"/>
+</p>
 
-OLLO é um protótipo de aplicação web interativa com funcionalidades de mídia social. O objetivo é criar uma plataforma moderna, fluida e visualmente atraente onde usuários possam compartilhar conteúdo, interagir e construir uma rede de conexões.
-
----
-
-### A Identidade "Ollo"
-
-"Ollo", em galego, significa "olho", mas a expressão vai além, traduzindo-se como "atenção" ou "cuidado". Essa dualidade inspira a navegação e as interações na plataforma:
-
-* **Dar un ollo**: A ação de explorar o feed, "dar uma olhada" no que há de novo.
-* **Ollo á xente**: A seção para encontrar e seguir pessoas, lembrando de "prestar atenção nas pessoas" que você adiciona à sua rede.
-* **Ollo co que fas!**: O botão para criar um novo post, um lembrete para ser cuidadoso e "prestar atenção no que você faz" e compartilha.
+> *Sua nova janela para o mundo digital, com um toque de cultura galega.*
 
 ---
 
-### ✨ Funcionalidades Implementadas (Protótipo Frontend)
+## 🌟 **O que é o OLLO?**
 
-* **Estrutura e Navegação:**
-    * [x] Layout principal responsivo com barra de navegação lateral.
-    * [x] Roteamento de páginas com React Router DOM v6.
-    * [x] Design adaptável para diferentes tamanhos de tela.
-
-* **Sistema de Temas:**
-    * [x] Tema claro e escuro implementado em toda a aplicação.
-    * [x] Preferência de tema salva no `localStorage` do navegador.
-
-* **Interação com Conteúdo:**
-    * [x] Criação de posts (simulada, via estado local).
-    * [x] Feed de posts com scroll.
-    * [x] Funcionalidade "Continuar Lendo..." para posts longos.
-    * [x] Sistema de "Gostar" em posts.
-    * [x] Seção de comentários em cada post.
-    * [x] Sistema de "Gostar" e "Não Gostar" em comentários individuais.
-
-* **Páginas e Componentes:**
-    * [x] **Página Inicial:** Exibe o feed principal e a caixa de criação de post.
-    * [x] **Página Explorar:** Grade de posts com placeholders para filtros.
-    * [x] **Página de Notificações:** Timeline de notificações com interatividade (marcar como lida) e navegação.
-    * [x] **Página de Perfil:** Estrutura com abas (Posts, Comentários, Curtidas) e edição de perfil (simulada).
-    * [x] **Design Visual "Ollo":** Paleta de cores customizada, gradientes e efeitos de "glassmorphism" no tema claro.
+OLLO é um protótipo de aplicação web interativa, moderna e fluida com funcionalidades de mídia social.  
+Nosso objetivo é criar uma plataforma *“galega”* onde usuários compartilham conteúdo, interagem e constroem conexões em um ambiente visualmente atrativo e **altamente responsivo**.
 
 ---
 
-### 🛠️ Tecnologias Utilizadas
+## 🧬 **Identidade OLLO**
 
-* **Frontend:**
-    * **React (v18+)**: Biblioteca para construção de interfaces.
-    * **Vite**: Ferramenta de build e desenvolvimento ultrarrápida.
-    * **Tailwind CSS (v3)**: Framework CSS utility-first para estilização ágil.
-    * **React Router DOM (v6)**: Gerenciamento de rotas.
-* **Ícones e Ferramentas:**
-    * **Heroicons**: Biblioteca de ícones SVG.
-    * **ESLint**: Linter para manter a qualidade e o padrão do código.
-    * **Git & GitHub**: Versionamento e hospedagem do código.
+> “Ollo”, em galego, significa **olho** — e também transmite as ideias de **atenção** e **cuidado**.
+
+- **Dar un ollo:** Navegue o feed, descubra novidades.
+- **Ollo á xente:** Explore e siga pessoas, ampliando sua rede.
+- **Ollo co que fas!:** Crie posts, lembrando de compartilhar com consciência.
+
+> <p align="center"><img src="https://media.giphy.com/media/jdPMeyv9rn0hZHh8n9/giphy.gif" width="80" alt="Olho animado"/></p>
 
 ---
 
-### 🚀 Como Rodar o Projeto Localmente
+## ✨ **Principais Funcionalidades Implementadas**
 
-Para executar uma cópia deste projeto em seu ambiente de desenvolvimento, siga os passos abaixo.
+| 🚀 Experiência do Usuário | 🛡️ Segurança & Performance | ⚙️ Desenvolvimento |
+|--------------------------|----------------------------|--------------------|
+| Navegação lateral fluida e responsiva <br/> Temas claro/escuro (com animação de transição)<br/> Feedback visual em todas as interações <br/> Efeitos de glassmorphism e gradientes modernos | Acesso seguro ao `localStorage`<br/> Componentes protegidos contra erros de carregamento de imagem<br/> Organização modular e fácil de manter | Vite build ultrarrápido<br/> ESLint e padronização de código<br/> Deploy integrado com Firebase Hosting<br/> Histórico de commits claro e profissional |
 
-1.  **Clone o repositório:**
-    ```bash
-    git clone [https://github.com/Thiago-spba/App-OLLO.git](https://github.com/Thiago-spba/App-OLLO.git)
-    ```
-2.  **Navegue até a pasta do projeto:**
-    ```bash
-    cd App-OLLO
-    ```
-3.  **Instale as dependências:**
-    ```bash
-    npm install
-    ```
-4.  **Inicie o servidor de desenvolvimento:**
-    ```bash
-    npm run dev
-    ```
-5.  Abra [http://localhost:5173](http://localhost:5173) (ou o endereço que aparecer no seu terminal) no seu navegador para ver a aplicação.
+- **Barra de navegação animada** com destaque ativo (transições Tailwind)
+- **Tema escuro/claro** com seleção automática (e salva com segurança)
+- **Criação e exibição de posts**, com botão flutuante animado
+- **Feed com "Continuar lendo..."** para UX fluida
+- **Comentários aninhados**, reações e notificações interativas
+- **Perfil de usuário com abas, edição e visual moderno**
+- **Placeholder animado para imagens indisponíveis**
+- **Design “Ollo” marcante**, com gradientes, sombra e ícones customizados
 
 ---
 
-### 🛣️ Próximos Passos
+## 🔒 **Melhorias Recentes & Boas Práticas**
 
-* [ ] Integração com Backend (Firebase/Supabase).
-* [ ] Sistema de autenticação de usuários.
-* [ ] Upload real de mídias (imagens, vídeos).
-* [ ] Funcionalidade de "Seguir" usuários.
-* [ ] Implementação de busca funcional.
+- **Proteção total contra falhas no localStorage:**  
+  - App nunca mais trava com tela branca em nenhum navegador ou dispositivo.
+  - Verificação e fallback automático.
+- **SafeImage refatorado:**  
+  - Imagens quebradas mostram placeholder elegante, evitando impacto visual.
+- **Limpeza do repositório:**  
+  - Pasta `dist/` agora ignorada via `.gitignore` — só código-fonte versionado!
+- **Fluxo profissional de build e deploy:**  
+  - Commits claros, versionamento limpo, deploy automatizado para Firebase.
+- **Documentação detalhada:**  
+  - Orientação clara para futuros desenvolvedores.
 
 ---
 
-### 📄 Licença
+## 🛠️ **Tecnologias Utilizadas**
 
-Distribuído sob a licença MIT. Veja `LICENSE.txt` para mais informações.
+- ![React](https://img.shields.io/badge/React-18+-61dafb?logo=react)  
+- ![Vite](https://img.shields.io/badge/Vite-6.x-646cff?logo=vite)  
+- ![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-3.x-38bdf8?logo=tailwindcss)
+- ![Firebase](https://img.shields.io/badge/Firebase-Hosting/Firestore-ffca28?logo=firebase)
+- ![Heroicons](https://img.shields.io/badge/Heroicons-SVG-6366f1?logo=heroicons)
+- ESLint, Git, GitHub
+
 ---
-Teste de deploy automático.
+
+## 📝 **Resumo do Histórico de Alterações Recentes**
+
+- [x] **Aprimoramento do acesso ao localStorage (seguro e robusto)**
+- [x] **SafeImage agora oculta imagens quebradas e aceita placeholder**
+- [x] **Remoção e proteção da pasta dist/** do versionamento
+- [x] **Padronização dos commits e do fluxo de deploy**
+- [x] **Ajuste de temas para mobile, incluindo bugfix em Android**
+- [x] **Otimização do carregamento (lazy loading, split de código sugerido)**
+- [x] **Documentação expandida para time e onboarding**
+- [x] **Setup de ambiente automatizado**
+
+---
+
+## 🚦 **Como rodar o projeto**
+
+```bash
+# Clone o repositório
+git clone https://github.com/Thiago-spba/App-OLLO.git
+
+# Acesse a pasta do projeto
+cd App-OLLO
+
+# Instale as dependências
+npm install
+
+# Rode em modo desenvolvimento
+npm run dev
+
+# Gere build de produção
+npm run build
+
+# Deploy no Firebase Hosting
+firebase deploy
