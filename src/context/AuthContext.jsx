@@ -1,4 +1,5 @@
 // src/context/AuthContext.jsx
+
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import {
   onAuthStateChanged,
@@ -20,21 +21,20 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
-const AuthContext = createContext(null);
+// ATENÇÃO: exportação nomeada (ESSENCIAL!)
+export const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  // Obter URL base dinamicamente
   const getBaseUrl = () => {
     return import.meta.env.MODE === 'production'
       ? import.meta.env.VITE_APP_URL || window.location.origin
       : window.location.origin;
   };
 
-  // Atualizar estado de autenticação
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
@@ -51,7 +51,6 @@ export const AuthProvider = ({ children }) => {
               ...userData,
             });
           } else {
-            // Criar documento se não existir
             await setDoc(userDocRef, {
               uid: firebaseUser.uid,
               email: firebaseUser.email,
@@ -90,7 +89,6 @@ export const AuthProvider = ({ children }) => {
     return () => unsubscribe();
   }, []);
 
-  // Registrar novo usuário
   const registerWithEmail = async (email, password, additionalData) => {
     try {
       const userCredential = await createUserWithEmailAndPassword(
@@ -100,12 +98,10 @@ export const AuthProvider = ({ children }) => {
       );
       const firebaseUser = userCredential.user;
 
-      // Atualizar perfil no Firebase Auth
       await updateProfile(firebaseUser, {
         displayName: additionalData.name,
       });
 
-      // Criar documento no Firestore
       const userDocRef = doc(db, 'users', firebaseUser.uid);
       await setDoc(userDocRef, {
         uid: firebaseUser.uid,
@@ -120,7 +116,6 @@ export const AuthProvider = ({ children }) => {
         lastLogin: serverTimestamp(),
       });
 
-      // Enviar email de verificação
       await sendEmailVerification(firebaseUser, {
         url: `${getBaseUrl()}/login?email_verified=true`,
         handleCodeInApp: false,
@@ -135,7 +130,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Login com email e senha
   const loginWithEmail = async (email, password) => {
     try {
       const userCredential = await signInWithEmailAndPassword(
@@ -145,7 +139,6 @@ export const AuthProvider = ({ children }) => {
       );
       const firebaseUser = userCredential.user;
 
-      // Atualizar último login no Firestore
       const userDocRef = doc(db, 'users', firebaseUser.uid);
       await updateDoc(userDocRef, {
         lastLogin: serverTimestamp(),
@@ -162,7 +155,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Redefinir senha
   const forgotPassword = async (email) => {
     try {
       await sendPasswordResetEmail(auth, email, {
@@ -180,7 +172,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Logout
   const logout = async () => {
     try {
       await signOut(auth);
@@ -192,12 +183,10 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Atualizar perfil
   const updateUserProfile = async (updates) => {
     try {
       if (!currentUser) throw new Error('Nenhum usuário logado');
 
-      // Atualizar no Firebase Auth se houver displayName ou photoURL
       if (updates.name || updates.avatarUrl) {
         await updateProfile(auth.currentUser, {
           displayName: updates.name || currentUser.name,
@@ -205,11 +194,9 @@ export const AuthProvider = ({ children }) => {
         });
       }
 
-      // Atualizar no Firestore
       const userDocRef = doc(db, 'users', currentUser.uid);
       await updateDoc(userDocRef, updates);
 
-      // Atualizar estado local
       setCurrentUser((prev) => ({
         ...prev,
         ...updates,
@@ -253,6 +240,7 @@ export const AuthProvider = ({ children }) => {
   );
 };
 
+// Hook personalizado (opcional, para quem preferir usar)
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {

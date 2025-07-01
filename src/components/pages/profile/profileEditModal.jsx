@@ -1,13 +1,19 @@
 import React, { useState } from 'react';
 import ProfilePrivacyField from './profilePrivacyField';
 
+// ADICIONE O IMPORT DO FIREBASE STORAGE E OS MÉTODOS
+import { storage } from '../../firebase/config'; // Ajuste para o caminho correto!
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+
 const defaultAvatar =
   'https://api.dicebear.com/8.x/identicon/svg?seed=ollo-user';
+const defaultCover =
+  'https://images.unsplash.com/photo-1519125323398-675f0ddb6308?auto=format&fit=cover&w=500&q=80';
 
-// Modal simples responsivo, usando Tailwind
 const ProfileEditModal = ({ profile, onClose, onSave }) => {
   const [form, setForm] = useState({
     avatar: profile.avatar || '',
+    cover: profile.cover || '',
     username: profile.username || '',
     realName: profile.realName || '',
     showRealName: profile.showRealName ?? true,
@@ -19,12 +25,58 @@ const ProfileEditModal = ({ profile, onClose, onSave }) => {
     showStatusOnline: profile.showStatusOnline ?? true,
   });
 
+  // Novo estado para preview de capa/avatar
+  const [avatarPreview, setAvatarPreview] = useState('');
+  const [coverPreview, setCoverPreview] = useState('');
+  const [loadingCover, setLoadingCover] = useState(false);
+  const [loadingAvatar, setLoadingAvatar] = useState(false);
+
   // Handler genérico
   const handleChange = (field, value) => {
     setForm((prev) => ({
       ...prev,
       [field]: value,
     }));
+  };
+
+  // Handler de upload de avatar REAL (salva no Firebase)
+  const handleAvatarChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLoadingAvatar(true);
+    try {
+      const avatarRef = ref(
+        storage,
+        `avatars/${profile.uid || profile.id || 'temp'}_${Date.now()}`
+      );
+      await uploadBytes(avatarRef, file);
+      const url = await getDownloadURL(avatarRef);
+      setForm((prev) => ({ ...prev, avatar: url }));
+      setAvatarPreview(url);
+    } catch (err) {
+      alert('Erro ao enviar avatar!');
+    }
+    setLoadingAvatar(false);
+  };
+
+  // Handler de upload de CAPA REAL (salva no Firebase)
+  const handleCoverChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLoadingCover(true);
+    try {
+      const coverRef = ref(
+        storage,
+        `covers/${profile.uid || profile.id || 'temp'}_${Date.now()}`
+      );
+      await uploadBytes(coverRef, file);
+      const url = await getDownloadURL(coverRef);
+      setForm((prev) => ({ ...prev, cover: url }));
+      setCoverPreview(url);
+    } catch (err) {
+      alert('Erro ao enviar capa!');
+    }
+    setLoadingCover(false);
   };
 
   // Handler para adicionar/remover emoji
@@ -46,19 +98,18 @@ const ProfileEditModal = ({ profile, onClose, onSave }) => {
     }));
   };
 
-  // Handler de upload de avatar (placeholder: armazene depois no Firebase)
-  const handleAvatarChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      // Você pode colocar lógica de upload aqui, por enquanto só URL local
-      const url = URL.createObjectURL(file);
-      handleChange('avatar', url);
-    }
+  // Alterna privacidade dos campos
+  const toggleVisibility = (field) => {
+    setForm((prev) => ({
+      ...prev,
+      [field]: !prev[field],
+    }));
   };
 
+  // Submit final
   const handleSubmit = (e) => {
     e.preventDefault();
-    // TODO: Chamar função para salvar no Firebase!
+    // Chama função externa para salvar (Firestore ou API)
     if (onSave) onSave({ ...profile, ...form });
     onClose();
   };
@@ -76,20 +127,41 @@ const ProfileEditModal = ({ profile, onClose, onSave }) => {
           Editar Perfil
         </h2>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Capa */}
+          <div className="mb-2">
+            <div className="relative w-full h-32 rounded-xl overflow-hidden mb-1 bg-gray-200 dark:bg-gray-800">
+              <img
+                src={coverPreview || form.cover || defaultCover}
+                alt="Capa"
+                className="w-full h-full object-cover"
+              />
+              <label className="absolute bottom-2 right-2 bg-emerald-600 text-white px-3 py-1 rounded-lg shadow cursor-pointer hover:bg-emerald-700 text-sm">
+                {loadingCover ? 'Enviando...' : 'Trocar capa'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleCoverChange}
+                  disabled={loadingCover}
+                />
+              </label>
+            </div>
+          </div>
           {/* Avatar */}
           <div className="flex items-center gap-4">
             <img
-              src={form.avatar || defaultAvatar}
+              src={avatarPreview || form.avatar || defaultAvatar}
               alt="Avatar"
               className="w-16 h-16 rounded-full object-cover border border-gray-300"
             />
             <label className="cursor-pointer text-sm font-medium text-primary underline">
-              Alterar foto
+              {loadingAvatar ? 'Enviando...' : 'Alterar foto'}
               <input
                 type="file"
                 accept="image/*"
                 className="hidden"
                 onChange={handleAvatarChange}
+                disabled={loadingAvatar}
               />
             </label>
           </div>
@@ -120,7 +192,7 @@ const ProfileEditModal = ({ profile, onClose, onSave }) => {
               />
             }
             visible={form.showRealName}
-            onToggle={() => handleChange('showRealName', !form.showRealName)}
+            onToggle={() => toggleVisibility('showRealName')}
           />
           {/* Localização + privacidade */}
           <ProfilePrivacyField
@@ -135,7 +207,7 @@ const ProfileEditModal = ({ profile, onClose, onSave }) => {
               />
             }
             visible={form.showLocation}
-            onToggle={() => handleChange('showLocation', !form.showLocation)}
+            onToggle={() => toggleVisibility('showLocation')}
           />
           {/* Status online + privacidade */}
           <ProfilePrivacyField
@@ -154,9 +226,7 @@ const ProfileEditModal = ({ profile, onClose, onSave }) => {
               </span>
             }
             visible={form.showStatusOnline}
-            onToggle={() =>
-              handleChange('showStatusOnline', !form.showStatusOnline)
-            }
+            onToggle={() => toggleVisibility('showStatusOnline')}
           />
           {/* Bio */}
           <div>
@@ -206,8 +276,11 @@ const ProfileEditModal = ({ profile, onClose, onSave }) => {
           <button
             type="submit"
             className="w-full py-2 bg-primary text-white rounded-xl font-bold hover:bg-primary/80 transition"
+            disabled={loadingAvatar || loadingCover}
           >
-            Salvar alterações
+            {loadingAvatar || loadingCover
+              ? 'Salvando...'
+              : 'Salvar alterações'}
           </button>
         </form>
       </div>

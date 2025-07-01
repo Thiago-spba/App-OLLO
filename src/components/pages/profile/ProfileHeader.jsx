@@ -8,14 +8,25 @@ export default function ProfileHeader({
   avatarPreview,
   avatarInputRef,
 }) {
-  const _ = (field) => (editing ? form[field] : profile[field]);
+  // Garante que campos de array sempre são arrays
+  const safeProfile = {
+    ...profile,
+    emojis: Array.isArray(profile.emojis) ? profile.emojis : [],
+  };
+  const safeForm = {
+    ...form,
+    emojis: Array.isArray(form.emojis) ? form.emojis : [],
+  };
+  const _ = (field) => (editing ? safeForm[field] : safeProfile[field]);
 
   return (
     <div className="w-full mb-6 rounded-xl overflow-hidden shadow bg-white dark:bg-gray-900">
       {/* Capa */}
       <div className="relative w-full h-40 sm:h-52 bg-gray-200 dark:bg-gray-800">
         <img
-          src={editing ? form.cover || profile.cover : profile.cover}
+          src={
+            editing ? safeForm.cover || safeProfile.cover : safeProfile.cover
+          }
           alt="Capa do perfil"
           className="w-full h-full object-cover"
           style={{ minHeight: 120, maxHeight: 260 }}
@@ -46,7 +57,7 @@ export default function ProfileHeader({
               <input
                 type="text"
                 name="name"
-                value={form.name}
+                value={safeForm.name}
                 onChange={handlers.handleChange}
                 maxLength={40}
                 className="input input-bordered text-xl font-bold px-2 w-52 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
@@ -55,7 +66,7 @@ export default function ProfileHeader({
               />
             ) : (
               <span className="text-xl font-bold text-gray-900 dark:text-gray-100">
-                {profile.name || 'Nome não preenchido'}
+                {safeProfile.name || 'Nome não preenchido'}
               </span>
             )}
           </div>
@@ -65,7 +76,7 @@ export default function ProfileHeader({
               <input
                 type="text"
                 name="username"
-                value={form.username}
+                value={safeForm.username}
                 onChange={handlers.handleChange}
                 maxLength={20}
                 className="input input-bordered text-base px-2 w-52 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300"
@@ -74,7 +85,7 @@ export default function ProfileHeader({
               />
             ) : (
               <span className="text-base text-gray-500 dark:text-gray-300">
-                @{profile.username}
+                @{safeProfile.username}
               </span>
             )}
           </div>
@@ -85,7 +96,7 @@ export default function ProfileHeader({
                 <input
                   type="text"
                   name="location"
-                  value={form.location}
+                  value={safeForm.location}
                   onChange={handlers.handleChange}
                   maxLength={32}
                   className="input input-bordered px-2 w-40 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300"
@@ -96,18 +107,18 @@ export default function ProfileHeader({
                   onClick={() => handlers.toggleVisibility('showLocation')}
                   className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 focus:ring-2 focus:ring-emerald-500"
                   aria-label={
-                    form.showLocation
+                    safeForm.showLocation
                       ? 'Ocultar localização'
                       : 'Mostrar localização'
                   }
                 >
-                  <EyeIcon visible={form.showLocation} />
+                  <EyeIcon visible={safeForm.showLocation} />
                 </button>
               </>
-            ) : profile.showLocation && profile.location ? (
+            ) : safeProfile.showLocation && safeProfile.location ? (
               <>
                 <span className="text-gray-600 dark:text-gray-300">
-                  {profile.location}
+                  {safeProfile.location}
                 </span>
                 <EyeIcon visible={true} />
               </>
@@ -124,7 +135,7 @@ export default function ProfileHeader({
                 <input
                   type="number"
                   name="age"
-                  value={form.age}
+                  value={safeForm.age}
                   min={1}
                   max={120}
                   onChange={handlers.handleChange}
@@ -135,15 +146,17 @@ export default function ProfileHeader({
                   type="button"
                   onClick={() => handlers.toggleVisibility('showAge')}
                   className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 focus:ring-2 focus:ring-emerald-500"
-                  aria-label={form.showAge ? 'Ocultar idade' : 'Mostrar idade'}
+                  aria-label={
+                    safeForm.showAge ? 'Ocultar idade' : 'Mostrar idade'
+                  }
                 >
-                  <EyeIcon visible={form.showAge} />
+                  <EyeIcon visible={safeForm.showAge} />
                 </button>
               </>
-            ) : profile.showAge && profile.age ? (
+            ) : safeProfile.showAge && safeProfile.age ? (
               <>
                 <span className="text-gray-600 dark:text-gray-300">
-                  {profile.age} anos
+                  {safeProfile.age} anos
                 </span>
                 <EyeIcon visible={true} />
               </>
@@ -159,12 +172,12 @@ export default function ProfileHeader({
               <>
                 <input
                   type="checkbox"
-                  checked={form.statusOnline}
+                  checked={safeForm.statusOnline}
                   onChange={() =>
                     handlers.handleChange({
                       target: {
                         name: 'statusOnline',
-                        value: !form.statusOnline,
+                        value: !safeForm.statusOnline,
                       },
                     })
                   }
@@ -185,7 +198,7 @@ export default function ProfileHeader({
           <div className="flex flex-wrap items-center gap-1">
             {editing ? (
               <>
-                {form.emojis.map((emoji, idx) => (
+                {safeForm.emojis.map((emoji, idx) => (
                   <span
                     key={idx}
                     className="text-xl cursor-pointer"
@@ -193,7 +206,7 @@ export default function ProfileHeader({
                       handlers.handleChange({
                         target: {
                           name: 'emojis',
-                          value: form.emojis.filter((_, i) => i !== idx),
+                          value: safeForm.emojis.filter((_, i) => i !== idx),
                         },
                       })
                     }
@@ -211,7 +224,7 @@ export default function ProfileHeader({
                       handlers.handleChange({
                         target: {
                           name: 'emojis',
-                          value: [...form.emojis, e.target.value],
+                          value: [...safeForm.emojis, e.target.value],
                         },
                       });
                       e.target.value = '';
@@ -222,7 +235,7 @@ export default function ProfileHeader({
                       handlers.handleChange({
                         target: {
                           name: 'emojis',
-                          value: [...form.emojis, e.target.value],
+                          value: [...safeForm.emojis, e.target.value],
                         },
                       });
                       e.target.value = '';
@@ -231,9 +244,9 @@ export default function ProfileHeader({
                 />
               </>
             ) : (
-              profile.emojis?.length > 0 && (
+              safeProfile.emojis.length > 0 && (
                 <span className="flex flex-wrap gap-1 text-xl">
-                  {profile.emojis.map((emoji, i) => (
+                  {safeProfile.emojis.map((emoji, i) => (
                     <span key={i}>{emoji}</span>
                   ))}
                 </span>
@@ -245,7 +258,9 @@ export default function ProfileHeader({
         <div className="flex-shrink-0 flex flex-col items-center ml-4 pt-4 sm:pt-12">
           <div className="relative">
             <img
-              src={editing ? avatarPreview || form.avatar : profile.avatar}
+              src={
+                editing ? avatarPreview || safeForm.avatar : safeProfile.avatar
+              }
               alt="Avatar"
               className="w-32 h-32 sm:w-36 sm:h-36 rounded-full border-4 border-white dark:border-gray-900 shadow-lg object-cover bg-gray-100 dark:bg-gray-700"
             />

@@ -1,306 +1,280 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+// src/pages/profile/index.jsx (VERSÃO CORRIGIDA)
+
+import { useState, useRef, useEffect, useMemo, useContext } from 'react';
 import ProfileHeader from './profileHeader';
 import ProfileBio from './profileBio';
 import ProfileGallery from './profileGallery';
 import ProfileActions from './profileActions';
+import { db, storage } from '../../../firebase/config';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import {
+  ref,
+  uploadBytes,
+  getDownloadURL,
+  deleteObject,
+} from 'firebase/storage';
+import { AuthContext } from '../../../context/AuthContext';
+import { v4 as uuidv4 } from 'uuid';
 
-const DEFAULT_AVATAR = '/default-avatar.png';
-const DEFAULT_COVER = '/default-cover.png'; // Coloque uma imagem padrão na pasta public
-
-function generateId() {
-  return Math.random().toString(36).substr(2, 9);
-}
+const DEFAULT_AVATAR = '/images/default-avatar.png';
+const DEFAULT_COVER = '/images/default-cover.png';
 
 const defaultProfile = {
-  avatar: DEFAULT_AVATAR, // Foto de perfil
-  cover: DEFAULT_COVER, // Capa/banner do perfil
-  name: '', // Nome público (obrigatório)
-  username: '', // Usuário (obrigatório, ex: @seunome)
-  location: '', // Cidade, País
-  showLocation: true, // Permite mostrar ou esconder localização
-  age: '', // Idade
-  showAge: true, // Permite mostrar ou esconder idade
-  statusOnline: true, // Online/offline
-  emojis: [], // Array de emojis favoritos
-  bio: '', // Bio do usuário
-  showBio: true, // Permite mostrar ou esconder bio
-  gallery: [], // Galeria de imagens e vídeos
-  showGallery: true, // Permite mostrar ou esconder galeria
+  avatar: DEFAULT_AVATAR,
+  cover: DEFAULT_COVER,
+  name: '',
+  username: '',
+  location: '',
+  bio: '',
+  age: '',
+  gallery: [],
+  emojis: [],
+  showName: true,
+  showLocation: true,
+  showBio: true,
+  showAge: true,
+  showGallery: true,
+  statusOnline: true,
 };
 
 export default function Profile() {
+  const { currentUser, loading: authLoading } = useContext(AuthContext);
   const [profile, setProfile] = useState(defaultProfile);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState(defaultProfile);
-  const [avatarPreview, setAvatarPreview] = useState('');
+  const [avatarPreview, setAvatarPreview] = useState(null);
+  const [coverPreview, setCoverPreview] = useState(null);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
   const avatarInputRef = useRef(null);
+  const coverInputRef = useRef(null);
   const galleryInputRef = useRef(null);
 
-  // Load profile from localStorage
   useEffect(() => {
-    const saved = localStorage.getItem('ollo_profile');
-    if (saved) {
+    if (!currentUser || authLoading) return;
+    setLoading(true);
+    async function fetchProfile() {
       try {
-        setProfile({ ...defaultProfile, ...JSON.parse(saved) });
+        const docRef = doc(db, 'users', currentUser.uid);
+        const snap = await getDoc(docRef);
+        const dataToSet = snap.exists()
+          ? { ...defaultProfile, ...snap.data() }
+          : {
+              ...defaultProfile,
+              name: currentUser.displayName || '',
+              avatar: currentUser.photoURL || DEFAULT_AVATAR,
+            };
+        if (!snap.exists()) {
+          await setDoc(docRef, dataToSet);
+        }
+        setProfile(dataToSet);
+        setForm(dataToSet);
       } catch (e) {
-        console.error('Failed to parse saved profile', e);
+        console.error('Erro ao carregar perfil:', e);
+        setError('Erro ao carregar perfil!');
+      } finally {
+        setLoading(false);
       }
     }
-  }, []);
-
-  // Save profile to localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem('ollo_profile', JSON.stringify(profile));
-    } catch (e) {
-      console.error('Failed to save profile', e);
-    }
-  }, [profile]);
+    fetchProfile();
+  }, [currentUser, authLoading]);
 
   const handleEdit = () => {
-    setForm(profile);
-    setAvatarPreview(profile.avatar);
     setEditing(true);
-    setSuccess('');
-    setError('');
+    setForm(profile);
   };
-
   const handleCancel = () => {
     setEditing(false);
-    setAvatarPreview('');
+    setForm(profile);
+  };
+  const handleAvatarChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setAvatarPreview(file);
+      setForm((f) => ({ ...f, avatar: URL.createObjectURL(file) }));
+    }
+  };
+  const handleCoverChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setCoverPreview(file);
+      setForm((f) => ({ ...f, cover: URL.createObjectURL(file) }));
+    }
+  };
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setForm((f) => ({ ...f, [name]: type === 'checkbox' ? checked : value }));
+  };
+  const toggleVisibility = (field) => {
+    setForm((f) => ({ ...f, [field]: !f[field] }));
+  };
+
+  const handleInstantUpload = async (e) => {
+    const files = Array.from(e.target.files);
+    if (!files.length || !currentUser) return;
+
+    setLoading(true);
     setError('');
+
+    const uploadPromises = files.map(async (file) => {
+      if (!file.type.startsWith('image/') && !file.type.startsWith('video/'))
+        return null;
+      const fileId = uuidv4();
+      const fileType = file.type.startsWith('image/') ? 'image' : 'video';
+      const filePath = `gallery/${currentUser.uid}/${fileId}_${file.name}`;
+      const mediaRef = ref(storage, filePath);
+      try {
+        await uploadBytes(mediaRef, file);
+        const downloadUrl = await getDownloadURL(mediaRef);
+        return {
+          id: fileId,
+          url: downloadUrl,
+          type: fileType,
+          public: true,
+          createdAt: new Date(),
+        };
+      } catch (uploadError) {
+        console.error('Erro no upload:', uploadError);
+        return null;
+      }
+    });
+
+    try {
+      const uploadedItems = (await Promise.all(uploadPromises)).filter(Boolean);
+      if (uploadedItems.length > 0) {
+        const currentGallery = profile.gallery || [];
+        const updatedGallery = [...currentGallery, ...uploadedItems];
+        await setDoc(
+          doc(db, 'users', currentUser.uid),
+          { gallery: updatedGallery },
+          { merge: true }
+        );
+        const updatedProfile = { ...profile, gallery: updatedGallery };
+        setProfile(updatedProfile);
+        setForm(updatedProfile);
+        setSuccess(`${uploadedItems.length} mídia(s) adicionada(s)!`);
+        setTimeout(() => setSuccess(''), 3000);
+      }
+    } catch (dbError) {
+      console.error('Erro ao salvar no DB:', dbError);
+      setError('Erro ao salvar as mídias.');
+    } finally {
+      setLoading(false);
+      e.target.value = null;
+    }
+  };
+
+  const handleRemoveMedia = (idToRemove) => {
+    const updatedGallery = form.gallery.filter(
+      (item) => item.id !== idToRemove
+    );
+    setForm((f) => ({ ...f, gallery: updatedGallery }));
   };
 
   const handleSave = async () => {
-    if (!form.name.trim() || !form.username.trim()) {
-      setError('Nome e usuário são obrigatórios.');
-      return;
-    }
-
     setLoading(true);
+    setError('');
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 800));
-      setProfile(form);
+      let avatarUrl = form.avatar;
+      let coverUrl = form.cover;
+      if (avatarPreview) {
+        const avatarRef = ref(
+          storage,
+          `avatars/${currentUser.uid}_${Date.now()}`
+        );
+        await uploadBytes(avatarRef, avatarPreview);
+        avatarUrl = await getDownloadURL(avatarRef);
+      }
+      if (coverPreview) {
+        const coverRef = ref(
+          storage,
+          `covers/${currentUser.uid}_${Date.now()}`
+        );
+        await uploadBytes(coverRef, coverPreview);
+        coverUrl = await getDownloadURL(coverRef);
+      }
+      const finalGallery = form.gallery;
+      const dataToSave = {
+        ...form,
+        avatar: avatarUrl,
+        cover: coverUrl,
+        gallery: finalGallery,
+      };
+      delete dataToSave.avatarPreview;
+      delete dataToSave.coverPreview;
+      await setDoc(doc(db, 'users', currentUser.uid), dataToSave, {
+        merge: true,
+      });
+      setProfile(dataToSave);
       setEditing(false);
-      setSuccess('Perfil atualizado com sucesso!');
-      setError('');
-      setTimeout(() => setSuccess(''), 3000);
+      setSuccess('Perfil salvo com sucesso!');
     } catch (err) {
-      setError('Erro ao salvar perfil. Tente novamente.');
+      setError('Erro ao salvar perfil.');
+      console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleAvatarChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      setError('Por favor, selecione uma imagem válida');
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      setAvatarPreview(ev.target.result);
-      setForm((f) => ({ ...f, avatar: ev.target.result }));
-    };
-    reader.onerror = () => setError('Erro ao carregar imagem');
-    reader.readAsDataURL(file);
-  };
-
-  // NOVO: Handler para troca de capa/banner
-  const handleCoverChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      setError('Por favor, selecione uma imagem de capa válida');
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      setForm((f) => ({ ...f, cover: ev.target.result }));
-    };
-    reader.onerror = () => setError('Erro ao carregar imagem de capa');
-    reader.readAsDataURL(file);
-  };
-
-  const toggleVisibility = (field) => {
-    setForm((f) => ({ ...f, [field]: !f[field] }));
-  };
-
-  const handleGalleryChange = (e) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
-
-    const validTypes = [
-      'image/jpeg',
-      'image/png',
-      'image/webp',
-      'video/mp4',
-      'video/webm',
-    ];
-    const invalidFiles = files.filter(
-      (file) => !validTypes.includes(file.type)
-    );
-
-    if (invalidFiles.length > 0) {
-      setError(
-        `Tipo de arquivo não suportado: ${invalidFiles.map((f) => f.name).join(', ')}`
-      );
-      e.target.value = '';
-      return;
-    }
-
-    const newMedia = files.map((file) => {
-      const isImage = file.type.startsWith('image/');
-      return {
-        id: generateId(),
-        url: URL.createObjectURL(file),
-        type: isImage ? 'image' : 'video',
-        public: true,
-        file, // Mantém referência para upload futuro
-      };
-    });
-
-    if (editing) {
-      // Se estiver editando, adiciona ao form
-      setForm((f) => ({
-        ...f,
-        gallery: [...(f.gallery || []), ...newMedia],
-      }));
-    } else {
-      // Se NÃO estiver editando, adiciona direto ao perfil
-      setProfile((p) => ({
-        ...p,
-        gallery: [...(p.gallery || []), ...newMedia],
-      }));
-    }
-    e.target.value = '';
-  };
-  
-  const handleRemoveMedia = (id) => {
-    setForm((f) => ({
-      ...f,
-      gallery: f.gallery.filter((item) => item.id !== id),
-    }));
-  };
-
-  const toggleMediaVisibility = (id) => {
-    setForm((f) => ({
-      ...f,
-      gallery: f.gallery.map((item) =>
-        item.id === id ? { ...item, public: !item.public } : item
-      ),
-    }));
-  };
-
-  const handleShare = async () => {
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-      setSuccess('Link do perfil copiado!');
-      setTimeout(() => setSuccess(''), 2000);
-    } catch (err) {
-      setError('Não foi possível copiar o link');
-    }
-  };
-
-  const isDirty = useMemo(
-    () => editing && JSON.stringify(form) !== JSON.stringify(profile),
-    [form, profile, editing]
-  );
-
   const handlers = {
     handleAvatarChange,
-    handleCoverChange, // Adicionado aqui!
-    handleChange: (e) => {
-      const { name, value } = e.target;
-      setForm((f) => ({ ...f, [name]: value }));
-    },
+    handleCoverChange,
+    handleChange,
     toggleVisibility,
-    handleGalleryChange,
+    handleInstantUpload,
     handleRemoveMedia,
-    toggleMediaVisibility,
   };
+  const isDirty = useMemo(
+    () => JSON.stringify(form) !== JSON.stringify(profile),
+    [form, profile]
+  );
+
+  if (authLoading || loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <span className="text-lg animate-pulse">Carregando perfil...</span>
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return (
+      <div className="text-center p-8">Faça login para ver seu perfil.</div>
+    );
+  }
 
   return (
-    <main className="max-w-2xl mx-auto bg-white dark:bg-gray-900 shadow-xl rounded-3xl my-4 md:my-8 p-4 md:p-6 transition-all">
+    <main className="max-w-2xl mx-auto bg-white dark:bg-gray-900 shadow-xl rounded-3xl my-4 md:my-8 p-4 md:p-6">
       <ProfileHeader
         profile={profile}
         editing={editing}
         form={form}
         handlers={handlers}
-        avatarPreview={avatarPreview}
+        avatarPreview={form.avatar}
         avatarInputRef={avatarInputRef}
       />
-
       <ProfileBio
         profile={profile}
         editing={editing}
         form={form}
         handlers={handlers}
       />
-
       <ProfileGallery
         profile={profile}
         editing={editing}
         form={form}
         handlers={handlers}
         galleryInputRef={galleryInputRef}
+        loading={loading}
       />
-
       {(error || success) && (
-        <div className="mb-4">
-          {error && (
-            <div
-              className="text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/50 p-3 rounded-lg flex items-start gap-2"
-              role="alert"
-            >
-              <svg
-                className="w-5 h-5 flex-shrink-0 mt-0.5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-              <span>{error}</span>
-            </div>
-          )}
-          {success && (
-            <div
-              className="text-green-700 dark:text-green-300 bg-green-100 dark:bg-green-900/50 p-3 rounded-lg flex items-center gap-2"
-              role="alert"
-            >
-              <svg
-                className="w-5 h-5 flex-shrink-0"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M5 13l4 4L19 7"
-                />
-              </svg>
-              <span>{success}</span>
-            </div>
-          )}
+        <div className="my-4">
+          {error && <p className="text-red-500">{error}</p>}
+          {success && <p className="text-green-500">{success}</p>}
         </div>
       )}
-
       <ProfileActions
         editing={editing}
         loading={loading}
@@ -308,7 +282,6 @@ export default function Profile() {
         onEdit={handleEdit}
         onCancel={handleCancel}
         onSave={handleSave}
-        onShare={handleShare}
       />
     </main>
   );

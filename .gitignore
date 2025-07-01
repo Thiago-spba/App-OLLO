@@ -6,3 +6,9 @@ dist/
 .firebase/hosting.*
 # Dependency directories
 jspm_packages/
+# Arquivos de log e depuração
+*.log
+
+# Arquivos temporários ou de configuração fora do lugar
+src/cors.json
+src/lista-arquivos.txt
