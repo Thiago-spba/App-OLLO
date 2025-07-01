@@ -1,4 +1,4 @@
-// atualizado em junho de 2025
+// tailwind.config.js - atualizado em junho de 2025
 
 /** @type {import('tailwindcss').Config} */
 export default {
@@ -39,9 +39,34 @@ export default {
       backgroundImage: {
         'ollo-gradient-main': 'linear-gradient(to top right, var(--tw-gradient-from), var(--tw-gradient-to))',
       },
+
+      // Novas extensões adicionadas abaixo (sem modificar o existente)
+      transitionProperty: {
+        'scale': 'transform',
+      },
+      transitionDuration: {
+        '150': '150ms',
+      },
+      scale: {
+        '98': '0.98',
+      }
     },
   },
   plugins: [
     require('tailwind-scrollbar-hide'),
+    // Plugin adicional para melhorar acessibilidade em focus states
+    function({ addUtilities }) {
+      const newUtilities = {
+        '.focus-visible-ring': {
+          '&:focus-visible': {
+            'outline': 'none',
+            'ring': '2px',
+            'ring-offset': '2px',
+            'ring-color': 'var(--tw-ring-color, #02C39A)',
+          },
+        },
+      }
+      addUtilities(newUtilities, ['responsive', 'hover'])
+    }
   ],
 }

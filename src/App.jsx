@@ -1,12 +1,18 @@
 import { ThemeProvider } from './context/ThemeContext';
-import Rotas from './routes'; // O novo arquivo de rotas, que vai ter tudo que hoje está no AppContent
+import { AuthProvider } from './context/AuthContext.jsx';
+import Rotas from './routes';
+import { unstable_HistoryRouter as HistoryRouter } from 'react-router-dom';
+import { createBrowserHistory } from 'history';
 
-function App() {
+// Cria uma instância de histórico personalizada
+const history = createBrowserHistory({ window });
+
+export default function App() {
   return (
-    <ThemeProvider>
-      <Rotas />
-    </ThemeProvider>
+    <AuthProvider>
+      <ThemeProvider>
+        <Rotas />
+      </ThemeProvider>
+    </AuthProvider>
   );
 }
-
-export default App;

@@ -1,12 +1,11 @@
 import { useState } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
+import { useTheme } from './context/ThemeContext';
 
-// Layouts e Rotas
+// Layouts e Componentes
 import MainLayout from './layouts/MainLayout';
-import ProtectedRoute from './components/ProtectedRoute'; // Agora usando ProtectedRoute!
-
-// Componentes globais
+import ProtectedRoute from './components/ProtectedRoute';
 import Footer from './components/Footer';
 import CreatePostModal from './components/CreatePostModal';
 import PWABanner from './components/PWABanner';
@@ -28,11 +27,9 @@ import VerifyEmailPage from './pages/VerifyEmailPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import ActionHandlerPage from './pages/ActionHandlerPage';
 
-import { useTheme } from './context/ThemeContext';
-
 export default function Rotas() {
   const { darkMode, toggleTheme } = useTheme();
-
+  const location = useLocation();
   const [sessionFollowStatus, setSessionFollowStatus] = useState({});
   const [posts, setPosts] = useState([
     {
@@ -47,18 +44,32 @@ export default function Rotas() {
   ]);
   const [isCreatePostModalOpen, setIsCreatePostModalOpen] = useState(false);
 
+  // Funções auxiliares
   const openCreatePostModal = () => setIsCreatePostModalOpen(true);
   const closeCreatePostModal = () => setIsCreatePostModalOpen(false);
+  const handleAddPost = (newPost) => {
+    setPosts([newPost, ...posts]);
+    closeCreatePostModal();
+  };
 
   const themeClasses = darkMode
     ? 'bg-gray-900 text-gray-100'
     : 'bg-gray-50 text-gray-900';
 
+  // Rotas que não devem mostrar layout principal
+  const noLayoutRoutes = [
+    '/login',
+    '/register',
+    '/forgot-password',
+    '/verify-email',
+    '/reset-password',
+    '/actions',
+  ];
+
   return (
     <div
       className={`min-h-screen flex flex-col font-sans transition-colors duration-300 ${themeClasses}`}
     >
-      {/* Toast global para avisos do app */}
       <Toaster
         position="top-center"
         toastOptions={{
@@ -71,24 +82,34 @@ export default function Rotas() {
         }}
       />
 
-      {/* Rotas públicas e protegidas */}
-      <Routes>
-        {/* Rotas SEM layout principal */}
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-        <Route path="/verify-email" element={<VerifyEmailPage />} />
-        <Route path="/reset-password" element={<ResetPasswordPage />} />
-        <Route path="/actions" element={<ActionHandlerPage />} />
+      <Routes location={location} key={location.pathname}>
+        {/* Rotas sem layout principal */}
+        {noLayoutRoutes.map((path) => (
+          <Route
+            key={path}
+            path={path}
+            element={
+              path === '/login' ? (
+                <LoginPage />
+              ) : path === '/register' ? (
+                <RegisterPage />
+              ) : path === '/forgot-password' ? (
+                <ForgotPasswordPage />
+              ) : path === '/verify-email' ? (
+                <VerifyEmailPage />
+              ) : path === '/reset-password' ? (
+                <ResetPasswordPage />
+              ) : (
+                <ActionHandlerPage />
+              )
+            }
+          />
+        ))}
 
-        {/* Rotas públicas COM layout principal */}
+        {/* Rotas públicas com layout principal */}
         <Route
           element={
-            <MainLayout
-              openCreatePostModal={openCreatePostModal}
-              toggleTheme={toggleTheme}
-              darkMode={darkMode}
-            />
+            <MainLayout {...{ openCreatePostModal, toggleTheme, darkMode }} />
           }
         >
           <Route
@@ -97,17 +118,10 @@ export default function Rotas() {
               <HomePage
                 posts={posts}
                 onTriggerCreatePost={openCreatePostModal}
-                onCommentSubmit={() => {}}
-                onDeletePost={() => {}}
               />
             }
           />
-          <Route
-            path="/explore"
-            element={
-              <ExplorePage allPosts={posts} onCommentSubmit={() => {}} />
-            }
-          />
+          <Route path="/explore" element={<ExplorePage allPosts={posts} />} />
           <Route path="/terms" element={<TermsPage />} />
           <Route
             path="/posts/:postId"
@@ -119,52 +133,41 @@ export default function Rotas() {
           />
         </Route>
 
-        {/* Rotas SENSÍVEIS protegidas com ProtectedRoute + MainLayout */}
+        {/* Rotas protegidas */}
         <Route element={<ProtectedRoute />}>
           <Route
             element={
-              <MainLayout
-                openCreatePostModal={openCreatePostModal}
-                toggleTheme={toggleTheme}
-                darkMode={darkMode}
-              />
+              <MainLayout {...{ openCreatePostModal, toggleTheme, darkMode }} />
             }
           >
-            {/* Marketplace (só para logado) */}
             <Route path="/marketplace" element={<MarketplacePage />} />
             <Route path="/marketplace/criar" element={<CreateListingPage />} />
-            {/* Profile (só para logado) */}
             <Route
               path="/profile/:profileId?"
               element={
                 <ProfilePage
                   allPosts={posts}
-                  onCommentSubmit={() => {}}
                   sessionFollowStatus={sessionFollowStatus}
                   setSessionFollowStatus={setSessionFollowStatus}
                 />
               }
             />
-            {/* Notificações (só para logado) */}
             <Route path="/notifications" element={<NotificationsPage />} />
           </Route>
         </Route>
       </Routes>
 
-      {/* Banner PWA aparece sempre acima do footer */}
-      <PWABanner />
+      {!noLayoutRoutes.includes(location.pathname) && (
+        <>
+          <PWABanner />
+          <Footer darkMode={darkMode} />
+        </>
+      )}
 
-      {/* Footer global */}
-      <Footer darkMode={darkMode} />
-
-      {/* Modal para criar post */}
       {isCreatePostModalOpen && (
         <CreatePostModal
           onClose={closeCreatePostModal}
-          onAddPost={(newPost) => {
-            setPosts([newPost, ...posts]);
-            closeCreatePostModal();
-          }}
+          onAddPost={handleAddPost}
           darkMode={darkMode}
         />
       )}
