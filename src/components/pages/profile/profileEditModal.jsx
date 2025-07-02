@@ -1,14 +1,16 @@
+// src/components/pages/profile/profileEditModal.jsx (VERSÃO CORRIGIDA)
+
 import React, { useState } from 'react';
 import ProfilePrivacyField from './profilePrivacyField';
 
-// ADICIONE O IMPORT DO FIREBASE STORAGE E OS MÉTODOS
-import { storage } from '../../firebase/config'; // Ajuste para o caminho correto!
+import { storage } from '../../firebase/config';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
-const defaultAvatar =
-  'https://api.dicebear.com/8.x/identicon/svg?seed=ollo-user';
-const defaultCover =
-  'https://images.unsplash.com/photo-1519125323398-675f0ddb6308?auto=format&fit=cover&w=500&q=80';
+// ===== CORREÇÃO APLICADA AQUI =====
+// Trocando os links quebrados pelos seus arquivos locais
+const defaultAvatar = '/images/default-avatar.png';
+const defaultCover = '/images/default-cover.png';
+// ===================================
 
 const ProfileEditModal = ({ profile, onClose, onSave }) => {
   const [form, setForm] = useState({
@@ -25,21 +27,15 @@ const ProfileEditModal = ({ profile, onClose, onSave }) => {
     showStatusOnline: profile.showStatusOnline ?? true,
   });
 
-  // Novo estado para preview de capa/avatar
   const [avatarPreview, setAvatarPreview] = useState('');
   const [coverPreview, setCoverPreview] = useState('');
   const [loadingCover, setLoadingCover] = useState(false);
   const [loadingAvatar, setLoadingAvatar] = useState(false);
 
-  // Handler genérico
   const handleChange = (field, value) => {
-    setForm((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+    setForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  // Handler de upload de avatar REAL (salva no Firebase)
   const handleAvatarChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -59,7 +55,6 @@ const ProfileEditModal = ({ profile, onClose, onSave }) => {
     setLoadingAvatar(false);
   };
 
-  // Handler de upload de CAPA REAL (salva no Firebase)
   const handleCoverChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -79,14 +74,10 @@ const ProfileEditModal = ({ profile, onClose, onSave }) => {
     setLoadingCover(false);
   };
 
-  // Handler para adicionar/remover emoji
   const handleEmojiAdd = (e) => {
     const emoji = e.target.value.trim();
     if (emoji && !form.emojis.includes(emoji)) {
-      setForm((prev) => ({
-        ...prev,
-        emojis: [...prev.emojis, emoji],
-      }));
+      setForm((prev) => ({ ...prev, emojis: [...prev.emojis, emoji] }));
       e.target.value = '';
     }
   };
@@ -98,18 +89,12 @@ const ProfileEditModal = ({ profile, onClose, onSave }) => {
     }));
   };
 
-  // Alterna privacidade dos campos
   const toggleVisibility = (field) => {
-    setForm((prev) => ({
-      ...prev,
-      [field]: !prev[field],
-    }));
+    setForm((prev) => ({ ...prev, [field]: !prev[field] }));
   };
 
-  // Submit final
   const handleSubmit = (e) => {
     e.preventDefault();
-    // Chama função externa para salvar (Firestore ou API)
     if (onSave) onSave({ ...profile, ...form });
     onClose();
   };
@@ -121,13 +106,12 @@ const ProfileEditModal = ({ profile, onClose, onSave }) => {
           onClick={onClose}
           className="absolute top-3 right-4 text-2xl text-gray-500 hover:text-red-500"
         >
-          &times;
+          ×
         </button>
         <h2 className="text-xl font-bold mb-4 text-gray-800 dark:text-gray-100">
           Editar Perfil
         </h2>
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Capa */}
           <div className="mb-2">
             <div className="relative w-full h-32 rounded-xl overflow-hidden mb-1 bg-gray-200 dark:bg-gray-800">
               <img
@@ -147,7 +131,6 @@ const ProfileEditModal = ({ profile, onClose, onSave }) => {
               </label>
             </div>
           </div>
-          {/* Avatar */}
           <div className="flex items-center gap-4">
             <img
               src={avatarPreview || form.avatar || defaultAvatar}
@@ -165,21 +148,6 @@ const ProfileEditModal = ({ profile, onClose, onSave }) => {
               />
             </label>
           </div>
-          {/* Username */}
-          <div>
-            <label className="block text-gray-700 dark:text-gray-300 font-semibold mb-1">
-              Username
-            </label>
-            <input
-              type="text"
-              value={form.username}
-              maxLength={20}
-              onChange={(e) => handleChange('username', e.target.value)}
-              required
-              className="input input-bordered w-full"
-            />
-          </div>
-          {/* Nome real + privacidade */}
           <ProfilePrivacyField
             label="Nome real"
             value={
@@ -194,7 +162,6 @@ const ProfileEditModal = ({ profile, onClose, onSave }) => {
             visible={form.showRealName}
             onToggle={() => toggleVisibility('showRealName')}
           />
-          {/* Localização + privacidade */}
           <ProfilePrivacyField
             label="Localização"
             value={
@@ -209,7 +176,6 @@ const ProfileEditModal = ({ profile, onClose, onSave }) => {
             visible={form.showLocation}
             onToggle={() => toggleVisibility('showLocation')}
           />
-          {/* Status online + privacidade */}
           <ProfilePrivacyField
             label="Status online"
             value={
@@ -228,7 +194,6 @@ const ProfileEditModal = ({ profile, onClose, onSave }) => {
             visible={form.showStatusOnline}
             onToggle={() => toggleVisibility('showStatusOnline')}
           />
-          {/* Bio */}
           <div>
             <label className="block text-gray-700 dark:text-gray-300 font-semibold mb-1">
               Bio
@@ -244,7 +209,6 @@ const ProfileEditModal = ({ profile, onClose, onSave }) => {
               {form.bio.length}/150
             </span>
           </div>
-          {/* Emojis */}
           <div>
             <label className="block text-gray-700 dark:text-gray-300 font-semibold mb-1">
               Emojis de destaque
@@ -272,7 +236,6 @@ const ProfileEditModal = ({ profile, onClose, onSave }) => {
               />
             </div>
           </div>
-          {/* Botão salvar */}
           <button
             type="submit"
             className="w-full py-2 bg-primary text-white rounded-xl font-bold hover:bg-primary/80 transition"
