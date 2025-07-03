@@ -1,5 +1,3 @@
-// src/pages/HomePage.jsx — atualizado em junho de 2025, boas práticas OLLO
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -12,14 +10,73 @@ import {
 import PostCard from '../components/PostCard';
 import StoriesReel from '../components/StoriesReel';
 import CreatePostModal from '../components/CreatePostModal';
+import StoryModal from '../components/StoryModal';
+import CreateStoryModal from '../components/CreateStoryModal';
+
+// Lista inicial mock de stories (troque pelo backend depois se quiser)
+const mockStories = [
+  {
+    id: 1,
+    userName: 'Seu Story',
+    avatarText: '+',
+    isOwn: true,
+    imageUrl:
+      'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?q=80&w=2070',
+  },
+  {
+    id: 2,
+    userName: 'Gemini',
+    avatarText: 'GA',
+    imageUrl:
+      'https://images.unsplash.com/photo-1554034483-2610ac3443a5?q=80&w=1887',
+  },
+  {
+    id: 3,
+    userName: 'Dev Ent.',
+    avatarText: 'DE',
+    imageUrl:
+      'https://images.unsplash.com/photo-1558591710-4b4a1ae0f04d?q=80&w=1887',
+  },
+  {
+    id: 4,
+    userName: 'Usuário C',
+    avatarText: 'UC',
+    imageUrl:
+      'https://images.unsplash.com/photo-1557682224-5b8590cd9ec5?q=80&w=2029',
+  },
+  {
+    id: 5,
+    userName: 'Usuário D',
+    avatarText: 'UD',
+    imageUrl:
+      'https://images.unsplash.com/photo-1604079628040-94301bb21b91?q=80&w=1887',
+  },
+  {
+    id: 6,
+    userName: 'Usuário E',
+    avatarText: 'UE',
+    imageUrl:
+      'https://images.unsplash.com/photo-1579546929662-7221826a7f8c?q=80&w=2070',
+  },
+];
 
 const HomePage = ({ onCommentSubmit, onDeletePost }) => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
 
+  // Controle de posts
   const [posts, setPosts] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Controle dos stories
+  const [stories, setStories] = useState(mockStories);
+
+  // Modal para criar story (botão "+")
+  const [isStoryModalOpen, setIsStoryModalOpen] = useState(false);
+
+  // Modal para visualizar stories
+  const [modalIndex, setModalIndex] = useState(null);
 
   // Carregar posts do localStorage
   useEffect(() => {
@@ -79,18 +136,73 @@ const HomePage = ({ onCommentSubmit, onDeletePost }) => {
     return true;
   };
 
+  // === FUNÇÕES DE NAVEGAÇÃO DE STORY VISUALIZAÇÃO ===
+  const openStoryModal = (story) => {
+    const index = stories.findIndex((s) => s.id === story.id);
+    setModalIndex(index);
+  };
+  const closeStoryModal = () => setModalIndex(null);
+  const goToPrevStory = () => {
+    setModalIndex((idx) => (idx > 0 ? idx - 1 : idx));
+  };
+  const goToNextStory = () => {
+    setModalIndex((idx) => (idx < stories.length - 1 ? idx + 1 : idx));
+  };
+
+  // === FUNÇÕES DO MODAL DE CRIAR STORY (+) ===
+  const handleOpenCreateStory = () => setIsStoryModalOpen(true);
+  const handleCloseCreateStory = () => setIsStoryModalOpen(false);
+
+  // Atualiza stories ao criar um novo (você pode buscar do Firebase aqui no futuro)
+  const handleStoryCreated = () => {
+    setIsStoryModalOpen(false);
+    // Exemplo: buscar de novo os stories do backend e atualizar:
+    // fetchStoriesFromFirebase().then(setStories);
+  };
+
   return (
     <div className="flex flex-col lg:flex-row lg:gap-x-6 xl:gap-x-8 pt-1 px-4 sm:px-6 lg:px-8">
       <main className="w-full flex-grow lg:max-w-2xl xl:max-w-3xl mx-auto lg:mx-0">
         <div className="space-y-6 md:space-y-8">
-          <StoriesReel />
+          {/* Barra de Stories */}
+          <StoriesReel
+            stories={stories}
+            onStoryClick={openStoryModal}
+            onCreateStoryClick={handleOpenCreateStory}
+          />
+
+          {/* Modal de visualização de Story */}
+          {modalIndex !== null && (
+            <StoryModal
+              imageUrl={stories[modalIndex].imageUrl}
+              userName={stories[modalIndex].userName}
+              avatarText={stories[modalIndex].avatarText}
+              onClose={closeStoryModal}
+              onPrev={goToPrevStory}
+              onNext={goToNextStory}
+              disablePrev={modalIndex === 0}
+              disableNext={modalIndex === stories.length - 1}
+            />
+          )}
+
+          {/* Modal de criar Story (botão "+") */}
+          {isStoryModalOpen && (
+            <CreateStoryModal
+              onClose={handleCloseCreateStory}
+              onStoryCreated={handleCloseCreateStory}
+            />
+          )}
 
           {/* Bloco de criar post */}
           <section className="p-5 rounded-2xl bg-gray-100 dark:bg-gray-800 shadow-lg border border-gray-200/70 dark:border-gray-700/50 transition-all hover:shadow-xl">
             <div className="flex items-center gap-3">
               <div className="flex-shrink-0 h-12 w-12 rounded-full overflow-hidden border-2 border-ollo-primary-400 dark:border-ollo-accent-light">
                 <img
-                  src={currentUser?.avatarUrl || '/images/default-avatar.png'}
+                  src={
+                    currentUser?.avatar ||
+                    currentUser?.avatarUrl ||
+                    '/images/default-avatar.png'
+                  }
                   alt="avatar"
                   className="h-full w-full object-cover"
                   onError={(e) => {
