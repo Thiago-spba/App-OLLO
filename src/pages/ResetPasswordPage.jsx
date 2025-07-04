@@ -1,4 +1,4 @@
-// Versão Corrigida - 2025-06-16
+// Versão OLLOAPP — ResetPasswordPage.jsx
 
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
@@ -16,7 +16,6 @@ import {
 const ResetPasswordPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
-
   const {
     register,
     handleSubmit,
@@ -32,10 +31,8 @@ const ResetPasswordPage = () => {
   const [email, setEmail] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
   const password = watch('password');
 
-  // Função para traduzir erros do Firebase
   const getFriendlyError = (errorCode) => {
     switch (errorCode) {
       case 'auth/expired-action-code':
@@ -53,7 +50,6 @@ const ResetPasswordPage = () => {
     }
   };
 
-  // Verifica o código de redefinição na URL
   useEffect(() => {
     const query = new URLSearchParams(location.search);
     const code = query.get('oobCode');
@@ -75,7 +71,6 @@ const ResetPasswordPage = () => {
         setLoading(false);
       })
       .catch((error) => {
-        console.error('Erro na verificação:', error);
         const friendlyError = getFriendlyError(error.code);
         setError(friendlyError);
         toast.error(friendlyError);
@@ -97,8 +92,6 @@ const ResetPasswordPage = () => {
       await confirmPasswordReset(auth, oobCode, data.password);
       toast.success('Senha alterada com sucesso!');
       setSuccess(true);
-
-      // Redireciona após 3 segundos
       setTimeout(() => {
         navigate('/login', {
           replace: true,
@@ -106,7 +99,6 @@ const ResetPasswordPage = () => {
         });
       }, 3000);
     } catch (error) {
-      console.error('Erro na redefinição:', error);
       const friendlyError = getFriendlyError(error.code);
       setError(friendlyError);
       toast.error(friendlyError);
@@ -132,19 +124,25 @@ const ResetPasswordPage = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 p-4">
         <div className="w-full max-w-md p-8 space-y-6 bg-white dark:bg-gray-800 rounded-lg shadow-md text-center">
-          <CheckCircleIcon className="w-16 h-16 mx-auto text-green-500" />
-          <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
-            Senha Redefinida!
+          <img
+            src="/images/logo_ollo.jpeg"
+            alt="OLLOAPP Logo"
+            className="mx-auto h-16 w-auto"
+          />
+          <h2 className="text-3xl font-bold text-gray-900 dark:text-white mt-2">
+            Senha atualizada com sucesso!
           </h2>
-          <p className="text-gray-600 dark:text-gray-400">
-            Sua senha foi alterada com sucesso para a conta{' '}
-            <strong>{email}</strong>.
+          <p className="text-gray-600 dark:text-gray-300 leading-relaxed">
+            🔒 Tudo certo com sua nova senha!
+            <br />A conta <strong>{email}</strong> foi atualizada com sucesso.
+            <br />
+            Em instantes você será redirecionado para o login.
           </p>
-          <div className="pt-4">
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Você será redirecionado automaticamente...
-            </p>
-          </div>
+          <img
+            src="/images/favicon.ico"
+            alt="OLLOAPP Ícone"
+            className="mx-auto h-10 w-10 mt-2"
+          />
         </div>
       </div>
     );
@@ -158,7 +156,7 @@ const ResetPasswordPage = () => {
           <div className="text-center mb-6">
             <img
               src="/images/logo_ollo.jpeg"
-              alt="Logo OLLO"
+              alt="Logo OLLOAPP"
               className="h-16 mx-auto rounded-full"
             />
             <h2 className="text-2xl font-bold mt-4 text-gray-900 dark:text-white">
@@ -265,7 +263,7 @@ const ResetPasswordPage = () => {
             >
               {submitting ? (
                 <>
-                  <ArrowPathIcon className="animate-spin h-5 w-5 mr-2" />
+                  <ArrowPathIcon className="animate-spin h-5 w-5 mr-2" />{' '}
                   Salvando...
                 </>
               ) : (

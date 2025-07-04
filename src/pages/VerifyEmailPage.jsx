@@ -7,30 +7,25 @@ import {
   signOut,
   sendEmailVerification,
   onAuthStateChanged,
-} from 'firebase/auth'; // Importa onAuthStateChanged
+} from 'firebase/auth';
 import { auth } from '../firebase/config';
 import toast, { Toaster } from 'react-hot-toast';
+import { EnvelopeSimple } from '@phosphor-icons/react';
 
 const VerifyEmailPage = () => {
   const { logout } = useAuth();
   const navigate = useNavigate();
-  // MUDANÇA 1: Usa um estado local para o usuário desta página
   const [pageUser, setPageUser] = useState(auth.currentUser);
 
   useEffect(() => {
-    // Escuta por mudanças no estado de autenticação do Firebase.
-    // Isso garante que temos a informação mais atual.
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         setPageUser(user);
-        // Se o usuário já estiver verificado (ex: clicou no link e voltou para a aba),
-        // recarrega os dados dele e o envia para a home.
         if (user.emailVerified) {
           toast.success('Email verificado com sucesso! Redirecionando...');
           setTimeout(() => navigate('/'), 2000);
         }
       } else {
-        // Se o usuário deslogou, envia para a página de login.
         setPageUser(null);
         navigate('/login');
       }
@@ -50,9 +45,8 @@ const VerifyEmailPage = () => {
         'Um novo link de verificação foi enviado para o seu e-mail!'
       );
     } catch (error) {
-      toast.error(
-        'Ocorreu um erro ao reenviar o e-mail. Tente novamente mais tarde.'
-      );
+      console.error('Erro ao reenviar o e-mail:', error);
+      toast.error('Ocorreu um erro ao reenviar. Tente novamente mais tarde.');
     }
   };
 
@@ -61,7 +55,6 @@ const VerifyEmailPage = () => {
     navigate('/login');
   };
 
-  // MUDANÇA 2: A lógica de carregamento agora é baseada no usuário local da página.
   if (!pageUser) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-white dark:bg-ollo-deep">
@@ -77,37 +70,41 @@ const VerifyEmailPage = () => {
       <Toaster />
       <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
         <div className="max-w-md w-full p-8 space-y-6 bg-white dark:bg-gray-800 rounded-lg shadow-md text-center">
-          <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100">
-            <svg
-              className="h-6 w-6 text-green-600"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-              />
-            </svg>
-          </div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+          {/* LOGO TOPO */}
+          <img
+            src="/images/logo_ollo.jpeg"
+            alt="OLLOAPP Logo"
+            className="mx-auto h-16 w-auto"
+          />
+
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mt-4">
             Confirme seu e-mail
           </h2>
-          <p className="text-gray-600 dark:text-gray-300">
-            Enviamos um link de verificação para{' '}
-            <strong>{pageUser.email}</strong>. Por favor, verifique sua caixa de
-            entrada (e a pasta de spam) para ativar sua conta.
+
+          <p className="text-gray-600 dark:text-gray-300 text-base leading-relaxed">
+            Chegou a hora de validar sua conta! O link de verificação foi
+            enviado para seu e-mail. Isso garante sua segurança e ativa todos os
+            recursos do OLLOAPP.
           </p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Após verificar, você pode fazer o login.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+
+          {/* Favicon visual no fim (aumentado) */}
+          <img
+            src="/images/favicon.ico"
+            alt="OLLOAPP Ícone"
+            className="mx-auto h-10 w-10 mt-2"
+          />
+
+          {/* E-mail mostrado no fim */}
+          <div className="text-sm text-gray-700 dark:text-gray-300 font-medium mt-2">
+            {pageUser.email}
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-4 justify-center mt-4">
             <button
               onClick={handleResendEmail}
-              className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-white bg-ollo-primary hover:bg-ollo-primary-dark rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ollo-primary"
+              className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-white bg-ollo-primary hover:bg-ollo-primary-dark rounded-md flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ollo-primary"
             >
+              <EnvelopeSimple size={18} weight="bold" />
               Reenviar e-mail
             </button>
             <button
