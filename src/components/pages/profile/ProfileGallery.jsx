@@ -1,4 +1,4 @@
-// src/pages/profile/ProfileGallery.jsx (VERSÃO CORRIGIDA)
+// src/pages/profile/ProfileGallery.jsx
 
 import { useState } from 'react';
 import EyeIcon from './eyeIcon';
@@ -8,7 +8,7 @@ export default function ProfileGallery({
   profile,
   editing,
   form,
-  handlers,
+  handlers = {}, // ✅ fallback seguro para evitar erros se não for passado
   galleryInputRef,
   loading,
 }) {
@@ -31,14 +31,18 @@ export default function ProfileGallery({
           {editing && (
             <button
               type="button"
-              onClick={() => handlers.toggleVisibility('showGallery')}
+              onClick={
+                () => handlers.toggleVisibility?.('showGallery') // ✅ proteção com optional chaining
+              }
               className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
             >
               <EyeIcon visible={isGalleryVisible} />
             </button>
           )}
           <label
-            className={`px-3 py-1 bg-emerald-600 text-white rounded-lg cursor-pointer hover:bg-emerald-700 text-sm font-medium transition-all duration-200 hover:shadow-lg ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+            className={`px-3 py-1 bg-emerald-600 text-white rounded-lg cursor-pointer hover:bg-emerald-700 text-sm font-medium transition-all duration-200 hover:shadow-lg ${
+              loading ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
           >
             + Mídia
             <input
@@ -76,7 +80,7 @@ export default function ProfileGallery({
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        handlers.handleRemoveMedia(item.id);
+                        handlers.handleRemoveMedia?.(item.id); // ✅ proteção contra ausência
                       }}
                       className="absolute top-1 right-1 bg-red-500 text-white w-6 h-6 flex items-center justify-center rounded-full hover:bg-red-600"
                     >
@@ -117,7 +121,7 @@ export default function ProfileGallery({
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        handlers.handleRemoveMedia(item.id);
+                        handlers.handleRemoveMedia?.(item.id); // ✅ proteção
                       }}
                       className="absolute top-1 right-1 bg-red-500 text-white w-6 h-6 flex items-center justify-center rounded-full hover:bg-red-600"
                     >
