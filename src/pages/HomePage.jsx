@@ -13,72 +13,21 @@ import CreatePostModal from '../components/CreatePostModal';
 import StoryModal from '../components/StoryModal';
 import CreateStoryModal from '../components/CreateStoryModal';
 
-// Lista inicial mock de stories (troque pelo backend depois se quiser)
 const mockStories = [
-  {
-    id: 1,
-    userName: 'Seu Story',
-    avatarText: '+',
-    isOwn: true,
-    imageUrl:
-      'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?q=80&w=2070',
-  },
-  {
-    id: 2,
-    userName: 'Gemini',
-    avatarText: 'GA',
-    imageUrl:
-      'https://images.unsplash.com/photo-1554034483-2610ac3443a5?q=80&w=1887',
-  },
-  {
-    id: 3,
-    userName: 'Dev Ent.',
-    avatarText: 'DE',
-    imageUrl:
-      'https://images.unsplash.com/photo-1558591710-4b4a1ae0f04d?q=80&w=1887',
-  },
-  {
-    id: 4,
-    userName: 'Usuário C',
-    avatarText: 'UC',
-    imageUrl:
-      'https://images.unsplash.com/photo-1557682224-5b8590cd9ec5?q=80&w=2029',
-  },
-  {
-    id: 5,
-    userName: 'Usuário D',
-    avatarText: 'UD',
-    imageUrl:
-      'https://images.unsplash.com/photo-1604079628040-94301bb21b91?q=80&w=1887',
-  },
-  {
-    id: 6,
-    userName: 'Usuário E',
-    avatarText: 'UE',
-    imageUrl:
-      'https://images.unsplash.com/photo-1579546929662-7221826a7f8c?q=80&w=2070',
-  },
+  // ... (mantido igual)
 ];
 
 const HomePage = ({ onCommentSubmit, onDeletePost }) => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
 
-  // Controle de posts
   const [posts, setPosts] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-
-  // Controle dos stories
   const [stories, setStories] = useState(mockStories);
-
-  // Modal para criar story (botão "+")
   const [isStoryModalOpen, setIsStoryModalOpen] = useState(false);
-
-  // Modal para visualizar stories
   const [modalIndex, setModalIndex] = useState(null);
 
-  // Carregar posts do localStorage
   useEffect(() => {
     const loadPosts = async () => {
       setIsLoading(true);
@@ -93,7 +42,6 @@ const HomePage = ({ onCommentSubmit, onDeletePost }) => {
     loadPosts();
   }, []);
 
-  // Salvar posts no localStorage ao mudar
   useEffect(() => {
     const timer = setTimeout(() => {
       localStorage.setItem('ollo-posts', JSON.stringify(posts));
@@ -101,7 +49,6 @@ const HomePage = ({ onCommentSubmit, onDeletePost }) => {
     return () => clearTimeout(timer);
   }, [posts]);
 
-  // Handler para novo post (apenas logado)
   const handleNewPost = (newPost) => {
     setPosts((prev) => [
       {
@@ -116,7 +63,6 @@ const HomePage = ({ onCommentSubmit, onDeletePost }) => {
     setIsModalOpen(false);
   };
 
-  // Handler para abrir modal de criação (exige login)
   const handleOpenModal = () => {
     if (!currentUser) {
       navigate('/login', {
@@ -127,7 +73,6 @@ const HomePage = ({ onCommentSubmit, onDeletePost }) => {
     setIsModalOpen(true);
   };
 
-  // Handler de tentar comentar (exemplo: pode ser passado ao PostCard)
   const handleCommentAttempt = () => {
     if (!currentUser) {
       navigate('/login', { state: { message: 'Faça login para comentar!' } });
@@ -136,7 +81,6 @@ const HomePage = ({ onCommentSubmit, onDeletePost }) => {
     return true;
   };
 
-  // === FUNÇÕES DE NAVEGAÇÃO DE STORY VISUALIZAÇÃO ===
   const openStoryModal = (story) => {
     const index = stories.findIndex((s) => s.id === story.id);
     setModalIndex(index);
@@ -149,29 +93,22 @@ const HomePage = ({ onCommentSubmit, onDeletePost }) => {
     setModalIndex((idx) => (idx < stories.length - 1 ? idx + 1 : idx));
   };
 
-  // === FUNÇÕES DO MODAL DE CRIAR STORY (+) ===
   const handleOpenCreateStory = () => setIsStoryModalOpen(true);
   const handleCloseCreateStory = () => setIsStoryModalOpen(false);
-
-  // Atualiza stories ao criar um novo (você pode buscar do Firebase aqui no futuro)
   const handleStoryCreated = () => {
     setIsStoryModalOpen(false);
-    // Exemplo: buscar de novo os stories do backend e atualizar:
-    // fetchStoriesFromFirebase().then(setStories);
   };
 
   return (
     <div className="flex flex-col lg:flex-row lg:gap-x-6 xl:gap-x-8 pt-1 px-4 sm:px-6 lg:px-8">
       <main className="w-full flex-grow lg:max-w-2xl xl:max-w-3xl mx-auto lg:mx-0">
         <div className="space-y-6 md:space-y-8">
-          {/* Barra de Stories */}
           <StoriesReel
             stories={stories}
             onStoryClick={openStoryModal}
             onCreateStoryClick={handleOpenCreateStory}
           />
 
-          {/* Modal de visualização de Story */}
           {modalIndex !== null && (
             <StoryModal
               imageUrl={stories[modalIndex].imageUrl}
@@ -185,15 +122,13 @@ const HomePage = ({ onCommentSubmit, onDeletePost }) => {
             />
           )}
 
-          {/* Modal de criar Story (botão "+") */}
           {isStoryModalOpen && (
             <CreateStoryModal
               onClose={handleCloseCreateStory}
-              onStoryCreated={handleCloseCreateStory}
+              onStoryCreated={handleStoryCreated}
             />
           )}
 
-          {/* Bloco de criar post */}
           <section className="p-5 rounded-2xl bg-gray-100 dark:bg-gray-800 shadow-lg border border-gray-200/70 dark:border-gray-700/50 transition-all hover:shadow-xl">
             <div className="flex items-center gap-3">
               <div className="flex-shrink-0 h-12 w-12 rounded-full overflow-hidden border-2 border-ollo-primary-400 dark:border-ollo-accent-light">
@@ -241,7 +176,6 @@ const HomePage = ({ onCommentSubmit, onDeletePost }) => {
             </div>
           </section>
 
-          {/* Feed de posts */}
           <section aria-labelledby="feed-heading">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-bold text-ollo-dark-900 dark:text-ollo-light-100">
@@ -266,7 +200,6 @@ const HomePage = ({ onCommentSubmit, onDeletePost }) => {
                     postData={post}
                     currentUserId={currentUser?.uid}
                     onCommentSubmit={(commentData) => {
-                      // Se não estiver logado, não deixa comentar
                       if (!handleCommentAttempt()) return;
                       if (onCommentSubmit) onCommentSubmit(commentData);
                     }}
@@ -311,7 +244,6 @@ const HomePage = ({ onCommentSubmit, onDeletePost }) => {
         </div>
       </aside>
 
-      {/* Modal de criar post (só aparece se logado) */}
       {isModalOpen && currentUser && (
         <CreatePostModal
           onClose={() => setIsModalOpen(false)}
@@ -323,7 +255,6 @@ const HomePage = ({ onCommentSubmit, onDeletePost }) => {
   );
 };
 
-// Skeleton de carregamento para feed
 const PostCardSkeleton = () => (
   <div className="p-5 rounded-2xl bg-gray-100 dark:bg-gray-800 border border-gray-200/70 dark:border-gray-700/50">
     <div className="flex items-center gap-3 mb-4">

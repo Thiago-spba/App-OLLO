@@ -1,4 +1,12 @@
-import { NavLink, useNavigate, Link } from 'react-router-dom';
+// src/components/SideBarNav.jsx
+
+import React from 'react';
+import { NavLink, Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
+import clsx from 'clsx';
+
+// Importando todos os ícones necessários
 import {
   HomeIcon,
   MagnifyingGlassIcon,
@@ -10,39 +18,48 @@ import {
   BuildingStorefrontIcon,
 } from '@heroicons/react/24/outline';
 import { SunIcon, MoonIcon } from '@heroicons/react/24/solid';
-import { useAuth } from '../context/AuthContext';
-import { useTheme } from '../context/ThemeContext';
-import clsx from 'clsx';
 
-function SidebarNav({ openCreatePostModal }) {
+// --- Componente Reutilizável para Itens de Navegação ---
+const NavItem = ({ to, title, icon: Icon, end = false }) => {
+  const getNavLinkClass = ({ isActive }) =>
+    clsx(
+      'flex items-center px-3 lg:px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-150 ease-in-out group justify-center lg:justify-start',
+      {
+        'bg-ollo-accent text-white shadow-sm dark:bg-ollo-accent-light dark:text-ollo-deep':
+          isActive,
+        'text-gray-600 hover:bg-gray-200/70 hover:text-ollo-deep dark:text-gray-300 dark:hover:bg-gray-700/50 dark:hover:text-white':
+          !isActive,
+      }
+    );
+
+  return (
+    <NavLink to={to} title={title} className={getNavLinkClass} end={end}>
+      <Icon className="h-6 w-6 flex-shrink-0 lg:mr-3" aria-hidden="true" />
+      <span className="hidden lg:inline">{title}</span>
+    </NavLink>
+  );
+};
+
+// --- Componente Principal da Sidebar ---
+function SideBarNav({ onTriggerCreatePost }) {
   const { currentUser, logout } = useAuth();
-  const navigate = useNavigate();
   const { darkMode, toggleTheme } = useTheme();
+
+  // O hook useNavigate é chamado aqui, onde é seguro, pois SideBarNav
+  // será renderizado dentro da árvore do roteador.
+  const navigate = useNavigate();
 
   const handleLogout = async () => {
     try {
-      await logout();
-      navigate('/');
+      // A função de navegação é passada como parâmetro para o logout.
+      // A lógica de logout no seu contexto usará esta função para redirecionar.
+      await logout(navigate);
     } catch (error) {
       console.error('Erro ao fazer logout:', error);
     }
   };
 
-  const getSidebarNavLinkClass = ({ isActive }) => {
-    const baseClasses =
-      'flex items-center px-3 lg:px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-150 ease-in-out group justify-center lg:justify-start';
-    if (isActive) {
-      return `${baseClasses} bg-ollo-accent text-white shadow-sm dark:bg-ollo-accent-light dark:text-ollo-deep`;
-    }
-    return `${baseClasses} text-gray-600 hover:bg-gray-200/70 hover:text-ollo-deep dark:text-gray-300 dark:hover:bg-gray-700/50 dark:hover:text-white`;
-  };
-
-  const createPostButtonClass =
-    'w-full flex items-center justify-center mt-4 px-3 lg:px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 bg-ollo-accent text-white hover:bg-opacity-90 dark:bg-ollo-accent-light dark:text-ollo-deep dark:hover:bg-opacity-90 focus:ring-ollo-accent dark:focus:ring-ollo-accent-light focus:ring-offset-ollo-light dark:focus:ring-offset-ollo-deep';
-  const logoutButtonClass =
-    'w-full flex items-center px-3 lg:px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-150 ease-in-out group justify-center lg:justify-start text-gray-600 hover:bg-red-100 hover:text-red-700 dark:text-gray-300 dark:hover:bg-red-500/20 dark:hover:text-red-400';
-
-  // Switch Tema
+  // Definições de classes para botões
   const themeToggleBtnClass = clsx(
     'w-14 h-14 flex items-center justify-center mx-auto mb-3 rounded-2xl transition-all duration-300 shadow-lg focus:outline-none focus:ring-2 focus:ring-ollo-accent dark:focus:ring-ollo-accent-light',
     darkMode
@@ -50,118 +67,98 @@ function SidebarNav({ openCreatePostModal }) {
       : 'bg-gradient-to-br from-ollo-crystal-green via-white to-ollo-sky-blue hover:from-ollo-light hover:to-ollo-crystal-green'
   );
 
-// ...importações e funções acima mantidas
+  const createPostButtonClass =
+    'w-full flex items-center justify-center mt-4 px-3 lg:px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 bg-ollo-accent text-white hover:bg-opacity-90 dark:bg-ollo-accent-light dark:text-ollo-deep dark:hover:bg-opacity-90 focus:ring-ollo-accent dark:focus:ring-ollo-accent-light focus:ring-offset-ollo-light dark:focus:ring-offset-ollo-deep';
 
-return (
-  <div className="h-screen bg-ollo-light w-20 lg:w-64 flex flex-col p-3 lg:p-4 border-r border-gray-200/80 dark:border-gray-700/50 shadow-sm transition-all duration-300 ease-in-out dark:bg-ollo-deep">
-    <div className="mb-8 lg:mb-10 flex-shrink-0 pt-2 flex flex-col items-center justify-center">
-      {/* Logo OLLO */}
-      <Link
-        to="/"
-        className="focus:outline-none focus:ring-2 focus:ring-ollo-deep dark:focus:ring-ollo-accent-light focus:ring-offset-2 focus:ring-offset-ollo-light dark:focus:ring-offset-ollo-deep rounded-md"
-        title="Página Inicial OLLO"
-      >
-        <img
-          src="/images/logo_ollo.jpeg"
-          alt="Logo OLLO"
-          className="h-16 w-auto"
-        />
-      </Link>
-    </div>
+  const logoutButtonClass =
+    'w-full flex items-center px-3 lg:px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-150 ease-in-out group justify-center lg:justify-start text-gray-600 hover:bg-red-100 hover:text-red-700 dark:text-gray-300 dark:hover:bg-red-500/20 dark:hover:text-red-400';
 
-    <nav className="flex-grow space-y-2">
-      {/* ...NavLinks aqui, sem alteração */}
-      {/* igual antes */}
-      <NavLink to="/" title="Início" className={getSidebarNavLinkClass} end>
-        <HomeIcon className="h-6 w-6 flex-shrink-0 lg:mr-3" />
-        <span className="hidden lg:inline">Início</span>
-      </NavLink>
-      <NavLink
-        to="/explore"
-        title="Explorar"
-        className={getSidebarNavLinkClass}
-      >
-        <MagnifyingGlassIcon className="h-6 w-6 flex-shrink-0 lg:mr-3" />
-        <span className="hidden lg:inline">Explorar</span>
-      </NavLink>
-      <NavLink
-        to="/marketplace"
-        title="Mercado"
-        className={getSidebarNavLinkClass}
-      >
-        <BuildingStorefrontIcon className="h-6 w-6 flex-shrink-0 lg:mr-3" />
-        <span className="hidden lg:inline">Mercado</span>
-      </NavLink>
-      {currentUser && (
-        <>
-          <NavLink
-            to="/notifications"
-            title="Notificações"
-            className={getSidebarNavLinkClass}
-          >
-            <BellIcon className="h-6 w-6 flex-shrink-0 lg:mr-3" />
-            <span className="hidden lg:inline">Notificações</span>
-          </NavLink>
-          <NavLink
-            to="/profile"
-            title="Meu Perfil"
-            className={getSidebarNavLinkClass}
-          >
-            <UserCircleIcon className="h-6 w-6 flex-shrink-0 lg:mr-3" />
-            <span className="hidden lg:inline">Meu Perfil</span>
-          </NavLink>
-        </>
-      )}
-    </nav>
-
-    {/* INFERIOR: Switch de Tema acima do Entrar/Sair */}
-    <div className="mt-auto flex-shrink-0 pb-2 flex flex-col items-center space-y-2">
-
-      {/* Switch Tema */}
-      <button
-        onClick={toggleTheme}
-        aria-label={darkMode ? "Ativar modo claro" : "Ativar modo escuro"}
-        className={themeToggleBtnClass}
-        tabIndex={0}
-      >
-        {darkMode ? (
-          <SunIcon className="h-9 w-9 text-ollo-accent transition-all duration-300" />
-        ) : (
-          <MoonIcon className="h-9 w-9 text-gray-700 transition-all duration-300" />
-        )}
-      </button>
-
-      {currentUser ? (
-        <>
-          <button
-            title="Criar Post"
-            onClick={openCreatePostModal}
-            className={createPostButtonClass}
-          >
-            <PencilSquareIcon className="h-5 w-5 lg:mr-2" />
-            <span className="hidden lg:inline">Criar Post</span>
-          </button>
-          <button
-            title="Sair"
-            onClick={handleLogout}
-            className={logoutButtonClass}
-          >
-            <ArrowLeftOnRectangleIcon className="h-6 w-6 flex-shrink-0 lg:mr-3" />
-            <span className="hidden lg:inline">Sair</span>
-          </button>
-        </>
-      ) : (
-        <NavLink
-          to="/login"
-          title="Entrar"
-          className={getSidebarNavLinkClass}
+  return (
+    <aside
+      aria-label="Barra de navegação principal"
+      className="h-screen bg-ollo-light w-20 lg:w-64 flex flex-col p-3 lg:p-4 border-r border-gray-200/80 dark:border-gray-700/50 shadow-sm transition-all duration-300 ease-in-out dark:bg-ollo-deep"
+    >
+      <div className="mb-8 lg:mb-10 flex-shrink-0 pt-2 flex flex-col items-center justify-center">
+        <Link
+          to="/"
+          className="focus:outline-none focus:ring-2 focus:ring-ollo-deep dark:focus:ring-ollo-accent-light focus:ring-offset-2 focus:ring-offset-ollo-light dark:focus:ring-offset-ollo-deep rounded-md"
+          title="Página Inicial OLLO"
         >
-          <ArrowRightOnRectangleIcon className="h-6 w-6 flex-shrink-0 lg:mr-3" />
-          <span className="hidden lg:inline">Entrar</span>
-        </NavLink>
-      )}
-    </div>
-  </div>
-);
+          <img
+            src="/images/logo_ollo.jpeg"
+            alt="Logo OLLO"
+            className="h-16 w-auto rounded-lg"
+          />
+        </Link>
+      </div>
+
+      <nav className="flex-grow space-y-2" aria-label="Navegação principal">
+        <NavItem to="/" title="Início" icon={HomeIcon} end />
+        <NavItem to="/explore" title="Explorar" icon={MagnifyingGlassIcon} />
+        <NavItem
+          to="/marketplace"
+          title="Mercado"
+          icon={BuildingStorefrontIcon}
+        />
+        {currentUser && (
+          <>
+            <NavItem to="/notifications" title="Notificações" icon={BellIcon} />
+            <NavItem to="/profile" title="Meu Perfil" icon={UserCircleIcon} />
+          </>
+        )}
+      </nav>
+
+      <div className="mt-auto flex-shrink-0 pb-2 flex flex-col items-center space-y-2">
+        <button
+          onClick={toggleTheme}
+          aria-label={darkMode ? 'Ativar modo claro' : 'Ativar modo escuro'}
+          className={themeToggleBtnClass}
+          type="button"
+        >
+          {darkMode ? (
+            <SunIcon className="h-9 w-9 text-ollo-accent" />
+          ) : (
+            <MoonIcon className="h-9 w-9 text-gray-700" />
+          )}
+        </button>
+
+        {currentUser ? (
+          <>
+            <button
+              title="Criar Post"
+              onClick={onTriggerCreatePost}
+              className={createPostButtonClass}
+              type="button"
+            >
+              <PencilSquareIcon
+                className="h-5 w-5 lg:mr-2"
+                aria-hidden="true"
+              />
+              <span className="hidden lg:inline">Criar Post</span>
+            </button>
+            <button
+              title="Sair"
+              onClick={handleLogout}
+              className={logoutButtonClass}
+              type="button"
+            >
+              <ArrowLeftOnRectangleIcon
+                className="h-6 w-6 flex-shrink-0 lg:mr-3"
+                aria-hidden="true"
+              />
+              <span className="hidden lg:inline">Sair</span>
+            </button>
+          </>
+        ) : (
+          <NavItem
+            to="/login"
+            title="Entrar"
+            icon={ArrowRightOnRectangleIcon}
+          />
+        )}
+      </div>
+    </aside>
+  );
 }
-export default SidebarNav;
+
+export default SideBarNav;

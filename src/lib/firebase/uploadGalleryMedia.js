@@ -1,6 +1,6 @@
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { v4 as uuidv4 } from "uuid";
-import { storage } from "../../firebase-config";
+import { storage } from "@/firebase/config";
 
 /**
  * Upload de mídias (imagens ou vídeos) para a galeria do usuário no Firebase Storage.

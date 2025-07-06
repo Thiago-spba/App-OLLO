@@ -6,7 +6,7 @@ import ProfileGallery from './ProfileGallery'; // ✅ novo import da galeria
 
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../firebase-config';
+import { db } from '@/firebase/config';
 import { storage } from '../../firebase/config';
 import { uploadGalleryMedia } from '../../lib/firebase/uploadGalleryMedia';
 

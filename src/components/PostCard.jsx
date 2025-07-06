@@ -1,3 +1,4 @@
+// src/components/PostCard.jsx — Versão OLLO com correção de contraste
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -19,32 +20,43 @@ function PostCard({ postData, onCommentSubmit, onDeletePost, variant }) {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
 
-  if (!postData) {
-    return null;
-  }
+  if (!postData) return null;
 
-  const { postId: postIdString, userName, timestamp, content } = postData;
-  const currentComments = postData.comments || [];
+  const {
+    postId,
+    userName,
+    timestamp,
+    content,
+    comments = [],
+    likeCount = 0,
+  } = postData;
 
   const [isLiked, setIsLiked] = useState(false);
-  const [currentLikeCount, setCurrentLikeCount] = useState(
-    postData.likeCount || Math.floor(Math.random() * 100)
-  );
+  const [likes, setLikes] = useState(likeCount);
   const [showComments, setShowComments] = useState(false);
-  const [newCommentText, setNewCommentText] = useState('');
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [commentReactions, setCommentReactions] = useState({});
-  const [activeTooltip, setActiveTooltip] = useState('');
+  const [commentText, setCommentText] = useState('');
+  const [reactions, setReactions] = useState({});
+  const [expanded, setExpanded] = useState(false);
 
-  const contentRef = useRef(null);
-  const NUM_LINES_TO_CLAMP = 4;
-  const isTextPotentiallyLong =
-    content &&
-    (content.length > 200 || content.split('\n').length > NUM_LINES_TO_CLAMP);
+  const MAX_LINES = 4;
+  const isLongText =
+    content && (content.length > 200 || content.split('\n').length > MAX_LINES);
 
-  // Proteção: redireciona para login ao tentar interagir sem login
-  const blockIfNotLogged =
-    (action) =>
+  useEffect(() => {
+    const initial = {};
+    comments.forEach((c) => {
+      const id = c.commentId || Math.random().toString();
+      initial[id] = {
+        likes: c.likes || 0,
+        dislikes: c.dislikes || 0,
+        userReaction: c.userReaction || null,
+      };
+    });
+    setReactions(initial);
+  }, [comments]);
+
+  const requireLogin =
+    (fn) =>
     (...args) => {
       if (!currentUser) {
         navigate('/login', {
@@ -52,345 +64,208 @@ function PostCard({ postData, onCommentSubmit, onDeletePost, variant }) {
         });
         return;
       }
-      if (typeof action === 'function') {
-        action(...args);
-      }
+      fn(...args);
     };
 
-  useEffect(() => {
-    const initialReactions = {};
-    if (currentComments.length > 0) {
-      currentComments.forEach((comment) => {
-        const commentId = comment.commentId || `c-${Math.random()}`;
-        initialReactions[commentId] = {
-          likes: comment.likes || Math.floor(Math.random() * 20),
-          dislikes: comment.dislikes || Math.floor(Math.random() * 5),
-          userReaction: comment.userReaction || null,
-        };
-      });
-    }
-    setCommentReactions(initialReactions);
-  }, [currentComments]);
+  const getAvatarUrl = (name) => {
+    const dark = document.documentElement.classList.contains('dark');
+    const bg = dark ? '00A896' : '0D1B2A';
+    const color = dark ? '0D1B2A' : 'E0E1DD';
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(
+      name
+    )}&background=${bg}&color=${color}&bold=true&size=128`;
+  };
 
-  const toggleExpand = () => setIsExpanded(!isExpanded);
-
-  // Todos os handlers de interação são protegidos!
-  const handleLikeClick = blockIfNotLogged(() => {
+  const handleLike = requireLogin(() => {
     setIsLiked(!isLiked);
-    setCurrentLikeCount(isLiked ? currentLikeCount - 1 : currentLikeCount + 1);
+    setLikes(isLiked ? likes - 1 : likes + 1);
   });
 
-  const handleCommentToggle = blockIfNotLogged(() =>
-    setShowComments(!showComments)
-  );
-
-  const handleCommentSubmit = blockIfNotLogged(() => {
-    if (newCommentText.trim()) {
-      onCommentSubmit(postIdString, newCommentText);
-      setNewCommentText('');
+  const handleCommentSubmit = requireLogin(() => {
+    if (commentText.trim() && onCommentSubmit) {
+      onCommentSubmit(postId, commentText.trim());
+      setCommentText('');
     }
   });
 
-  const handleShareClick = blockIfNotLogged(() => {
-    alert('Compartilhar: Funcionalidade em desenvolvimento!');
-  });
+  const handleReaction = requireLogin((commentId, type) => {
+    setReactions((prev) => {
+      const c = prev[commentId];
+      if (!c) return prev;
 
-  const handleDeleteClick = blockIfNotLogged(() => {
-    if (onDeletePost) {
-      onDeletePost(postIdString);
-    }
-  });
-
-  const handleCommentReaction = blockIfNotLogged((commentId, reactionType) => {
-    setCommentReactions((prevReactions) => {
-      const current = prevReactions[commentId];
-      if (!current) return prevReactions;
-
-      let newLikes = current.likes;
-      let newDislikes = current.dislikes;
-      let newUserReaction = current.userReaction;
-
-      if (reactionType === 'like') {
-        if (newUserReaction === 'liked') {
-          newLikes--;
-          newUserReaction = null;
+      let { likes, dislikes, userReaction } = c;
+      if (type === 'like') {
+        if (userReaction === 'liked') {
+          likes--;
+          userReaction = null;
         } else {
-          newLikes++;
-          if (newUserReaction === 'disliked') newDislikes--;
-          newUserReaction = 'liked';
+          likes++;
+          if (userReaction === 'disliked') dislikes--;
+          userReaction = 'liked';
         }
-      } else if (reactionType === 'dislike') {
-        if (newUserReaction === 'disliked') {
-          newDislikes--;
-          newUserReaction = null;
+      } else {
+        if (userReaction === 'disliked') {
+          dislikes--;
+          userReaction = null;
         } else {
-          newDislikes++;
-          if (newUserReaction === 'liked') newLikes--;
-          newUserReaction = 'disliked';
+          dislikes++;
+          if (userReaction === 'liked') likes--;
+          userReaction = 'disliked';
         }
       }
 
       return {
-        ...prevReactions,
+        ...prev,
         [commentId]: {
-          likes: Math.max(0, newLikes),
-          dislikes: Math.max(0, newDislikes),
-          userReaction: newUserReaction,
+          likes: Math.max(0, likes),
+          dislikes: Math.max(0, dislikes),
+          userReaction,
         },
       };
     });
   });
 
-  const getAvatarUrl = (name) => {
-    const isDarkMode = document.documentElement.classList.contains('dark');
-    const bgColor = isDarkMode ? '00A896' : '0D1B2A';
-    const textColor = isDarkMode ? '0D1B2A' : 'E0E1DD';
-    return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=${bgColor}&color=${textColor}&bold=true&size=128`;
-  };
+  const handleDelete = requireLogin(() => {
+    if (onDeletePost) onDeletePost(postId);
+  });
+
+  const handleShare = requireLogin(() => {
+    alert('Funcionalidade de compartilhamento ainda será implementada.');
+  });
 
   return (
-    <div
-      className={`
-        bg-gray-100 dark:bg-gray-800
-        backdrop-blur-md rounded-xl shadow-lg mb-8
-        border border-gray-200/70 dark:border-gray-700/50
-        text-sm sm:text-base transition-all
-        ${variant === 'explore' ? 'min-h-[400px] flex flex-col' : ''}
-      `}
-    >     
-      <div
-        className={`p-4 sm:p-5 md:p-6 flex flex-col h-full ${variant === 'explore' ? 'flex-grow' : ''}`}
-      >
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center min-w-0">
-            {/* Avatar */}
+    <div className="rounded-xl shadow-md bg-gray-100 dark:bg-gray-800 border border-gray-300/40 dark:border-gray-700/40 mb-6">
+      <div className="p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-3">
             <img
-              className="h-11 w-11 sm:h-12 sm:w-12 rounded-full object-cover mr-3 border-2 border-ollo-primary-400 dark:border-ollo-primary-600"
               src={getAvatarUrl(userName)}
-              alt={`Avatar de ${userName}`}
-              onError={(e) => {
-                e.target.onerror = null;
-                e.target.style.display = 'none';
-              }}
+              alt="Avatar"
+              className="h-11 w-11 rounded-full border-2 border-ollo-primary-500"
+              onError={(e) => (e.target.style.display = 'none')}
             />
-            <div className="min-w-0">
-              <p className="font-semibold text-sm sm:text-base text-ollo-deep dark:text-ollo-light leading-tight truncate">
+            <div>
+              <p className="font-semibold text-ollo-deep dark:text-white">
                 {userName}
               </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 cursor-pointer transition-colors">
-                {timestamp}
-              </p>
+              <p className="text-xs text-gray-500">{timestamp}</p>
             </div>
           </div>
           {userName === 'Usuário OLLO' && onDeletePost && (
             <button
-              onClick={handleDeleteClick}
-              title="Excluir este post"
-              className="p-1.5 rounded-full text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-100/50 dark:hover:bg-red-500/10 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition-colors duration-150 ease-in-out ml-2"
+              onClick={handleDelete}
+              className="text-red-600 hover:text-red-400"
+              title="Excluir post"
             >
-              <TrashIcon className="h-5 w-5" />
+              <TrashIcon className="w-5 h-5" />
             </button>
           )}
         </div>
 
-        <div className="mb-2">
-          <p
-            ref={contentRef}
-            className={`text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed ${!isExpanded && isTextPotentiallyLong ? `line-clamp-${NUM_LINES_TO_CLAMP}` : ''}`}
-          >
-            {content}
-          </p>
-          {isTextPotentiallyLong && (
+        <div className="text-gray-800 dark:text-gray-200 whitespace-pre-line leading-relaxed">
+          {expanded
+            ? content
+            : content.split('\n').slice(0, MAX_LINES).join('\n')}
+          {isLongText && (
             <button
-              onClick={toggleExpand}
-              className="text-ollo-deep dark:text-ollo-accent-light hover:underline font-semibold text-xs mt-1.5 transition-colors focus:outline-none focus:ring-2 focus:ring-ollo-deep/50 dark:focus:ring-ollo-accent-light/50 rounded"
+              onClick={() => setExpanded(!expanded)}
+              className="block text-sm mt-2 text-ollo-deep dark:text-ollo-accent-light hover:underline"
             >
-              {isExpanded ? 'Ler menos' : 'Continuar lendo...'}
+              {expanded ? 'Ler menos' : 'Continuar lendo...'}
             </button>
           )}
         </div>
 
-        {(currentLikeCount > 0 || currentComments.length > 0) && (
-          <div className="flex items-center space-x-3 sm:space-x-4 text-xs text-gray-500 dark:text-gray-400 mt-2 mb-4">
-            {currentLikeCount > 0 && (
-              <span className="hover:text-gray-700 dark:hover:text-gray-200 cursor-default">
-                {currentLikeCount} {currentLikeCount === 1 ? 'Gosto' : 'Gostos'}
-              </span>
-            )}
-            {currentComments.length > 0 && (
-              <button
-                onClick={handleCommentToggle}
-                className="hover:text-gray-700 dark:hover:text-gray-200"
-              >
-                {currentComments.length}{' '}
-                {currentComments.length === 1 ? 'Comentário' : 'Comentários'}
-              </button>
-            )}
+        <div className="mt-4 flex items-center justify-between border-t pt-3 border-gray-300 dark:border-gray-700 text-sm">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={handleLike}
+              className="flex items-center gap-1 text-red-500 hover:opacity-80"
+            >
+              {isLiked ? (
+                <HeartSolid className="w-5 h-5" />
+              ) : (
+                <HeartIcon className="w-5 h-5" />
+              )}
+              {likes}
+            </button>
+            <button
+              onClick={() => setShowComments(!showComments)}
+              className="text-gray-600 dark:text-gray-400"
+            >
+              <ChatBubbleLeftRightIcon className="w-5 h-5" />
+              {comments.length > 0 && (
+                <span className="ml-1">{comments.length}</span>
+              )}
+            </button>
           </div>
-        )}
-
-        <div
-          className={`flex justify-around items-center border-t border-ollo-light-200/90 dark:border-ollo-dark-600/50 pt-3 ${variant === 'explore' && !showComments ? 'mt-auto' : 'mt-3'}`}
-        >
           <button
-            onClick={handleLikeClick}
-            className={`group flex items-center space-x-1 rounded hover:bg-ollo-light-200 dark:hover:bg-ollo-dark-700/50 px-2 sm:px-3 py-1.5 transition-colors duration-150 ${isLiked ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400 hover:text-ollo-deep dark:hover:text-gray-200'}`}
-            title="Gostar"
-          >
-            {isLiked ? (
-              <HeartSolid className="w-5 h-5" />
-            ) : (
-              <HeartIcon className="w-5 h-5" />
-            )}
-            <span className="font-medium text-xs hidden md:group-hover:inline ml-1">
-              Gostar
-            </span>
-          </button>
-          <button
-            onClick={handleCommentToggle}
-            className="group flex items-center space-x-1 rounded hover:bg-ollo-light-200 dark:hover:bg-ollo-dark-700/50 px-2 sm:px-3 py-1.5 transition-colors duration-150 text-gray-500 dark:text-gray-400 hover:text-ollo-deep dark:hover:text-gray-200"
-            title={showComments ? 'Ocultar comentários' : 'Comentar'}
-          >
-            <ChatBubbleLeftRightIcon className="w-5 h-5" />
-            <span className="font-medium text-xs hidden md:inline ml-1">
-              {showComments ? 'Ocultar' : 'Comentar'}
-            </span>
-          </button>
-          <button
-            onClick={handleShareClick}
-            className="group flex items-center space-x-1 rounded hover:bg-ollo-light-200 dark:hover:bg-ollo-dark-700/50 px-2 sm:px-3 py-1.5 transition-colors duration-150 text-gray-500 dark:text-gray-400 hover:text-ollo-deep dark:hover:text-gray-200"
-            title="Partilhar"
+            onClick={handleShare}
+            className="text-gray-500 dark:text-gray-400 hover:text-gray-700"
           >
             <ShareIcon className="w-5 h-5" />
-            <span className="font-medium text-xs hidden md:group-hover:inline ml-1">
-              Partilhar
-            </span>
           </button>
         </div>
       </div>
+
       {showComments && (
-        <div className="px-4 sm:px-5 md:px-6 pb-5 pt-4 border-t border-ollo-light-200/90 dark:border-ollo-dark-600/50">
-          <div className="flex items-start space-x-2 sm:space-x-3 mb-4">
-            <img
-              className="h-8 w-8 sm:h-9 sm:w-9 rounded-full object-cover flex-shrink-0 ring-1 ring-offset-1 ring-ollo-light-200 dark:ring-ollo-dark-600 ring-offset-white dark:ring-offset-ollo-slate"
-              src={getAvatarUrl('Eu')}
-              alt="Seu avatar"
-            />
-            <div className="flex-1">
-              <textarea
-                rows="2"
-                className="w-full p-2 sm:p-2.5 border border-ollo-light-200 dark:border-ollo-dark-600 rounded-lg bg-ollo-light-100 dark:bg-ollo-dark-700 text-ollo-dark-700 dark:text-ollo-light-300 placeholder-gray-500 dark:placeholder-gray-400 focus:ring-1 focus:ring-ollo-deep dark:focus:ring-ollo-accent-light focus:border-transparent text-xs sm:text-sm shadow-sm transition-colors"
-                placeholder="Escreva um comentário..."
-                value={newCommentText}
-                onChange={(e) => setNewCommentText(e.target.value)}
-              />
-              <div className="flex justify-end mt-2">
-                <button
-                  onClick={handleCommentSubmit}
-                  className="px-4 py-1.5 sm:px-5 sm:py-2 bg-ollo-deep text-ollo-light dark:bg-ollo-accent-light dark:text-ollo-deep rounded-lg text-xs font-semibold hover:bg-opacity-90 active:scale-95 transition-all duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 shadow-md disabled:opacity-60 disabled:cursor-not-allowed focus:ring-ollo-deep/70 dark:focus:ring-ollo-accent-light/70 focus:ring-offset-white dark:focus:ring-offset-ollo-slate"
-                  disabled={!newCommentText.trim()}
-                >
-                  Enviar Comentário
-                </button>
-              </div>
-            </div>
-          </div>
-          <div className="space-y-3 sm:space-y-4">
-            {currentComments.length > 0 ? (
-              currentComments.map((comment) => {
-                const commentId = comment.commentId || `c-${Math.random()}`;
-                const reactionData = commentReactions[commentId] || {
-                  likes: 0,
-                  dislikes: 0,
-                  userReaction: null,
-                };
-                const isLikedByUser = reactionData.userReaction === 'liked';
-                const isDislikedByUser =
-                  reactionData.userReaction === 'disliked';
-                return (
-                  <div
-                    key={commentId}
-                    className="text-xs sm:text-sm flex items-start space-x-2 sm:space-2.5"
-                  >
-                    <img
-                      className="h-6 w-6 sm:h-7 sm:w-7 rounded-full object-cover flex-shrink-0 mt-0.5 ring-1 ring-offset-1 ring-ollo-light-200 dark:ring-ollo-dark-600 ring-offset-white dark:ring-offset-ollo-slate"
-                      src={getAvatarUrl(comment.user)}
-                      alt={`Avatar de ${comment.user}`}
-                    />
-                    <div className="bg-ollo-light-200/90 dark:bg-ollo-dark-800/70 backdrop-blur-sm rounded-lg px-3 py-2 sm:px-3.5 sm:py-2.5 flex-1 shadow-sm border border-ollo-light-200/70 dark:border-ollo-dark-600/50">
-                      <p className="text-ollo-dark-700 dark:text-ollo-light-300 leading-snug">
-                        <span className="font-semibold text-ollo-deep dark:text-ollo-light mr-1.5">
-                          {comment.user}:
-                        </span>
-                        {comment.text}
-                      </p>
-                      <div className="mt-1.5 flex items-center space-x-3 sm:space-4">
-                        <div className="relative">
-                          <button
-                            onClick={() =>
-                              handleCommentReaction(commentId, 'like')
-                            }
-                            onMouseEnter={() =>
-                              setActiveTooltip(`like-${commentId}`)
-                            }
-                            onMouseLeave={() => setActiveTooltip('')}
-                            className={`flex items-center text-xs group ${isLikedByUser ? 'text-ollo-deep dark:text-ollo-accent-light' : 'text-gray-500 dark:text-gray-400 hover:text-ollo-deep dark:hover:text-ollo-accent-light/80'}`}
-                          >
-                            {isLikedByUser ? (
-                              <HandThumbUpSolid className="h-4 w-4 mr-1" />
-                            ) : (
-                              <HandThumbUpIcon className="h-4 w-4 mr-1" />
-                            )}
-                            <span
-                              className={`${isLikedByUser ? 'font-semibold' : ''}`}
-                            >
-                              {reactionData.likes}
-                            </span>
-                          </button>
-                          {activeTooltip === `like-${commentId}` && (
-                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-black text-white text-xs font-medium rounded-md shadow-xl z-30">
-                              {' '}
-                              Gostei{' '}
-                            </div>
-                          )}
-                        </div>
-                        <div className="relative">
-                          <button
-                            onClick={() =>
-                              handleCommentReaction(commentId, 'dislike')
-                            }
-                            onMouseEnter={() =>
-                              setActiveTooltip(`dislike-${commentId}`)
-                            }
-                            onMouseLeave={() => setActiveTooltip('')}
-                            className={`flex items-center text-xs group ${isDislikedByUser ? 'text-red-600 dark:text-red-500' : 'text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-500'}`}
-                          >
-                            {isDislikedByUser ? (
-                              <HandThumbDownSolid className="h-4 w-4 mr-1" />
-                            ) : (
-                              <HandThumbDownIcon className="h-4 w-4 mr-1" />
-                            )}
-                            <span
-                              className={`${isDislikedByUser ? 'font-semibold' : ''}`}
-                            >
-                              {reactionData.dislikes}
-                            </span>
-                          </button>
-                          {activeTooltip === `dislike-${commentId}` && (
-                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-black text-white text-xs font-medium rounded-md shadow-xl z-30">
-                              {' '}
-                              Não gostei{' '}
-                            </div>
-                          )}
-                        </div>
-                      </div>
+        <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+          <textarea
+            rows={2}
+            placeholder="Escreva um comentário..."
+            className="w-full rounded-md border border-gray-300 dark:border-gray-600 p-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            value={commentText}
+            onChange={(e) => setCommentText(e.target.value)}
+          />
+          <button
+            onClick={handleCommentSubmit}
+            disabled={!commentText.trim()}
+            className={`mt-2 px-4 py-2 rounded-lg font-semibold transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ollo-deep/70 dark:focus:ring-ollo-accent-light/70 focus:ring-offset-white dark:focus:ring-offset-gray-900 
+              ${
+                commentText.trim()
+                  ? 'bg-ollo-deep dark:bg-ollo-accent-light text-white dark:text-gray-900 hover:opacity-90'
+                  : 'bg-gray-300 text-gray-500 dark:bg-gray-700 dark:text-gray-400 cursor-not-allowed'
+              }`}
+          >
+            Enviar
+          </button>
+
+          <div className="mt-4 space-y-4">
+            {comments.map((c, i) => {
+              const commentId = c.commentId || `c-${i}`;
+              const reaction = reactions[commentId] || {
+                likes: 0,
+                dislikes: 0,
+              };
+              return (
+                <div key={commentId} className="flex items-start gap-3">
+                  <img
+                    src={getAvatarUrl(c.user)}
+                    alt="avatar"
+                    className="h-8 w-8 rounded-full border"
+                  />
+                  <div className="flex-1">
+                    <p className="text-sm text-gray-800 dark:text-gray-200">
+                      <span className="font-bold mr-2">{c.user}</span>
+                      {c.text}
+                    </p>
+                    <div className="flex gap-4 text-xs mt-1 text-gray-500 dark:text-gray-400">
+                      <button onClick={() => handleReaction(commentId, 'like')}>
+                        👍 {reaction.likes}
+                      </button>
+                      <button
+                        onClick={() => handleReaction(commentId, 'dislike')}
+                      >
+                        👎 {reaction.dislikes}
+                      </button>
                     </div>
                   </div>
-                );
-              })
-            ) : (
-              <p className="text-xs text-gray-400 dark:text-gray-500 italic text-center py-2">
-                Nenhum comentário ainda. Seja o primeiro!
+                </div>
+              );
+            })}
+            {comments.length === 0 && (
+              <p className="text-center text-sm text-gray-400 italic">
+                Nenhum comentário ainda.
               </p>
             )}
           </div>

@@ -1,4 +1,4 @@
-// Versão Completa e Robustecida - 2025-06-16
+// src/pages/ForgotPasswordPage.jsx
 
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -41,13 +41,8 @@ const ForgotPasswordPage = () => {
   const onSubmit = async ({ email }) => {
     setIsSending(true);
 
-    const actionCodeSettings = {
-      url: `${window.location.origin}/reset-password`,
-      handleCodeInApp: true,
-    };
-
     try {
-      await forgotPassword(email, actionCodeSettings);
+      await forgotPassword(email); // `actionCodeSettings` já está no contexto
       setSentEmail(email);
       setEmailSent(true);
       reset();
@@ -57,7 +52,7 @@ const ForgotPasswordPage = () => {
       });
     } catch (err) {
       console.error('Erro ao enviar e-mail:', err);
-      const errorMessage = getFriendlyError(err.code);
+      const errorMessage = getFriendlyError(err?.code);
       toast.error(errorMessage, {
         position: 'top-center',
         duration: 5000,
@@ -108,6 +103,7 @@ const ForgotPasswordPage = () => {
       <Toaster position="top-center" />
       <div className="min-h-screen flex items-center justify-center px-4 bg-gray-100 dark:bg-gray-900">
         <div className="w-full max-w-md p-8 rounded-xl shadow-xl bg-white dark:bg-gray-800">
+          {/* TOPO */}
           <div className="text-center mb-6">
             <img
               src="/images/logo_ollo.jpeg"
@@ -128,6 +124,7 @@ const ForgotPasswordPage = () => {
             redefinir sua senha.
           </p>
 
+          {/* FORMULÁRIO */}
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             <div>
               <label
