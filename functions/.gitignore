@@ -1,0 +1,5 @@
+# Ignorar dependências locais do Firebase Functions
+node_modules
+
+# Ignorar arquivos .env específicos das functions (boa prática)
+.env*

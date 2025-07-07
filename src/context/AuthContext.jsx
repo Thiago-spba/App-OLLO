@@ -7,7 +7,6 @@ import React, {
   useEffect,
   useCallback,
 } from 'react';
-// IMPORTANTE: O useNavigate NÃO é mais importado aqui no topo do arquivo.
 import {
   onAuthStateChanged,
   signOut,
@@ -35,14 +34,10 @@ export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // A chamada do useNavigate foi REMOVIDA daqui.
-
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      // ... a lógica de carregar o usuário permanece a mesma
       setLoading(true);
       if (firebaseUser) {
-        // ... sua lógica de buscar dados do Firestore ...
         const userDocRef = doc(db, 'users', firebaseUser.uid);
         const docSnap = await getDoc(userDocRef);
         setCurrentUser({
@@ -59,7 +54,6 @@ export const AuthProvider = ({ children }) => {
     return () => unsubscribe();
   }, []);
 
-  // A função logout agora recebe a função de navegação como PARÂMETRO.
   const logout = useCallback(async (navigate) => {
     try {
       await signOut(auth);
@@ -71,11 +65,57 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
+  /**
+   * Função de cadastro (registerWithEmail)
+   * @param {string} email
+   * @param {string} password
+   * @param {object} additionalData - { name, username, bio, avatarUrl }
+   * @returns {Promise<{success: boolean, user?: any, error?: any}>}
+   */
+  const registerWithEmail = async (email, password, additionalData = {}) => {
+    try {
+      // Cria o usuário no Firebase Auth
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
+      const user = userCredential.user;
+
+      // Atualiza o perfil (displayName, avatar)
+      await updateProfile(user, {
+        displayName: additionalData.name || '',
+        photoURL: additionalData.avatarUrl || '',
+      });
+
+      // Salva os dados adicionais no Firestore
+      await setDoc(doc(db, 'users', user.uid), {
+        uid: user.uid,
+        name: additionalData.name || '',
+        username: additionalData.username || '',
+        email: user.email,
+        bio: additionalData.bio || '',
+        avatarUrl: additionalData.avatarUrl || '',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        emailVerified: user.emailVerified,
+      });
+
+      // Envia e-mail de verificação
+      await sendEmailVerification(user);
+
+      return { success: true, user };
+    } catch (error) {
+      return { success: false, error };
+    }
+  };
+
   const value = {
     currentUser,
     loading,
     logout,
-    // ... suas outras funções, como registerWithEmail, loginWithEmail, etc.
+    registerWithEmail, // <-- Agora EXISTE e está seguro!
+    // Aqui você pode adicionar outras funções, como loginWithEmail, resetPassword etc.
   };
 
   return (
