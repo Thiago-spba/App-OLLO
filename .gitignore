@@ -1,14 +1,76 @@
-node_modules
-.env
-# Logs
-logs
-dist/
-.firebase/hosting.*
-# Dependency directories
-jspm_packages/
-# Arquivos de log e depuração
-*.log
+# ===================================================================
+# ARQUIVO .GITIGNORE OTIMIZADO PARA PROJETO REACT/VITE + FIREBASE
+# ===================================================================
 
-# Arquivos temporários ou de configuração fora do lugar
+# 1. SEGURANÇA: Arquivos de Senhas e Chaves de API
+# NUNCA envie estes arquivos para o GitHub.
+# O padrão .env* cobre .env, .env.local, .env.development, etc.
+.env*
+# Permite que um arquivo de exemplo seja enviado (boa prática).
+!*.env.example
+
+# Adicional: Ignorar variantes e backups de arquivos de ambiente
+*_env*
+*.bkp
+*.bak
+*.backup
+*.tmp
+*.temp
+secrets.*
+credentials.*
+private.*
+
+# 2. DEPENDÊNCIAS: Pasta de pacotes do Node
+# Esta pasta é recriada com o comando `npm install`.
+/node_modules
+
+# 3. BUILD: Pasta com a versão final do site
+# Esta pasta é recriada com o comando `npm run build`.
+/dist
+
+# 4. FIREBASE: Arquivos de cache e configuração local
+# Gerados pelo Firebase CLI para testes locais.
+.firebase/
+hosting.*.log
+.firebaserc.local
+firestore.indexes.json
+firestore.rules.bak
+*.firebase/
+
+# 5. LOGS: Arquivos de registro e depuração
+npm-debug.log*
+yarn-debug.log*
+*.log
+*.log.*
+
+# Adicional: Arquivos de logs de cobertura de testes
+coverage/
+coverage-final.json
+
+# 6. SISTEMA OPERACIONAL E EDITORES
+# Arquivos gerados automaticamente pelo seu computador ou editor de código.
+.DS_Store
+.vscode/
+.idea/
+Thumbs.db
+*.swp
+*.swo
+
+# 7. ARQUIVOS TEMPORÁRIOS DO SEU PROJETO
+# Os arquivos que você mencionou.
 src/cors.json
 src/lista-arquivos.txt
+
+# 8. OUTROS AJUSTES RELEVANTES
+# Ignorar arquivos gerados por testes e builds auxiliares
+*.test.js
+*.spec.js
+*.test.ts
+*.spec.ts
+*.map
+
+# Pastas auxiliares de cache de ferramentas
+/.turbo
+/.next
+/.cache
+/.parcel-cache
