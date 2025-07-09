@@ -1,12 +1,10 @@
-// src/components/SideBarNav.jsx
-
 import React from 'react';
 import { NavLink, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import clsx from 'clsx';
 
-// Importando todos os ícones necessários
+// Ícones principais
 import {
   HomeIcon,
   MagnifyingGlassIcon,
@@ -16,10 +14,15 @@ import {
   ArrowRightOnRectangleIcon,
   ArrowLeftOnRectangleIcon,
   BuildingStorefrontIcon,
+  KeyIcon,
+  Cog6ToothIcon,
 } from '@heroicons/react/24/outline';
 import { SunIcon, MoonIcon } from '@heroicons/react/24/solid';
 
-// --- Componente Reutilizável para Itens de Navegação ---
+// Hook de admin
+import { useIsAdmin } from '@/hooks/useIsAdmin';
+
+// --- Componente reutilizável de item de navegação ---
 const NavItem = ({ to, title, icon: Icon, end = false }) => {
   const getNavLinkClass = ({ isActive }) =>
     clsx(
@@ -40,26 +43,20 @@ const NavItem = ({ to, title, icon: Icon, end = false }) => {
   );
 };
 
-// --- Componente Principal da Sidebar ---
+// --- Componente principal da sidebar ---
 function SideBarNav({ onTriggerCreatePost }) {
   const { currentUser, logout } = useAuth();
   const { darkMode, toggleTheme } = useTheme();
-
-  // O hook useNavigate é chamado aqui, onde é seguro, pois SideBarNav
-  // será renderizado dentro da árvore do roteador.
   const navigate = useNavigate();
 
   const handleLogout = async () => {
     try {
-      // A função de navegação é passada como parâmetro para o logout.
-      // A lógica de logout no seu contexto usará esta função para redirecionar.
       await logout(navigate);
     } catch (error) {
       console.error('Erro ao fazer logout:', error);
     }
   };
 
-  // Definições de classes para botões
   const themeToggleBtnClass = clsx(
     'w-14 h-14 flex items-center justify-center mx-auto mb-3 rounded-2xl transition-all duration-300 shadow-lg focus:outline-none focus:ring-2 focus:ring-ollo-accent dark:focus:ring-ollo-accent-light',
     darkMode
@@ -124,6 +121,7 @@ function SideBarNav({ onTriggerCreatePost }) {
 
         {currentUser ? (
           <>
+            {/* Botão Criar Post */}
             <button
               title="Criar Post"
               onClick={onTriggerCreatePost}
@@ -136,6 +134,11 @@ function SideBarNav({ onTriggerCreatePost }) {
               />
               <span className="hidden lg:inline">Criar Post</span>
             </button>
+
+            {/* Botão visível somente para administradores */}
+            <AdminButton />
+
+            {/* Botão Sair */}
             <button
               title="Sair"
               onClick={handleLogout}
@@ -158,6 +161,29 @@ function SideBarNav({ onTriggerCreatePost }) {
         )}
       </div>
     </aside>
+  );
+}
+
+// --- Componente isolado do botão de Administração (usado apenas se admin) ---
+function AdminButton() {
+  const { isAdmin, loading } = useIsAdmin();
+
+  if (loading || !isAdmin) return null;
+
+  return (
+    <Link
+      to="/admin"
+      title="Painel Administrativo"
+      className="w-full flex items-center px-3 lg:px-4 py-3 text-sm font-semibold rounded-lg transition-all duration-150 ease-in-out justify-center lg:justify-start text-ollo-accent hover:bg-gray-200/70 dark:text-ollo-accent-light dark:hover:bg-gray-700/50"
+    >
+      <span className="hidden lg:flex items-center gap-2">
+        <KeyIcon className="h-5 w-5" aria-hidden="true" />
+        Administração
+      </span>
+      <span className="lg:hidden">
+        <Cog6ToothIcon className="h-6 w-6" aria-hidden="true" />
+      </span>
+    </Link>
   );
 }
 

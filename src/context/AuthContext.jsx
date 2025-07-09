@@ -2,8 +2,8 @@
 
 import React, {
   createContext,
-  useState,
   useContext,
+  useState,
   useEffect,
   useCallback,
 } from 'react';
@@ -24,7 +24,7 @@ const AuthContext = createContext(null);
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error('useAuth deve ser usado dentro de um AuthProvider');
   }
   return context;
@@ -34,6 +34,7 @@ export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Atualiza o usuário quando o authState muda
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setLoading(true);
@@ -54,27 +55,35 @@ export const AuthProvider = ({ children }) => {
     return () => unsubscribe();
   }, []);
 
+  // Login com email e senha
+  const loginWithEmail = useCallback(async (email, password) => {
+    try {
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
+      return { success: true, user: userCredential.user };
+    } catch (error) {
+      return { success: false, error };
+    }
+  }, []);
+
+  // Logout
   const logout = useCallback(async (navigate) => {
     try {
       await signOut(auth);
       if (navigate) {
         navigate('/login');
       }
-    } catch (error) {
+    } catch {
       toast.error('Não foi possível sair.');
     }
   }, []);
 
-  /**
-   * Função de cadastro (registerWithEmail)
-   * @param {string} email
-   * @param {string} password
-   * @param {object} additionalData - { name, username, bio, avatarUrl }
-   * @returns {Promise<{success: boolean, user?: any, error?: any}>}
-   */
+  // Cadastro com email e senha
   const registerWithEmail = async (email, password, additionalData = {}) => {
     try {
-      // Cria o usuário no Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(
         auth,
         email,
@@ -82,13 +91,11 @@ export const AuthProvider = ({ children }) => {
       );
       const user = userCredential.user;
 
-      // Atualiza o perfil (displayName, avatar)
       await updateProfile(user, {
         displayName: additionalData.name || '',
         photoURL: additionalData.avatarUrl || '',
       });
 
-      // Salva os dados adicionais no Firestore
       await setDoc(doc(db, 'users', user.uid), {
         uid: user.uid,
         name: additionalData.name || '',
@@ -101,7 +108,6 @@ export const AuthProvider = ({ children }) => {
         emailVerified: user.emailVerified,
       });
 
-      // Envia e-mail de verificação
       await sendEmailVerification(user);
 
       return { success: true, user };
@@ -110,12 +116,23 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Reset de senha por email
+  const resetPassword = async (email) => {
+    try {
+      await sendPasswordResetEmail(auth, email);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error };
+    }
+  };
+
   const value = {
     currentUser,
     loading,
+    loginWithEmail,
     logout,
-    registerWithEmail, // <-- Agora EXISTE e está seguro!
-    // Aqui você pode adicionar outras funções, como loginWithEmail, resetPassword etc.
+    registerWithEmail,
+    resetPassword,
   };
 
   return (

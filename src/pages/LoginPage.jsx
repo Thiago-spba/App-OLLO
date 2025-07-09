@@ -10,22 +10,6 @@ import {
   ArrowPathIcon,
 } from '@heroicons/react/24/outline';
 
-/**
- * @fileoverview LoginPage - Padrão OLLO - Versão Simplificada e Correta.
- *
- * @description
- * Esta página agora tem uma única responsabilidade: autenticar o usuário.
- *
- * @architecture
- * 1. Ela chama a função `loginWithEmail` do AuthContext.
- * 2. Se o login for bem-sucedido (`result.success === true`), ela não faz mais
- *    nenhuma verificação. Ela simplesmente redireciona o usuário para a rota
- *    raiz (`/`) ou para a página de onde ele veio.
- * 3. A partir daí, a arquitetura de rotas e os guardiões (`RequireVerifiedEmail`)
- *    assumem o controle para decidir se o usuário pode acessar a página ou se
- *    deve ser enviado para a tela de verificação de e-mail.
- * 4. Toda a lógica duplicada de `reload()` e `emailVerified` foi removida.
- */
 const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -36,8 +20,6 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Se o usuário veio de uma rota protegida, vamos mandá-lo de volta para lá após o login.
-  // Caso contrário, o destino padrão é a página inicial.
   const redirectedFrom = location.state?.redirectedFrom || '/';
 
   const handleSubmit = async (e) => {
@@ -51,22 +33,24 @@ const LoginPage = () => {
     setIsLoading(true);
 
     try {
-      // 1. Tenta fazer o login.
       const result = await loginWithEmail(email, password);
 
-      // 2. Se o login foi bem-sucedido, apenas navega.
-      if (result.success) {
+      if (result && result.success && result.user) {
         toast.success('Login bem-sucedido! Redirecionando...');
         navigate(redirectedFrom, { replace: true });
       } else {
-        // Se `loginWithEmail` já mostrou um toast de erro, não precisamos de outro.
-        // Se a função `loginWithEmail` não retornou sucesso, o erro já foi tratado lá.
-        // O `toast.error` no `catch` lidará com erros inesperados.
+        // Erros Firebase amigáveis
+        let errorMessage = 'Falha ao autenticar. Verifique suas credenciais.';
+        if (result.error?.code === 'auth/user-not-found') {
+          errorMessage = 'Usuário não encontrado.';
+        } else if (result.error?.code === 'auth/wrong-password') {
+          errorMessage = 'Senha incorreta.';
+        } else if (result.error?.code === 'auth/invalid-email') {
+          errorMessage = 'E-mail inválido.';
+        }
+        toast.error(errorMessage);
       }
-    } catch (err) {
-      // Este catch é uma segurança para erros inesperados que podem não ser
-      // tratados dentro da função de login.
-      console.error('Erro inesperado no handleSubmit do login:', err);
+    } catch {
       toast.error('Ocorreu um erro inesperado. Tente novamente.');
     } finally {
       setIsLoading(false);
@@ -125,6 +109,7 @@ const LoginPage = () => {
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute top-9 right-3"
+                aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
               >
                 {showPassword ? (
                   <EyeSlashIcon className="h-5 w-5 text-gray-500" />
