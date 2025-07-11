@@ -14,10 +14,10 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { v4 as uuidv4 } from 'uuid';
 
 // Importando os sub-componentes do perfil
-import ProfileHeader from './profileHeader';
-import ProfileBio from './profileBio';
-import ProfileGallery from './profileGallery';
-import ProfileActions from './profileActions';
+import ProfileHeader from './ProfileHeader.jsx';
+import ProfileBio from './ProfileBio.jsx';
+import ProfileGallery from './ProfileGallery.jsx';
+import ProfileActions from './ProfileActions.jsx';
 
 // Constantes para evitar "magic strings"
 const DEFAULT_AVATAR = '/images/default-avatar.png';
