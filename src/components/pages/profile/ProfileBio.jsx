@@ -1,5 +1,5 @@
 // src/components/pages/profile/ProfileBio.jsx
-import EyeIcon from './eyeIcon';
+import EyeIcon from './EyeIcon.jsx';
 
 export default function ProfileBio({ profile, editing, form, handlers }) {
   // Decide qual valor e visibilidade usar
