@@ -1,7 +1,7 @@
 // src/pages/profile/ProfileGallery.jsx
 
 import { useState } from 'react';
-import EyeIcon from './eyeIcon';
+import EyeIcon from './EyeIcon.jsx';
 import { FiX } from 'react-icons/fi';
 
 export default function ProfileGallery({
