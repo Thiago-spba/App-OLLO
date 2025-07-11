@@ -1,5 +1,10 @@
-# Ignorar dependências locais do Firebase Functions
-node_modules
+# Compiled JavaScript files
+lib/**/*.js
+lib/**/*.js.map
 
-# Ignorar arquivos .env específicos das functions (boa prática)
-.env*
+# TypeScript v1 declaration files
+typings/
+
+# Node.js dependency directory
+node_modules/
+*.local
