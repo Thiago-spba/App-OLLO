@@ -1,4 +1,4 @@
-import EyeIcon from './eyeIcon';
+import EyeIcon from './EyeIcon.jsx';
 
 export default function ProfileHeader({
   profile,
