@@ -1,3 +1,5 @@
+// src/components/StoriesReel.jsx
+
 import React, { useEffect, useState, useRef } from 'react';
 import PropTypes from 'prop-types';
 // Firebase imports
@@ -10,28 +12,32 @@ import {
   onSnapshot,
 } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
+import { useAuth } from '../context/AuthContext';
+
+const colors = {
+  bg: 'bg-gray-100 dark:bg-gray-900',
+  border: 'border-gray-300 dark:border-gray-600',
+  text: 'text-gray-700 dark:text-gray-300',
+  hoverText: 'hover:text-gray-900 dark:hover:text-white',
+  createBtn: {
+    bg: 'bg-gray-200 dark:bg-gray-800',
+    border: 'border-dashed border-gray-400 dark:border-gray-600',
+    hoverBg: 'hover:bg-gray-300 dark:hover:bg-gray-700',
+    hoverBorder: 'hover:border-gray-500 dark:hover:border-gray-500',
+  },
+  storyGradient: 'from-yellow-400 via-red-500 to-purple-500',
+  storyBg: 'bg-white dark:bg-[#121212]',
+  avatarBg: 'from-pink-500 to-orange-400',
+};
 
 const StoriesReel = ({ onStoryClick, onCreateStoryClick }) => {
+  const { currentUser } = useAuth();
   const [stories, setStories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const colors = {
-    bg: 'bg-gray-100 dark:bg-gray-900',
-    border: 'border-gray-300 dark:border-gray-600',
-    text: 'text-gray-700 dark:text-gray-300',
-    hoverText: 'hover:text-gray-900 dark:hover:text-white',
-    createBtn: {
-      bg: 'bg-gray-200 dark:bg-gray-800',
-      border: 'border-dashed border-gray-400 dark:border-gray-600',
-      hoverBg: 'hover:bg-gray-300 dark:hover:bg-gray-700',
-      hoverBorder: 'hover:border-gray-500 dark:hover:border-gray-500',
-    },
-    storyGradient: 'from-yellow-400 via-red-500 to-purple-500',
-    storyBg: 'bg-white dark:bg-[#121212]',
-    avatarBg: 'from-pink-500 to-orange-400',
-  };
-  
-  // Função para rolagem horizontal
+  const reelRef = useRef(null);
+
+  // Função para rolagem horizontal suave
   const handleWheel = (e) => {
     if (reelRef.current) {
       e.preventDefault();
@@ -40,17 +46,24 @@ const StoriesReel = ({ onStoryClick, onCreateStoryClick }) => {
   };
 
   useEffect(() => {
-    const db = getFirestore();
-    const auth = getAuth();
-    const user = auth.currentUser;
+    // Não tenta buscar stories se não está logado OU não confirmou e-mail
+    if (!currentUser || !currentUser.emailVerified) {
+      setStories([]);
+      setLoading(false);
+      return;
+    }
 
+    setLoading(true);
+    setError(null);
+
+    const db = getFirestore();
     // Stories que não expiraram ainda (expiresAt > agora)
     const q = query(
       collection(db, 'stories'),
       where('expiresAt', '>', new Date()),
       orderBy('expiresAt', 'asc')
     );
-    
+
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
@@ -62,7 +75,7 @@ const StoriesReel = ({ onStoryClick, onCreateStoryClick }) => {
             userName: data.userDisplayName || 'Usuário',
             imageUrl: data.mediaType === 'image' ? data.mediaUrl : null,
             avatarText: data.userDisplayName ? data.userDisplayName[0] : '?',
-            isOwn: user && data.userId === user.uid,
+            isOwn: currentUser && data.userId === currentUser.uid,
             unseen: false, // Placeholder para lógica futura
             ...data,
           });
@@ -71,15 +84,15 @@ const StoriesReel = ({ onStoryClick, onCreateStoryClick }) => {
         setLoading(false);
       },
       (err) => {
-        setError('Erro ao carregar stories');
+        setError('Erro ao carregar stories ou sem permissão de acesso.');
         setLoading(false);
       }
     );
 
     return () => unsubscribe();
-  }, []);
+  }, [currentUser]);
 
-  // States visuais
+  // Loader enquanto carrega
   if (loading) {
     return (
       <section className={`${colors.bg} py-3 px-4 rounded-xl shadow-sm`}>
@@ -95,14 +108,16 @@ const StoriesReel = ({ onStoryClick, onCreateStoryClick }) => {
     );
   }
 
+  // Mensagem de erro ou falta de permissão
   if (error) {
     return (
       <section className={`${colors.bg} py-3 px-4 rounded-xl shadow-sm`}>
-        <div className="text-red-500">{error}</div>
+        <div className="text-red-500 text-center py-6">{error}</div>
       </section>
     );
   }
 
+  // Nenhum story
   if (stories.length === 0) {
     return (
       <section className={`${colors.bg} py-3 px-4 rounded-xl shadow-sm`}>
@@ -132,7 +147,9 @@ const StoriesReel = ({ onStoryClick, onCreateStoryClick }) => {
             </button>
           </div>
           <span className="text-gray-400 dark:text-gray-500 text-sm ml-4">
-            Nenhum story recente. Seja o primeiro a postar!
+            {!currentUser || !currentUser.emailVerified
+              ? 'Faça login e confirme o e-mail para ver stories!'
+              : 'Nenhum story recente. Seja o primeiro a postar!'}
           </span>
         </div>
       </section>

@@ -1,3 +1,5 @@
+// src/pages/HomePage.jsx
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -13,8 +15,9 @@ import CreatePostModal from '../components/CreatePostModal';
 import StoryModal from '../components/StoryModal';
 import CreateStoryModal from '../components/CreateStoryModal';
 
+// MOCK EXEMPLO — substitua pelos seus dados reais depois
 const mockStories = [
-  // ... (mantido igual)
+  // ...
 ];
 
 const HomePage = ({ onCommentSubmit, onDeletePost }) => {
@@ -99,6 +102,14 @@ const HomePage = ({ onCommentSubmit, onDeletePost }) => {
     setIsStoryModalOpen(false);
   };
 
+  // Função OLLO para proteger split e evitar erro/crash!
+  const getFirstName = (name) => {
+    if (typeof name === 'string' && name.trim().length > 0) {
+      return name.split(' ')[0];
+    }
+    return 'OLLO';
+  };
+
   return (
     <div className="flex flex-col lg:flex-row lg:gap-x-6 xl:gap-x-8 pt-1 px-4 sm:px-6 lg:px-8">
       <main className="w-full flex-grow lg:max-w-2xl xl:max-w-3xl mx-auto lg:mx-0">
@@ -153,7 +164,7 @@ const HomePage = ({ onCommentSubmit, onDeletePost }) => {
               >
                 <span className="font-medium">
                   {currentUser
-                    ? `No que você está pensando, ${currentUser.name.split(' ')[0]}?`
+                    ? `No que você está pensando, ${getFirstName(currentUser.name)}?`
                     : 'Faça login para compartilhar algo!'}
                 </span>
               </button>

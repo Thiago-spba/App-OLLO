@@ -6,8 +6,6 @@ import {
   VideoCamera,
   X,
   Smiley,
-  MapPin,
-  Calendar,
   SpinnerGap,
 } from '@phosphor-icons/react';
 
@@ -83,6 +81,7 @@ export default function PostForm({ onPost, currentUser }) {
         createdAt: new Date().toISOString(),
         likes: [],
         comments: [],
+        authorId: currentUser?.uid, // <-- ESSENCIAL para funcionar com a regra do Firestore!
       };
 
       await onPost(newPost);

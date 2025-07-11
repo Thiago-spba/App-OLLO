@@ -34,18 +34,30 @@ export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Atualiza o usuário quando o authState muda
+  // Monitora o estado de autenticação do usuário
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setLoading(true);
       if (firebaseUser) {
-        const userDocRef = doc(db, 'users', firebaseUser.uid);
-        const docSnap = await getDoc(userDocRef);
+        let extraData = {};
+        // Só consulta o Firestore se o e-mail estiver verificado
+        if (firebaseUser.emailVerified) {
+          try {
+            const userDocRef = doc(db, 'users', firebaseUser.uid);
+            const docSnap = await getDoc(userDocRef);
+            if (docSnap.exists()) {
+              extraData = docSnap.data();
+            }
+          } catch (error) {
+            // Tratamento de erro opcional
+            console.error('Erro ao buscar dados do Firestore:', error);
+          }
+        }
         setCurrentUser({
           uid: firebaseUser.uid,
           email: firebaseUser.email,
           emailVerified: firebaseUser.emailVerified,
-          ...(docSnap.exists() ? docSnap.data() : {}),
+          ...extraData,
         });
       } else {
         setCurrentUser(null);
@@ -96,6 +108,7 @@ export const AuthProvider = ({ children }) => {
         photoURL: additionalData.avatarUrl || '',
       });
 
+      // Cria o documento do usuário no Firestore
       await setDoc(doc(db, 'users', user.uid), {
         uid: user.uid,
         name: additionalData.name || '',
@@ -108,6 +121,7 @@ export const AuthProvider = ({ children }) => {
         emailVerified: user.emailVerified,
       });
 
+      // Envia o e-mail de verificação
       await sendEmailVerification(user);
 
       return { success: true, user };

@@ -6,7 +6,7 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 
 // --- PROVEDORES DE CONTEXTO ---
 import { AuthProvider } from './context/AuthContext.jsx';
-import { ThemeProvider } from './context/ThemeContext.jsx'; // <--- CORRIGIDO AQUI
+import { ThemeProvider } from './context/ThemeContext.jsx';
 
 // --- COMPONENTES DE LAYOUT E WRAPPERS ---
 import App from './App.jsx';
@@ -29,6 +29,7 @@ import ProfilePage from './pages/ProfilePage.jsx';
 import NotificationsPage from './pages/NotificationsPage.jsx';
 import TermsPage from './pages/TermsPage.jsx';
 import PostDetailPage from './pages/PostDetailPage.jsx';
+import PublicErrorPage from './pages/PublicErrorPage.jsx'; // <<<< Importação do fallback OLLO
 
 import './index.css';
 
@@ -41,7 +42,7 @@ if (!import.meta.env.VITE_FIREBASE_API_KEY) {
 
 // --- DEFINIÇÃO CENTRALIZADA DAS ROTAS ---
 const router = createBrowserRouter([
-  // Rota raiz que provê os contextos e o layout para a maior parte da aplicação
+  // Rota raiz com layout e contextos globais
   {
     path: '/',
     element: (
@@ -51,7 +52,7 @@ const router = createBrowserRouter([
         </ThemeProvider>
       </AuthProvider>
     ),
-    errorElement: <HomePage />, // Usando HomePage como fallback
+    errorElement: <PublicErrorPage />, // Fallback OLLO global
     children: [
       { index: true, element: <HomePage /> },
       { path: 'explore', element: <ExplorePage /> },
@@ -81,8 +82,7 @@ const router = createBrowserRouter([
     ],
   },
 
-  // Rotas de tela cheia que não usam o layout principal (App.jsx)
-  // Elas ainda precisam do AuthProvider para funcionar corretamente.
+  // --- Rotas de tela cheia com fallback público OLLO ---
   {
     path: '/login',
     element: (
@@ -92,6 +92,7 @@ const router = createBrowserRouter([
         </ThemeProvider>
       </AuthProvider>
     ),
+    errorElement: <PublicErrorPage />, // Fallback OLLO
   },
   {
     path: '/register',
@@ -102,6 +103,7 @@ const router = createBrowserRouter([
         </ThemeProvider>
       </AuthProvider>
     ),
+    errorElement: <PublicErrorPage />,
   },
   {
     path: '/forgot-password',
@@ -112,6 +114,7 @@ const router = createBrowserRouter([
         </ThemeProvider>
       </AuthProvider>
     ),
+    errorElement: <PublicErrorPage />,
   },
   {
     path: '/reset-password',
@@ -122,6 +125,7 @@ const router = createBrowserRouter([
         </ThemeProvider>
       </AuthProvider>
     ),
+    errorElement: <PublicErrorPage />,
   },
   {
     path: '/actions',
@@ -132,6 +136,7 @@ const router = createBrowserRouter([
         </ThemeProvider>
       </AuthProvider>
     ),
+    errorElement: <PublicErrorPage />,
   },
 ]);
 
