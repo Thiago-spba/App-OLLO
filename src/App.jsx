@@ -4,7 +4,8 @@ import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 
 // Importe componentes de layout e globais
-import Sidebar from './components/SideBarNav.jsx'; // Verifique se o nome do arquivo está correto
+import SidebarNav from './components/SidebarNav.jsx'; // Certifique-se de que o nome do arquivo está exatamente igual
+
 import CreatePostModal from './components/CreatePostModal.jsx';
 import { Toaster } from 'react-hot-toast';
 
@@ -17,7 +18,7 @@ export default function App() {
   return (
     <div className="flex min-h-screen bg-ollo-light dark:bg-ollo-deep transition-colors duration-300">
       {/* O Sidebar agora recebe a função para abrir o modal como prop */}
-      <Sidebar onTriggerCreatePost={openModal} />
+      <SidebarNav onTriggerCreatePost={openModal} />
 
       <main className="flex-1 flex flex-col overflow-hidden">
         <div className="flex-1 overflow-x-hidden overflow-y-auto p-4 sm:p-6 lg:p-8">
