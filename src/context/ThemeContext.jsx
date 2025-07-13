@@ -1,7 +1,7 @@
 // src/context/ThemeContext.jsx
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useAuth } from './AuthContext';
-import { saveUserTheme, fetchUserTheme } from '../firebase/themePreference';
+import { saveUserTheme, fetchUserTheme } from '../firebase/userFirestore';
 import { safeGetItem, safeSetItem } from '../utils/safeLocalStorage';
 
 const ThemeContext = createContext();

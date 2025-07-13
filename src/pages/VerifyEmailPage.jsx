@@ -5,16 +5,14 @@ import { useNavigate } from 'react-router-dom';
 import { sendEmailVerification } from 'firebase/auth';
 import { useAuth } from '../context/AuthContext';
 import { auth } from '../firebase/config';
-import { toast, Toaster } from 'react-hot-toast'; // Mudei para react-hot-toast como no seu original
+import { toast, Toaster } from 'react-hot-toast';
 import { EnvelopeSimple } from '@phosphor-icons/react';
 
 const VerifyEmailPage = () => {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
-  // `emailSent` é mais descritivo que `isSending` para desabilitar o botão.
   const [emailSent, setEmailSent] = useState(false);
 
-  // A LÓGICA CORRETA: Reage ao estado do AuthContext
   useEffect(() => {
     // Redireciona se o usuário já estiver verificado.
     if (currentUser?.emailVerified) {
@@ -37,7 +35,10 @@ const VerifyEmailPage = () => {
     }, 10000); // Tenta recarregar a cada 10s para acionar o AuthContext
 
     return () => clearInterval(intervalId);
-  }, [currentUser, navigate]);
+
+    // --- A CORREÇÃO CRÍTICA ESTÁ AQUI ---
+    // Trocamos `currentUser` por suas propriedades primitivas para evitar o loop.
+  }, [currentUser?.uid, currentUser?.emailVerified, navigate]);
 
   const handleResendEmail = async () => {
     try {
@@ -52,11 +53,9 @@ const VerifyEmailPage = () => {
 
   const handleLogoutAndRedirect = async () => {
     await logout();
-    // O logout no contexto já redireciona, mas garantimos aqui também.
     navigate('/login');
   };
 
-  // Se o `currentUser` ainda não carregou, mostramos um loader.
   if (!currentUser) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-ollo-light-50 dark:bg-ollo-dark-900">
@@ -65,45 +64,32 @@ const VerifyEmailPage = () => {
     );
   }
 
-  // A ESTRUTURA VISUAL CORRETA: Seu código JSX original com as classes corretas.
   return (
     <>
       <Toaster position="top-center" reverseOrder={false} />
       <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
         <div className="max-w-md w-full p-8 space-y-6 bg-white dark:bg-gray-800 rounded-lg shadow-md text-center">
-          {/* Imagem do Logo - restaurada do seu código */}
           <img
             src="/images/logo_ollo.jpeg"
             alt="OLLOAPP Logo"
             className="mx-auto h-16 w-auto"
           />
-
-          {/* Título - restaurado do seu código */}
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mt-4">
             Confirme seu e-mail
           </h2>
-
-          {/* Parágrafo - restaurado do seu código */}
           <p className="text-gray-600 dark:text-gray-300 text-base leading-relaxed">
             Um link de verificação foi enviado para seu e-mail. Após confirmar,
             você terá acesso completo ao OLLOAPP.
           </p>
-
-          {/* Imagem do Favicon - restaurada do seu código */}
           <img
             src="/images/favicon.ico"
             alt="Ícone OLLOAPP"
             className="mx-auto h-10 w-10 mt-2"
           />
-
-          {/* E-mail do usuário - restaurado do seu código */}
           <div className="text-sm text-gray-700 dark:text-gray-300 font-medium mt-2">
             {currentUser?.email}
           </div>
-
-          {/* Container dos Botões - restaurado do seu código */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center mt-4">
-            {/* Botão Reenviar - classes restauradas do seu código */}
             <button
               onClick={handleResendEmail}
               disabled={emailSent}
@@ -114,8 +100,6 @@ const VerifyEmailPage = () => {
               <EnvelopeSimple size={18} weight="bold" />
               {emailSent ? 'E-mail reenviado' : 'Reenviar e-mail'}
             </button>
-
-            {/* Botão Logout - classes restauradas do seu código */}
             <button
               onClick={handleLogoutAndRedirect}
               className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-md"

@@ -1,44 +1,59 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // 👤 Perfis públicos
+    // --- REGRAS PARA COLLECTION GROUP QUERIES ---
+    // Permitem buscas em todas as coleções com estes nomes, não importa a profundidade.
+
+    match /{path=**}/posts/{postId} {
+      allow read: if true;
+    }
+    match /{path=**}/users/{userId} {
+      allow read: if true;
+    }
+    match /{path=**}/listagens/{docId} {
+      allow read: if true;
+    }
+     match /{path=**}/stories/{storyId} {
+      allow read: if true;
+    }
+
+    // --- REGRAS ORIGINAIS (MANTIDAS) ---
+
+    // 👤 Perfis de usuários
     match /users/{userId} {
-      allow read: if true;
-      allow write: if request.auth != null &&
-                   request.auth.uid == userId;
+      // get já está coberto pela regra de collection group acima
+      // allow get: if true; 
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // 📝 Posts públicos
+    // 📝 Posts
     match /posts/{postId} {
-      allow read: if true;
-      allow write: if request.auth != null &&
-                   request.auth.uid == request.resource.data.uid;
+      // get já está coberto pela regra de collection group acima
+      // allow get: if true;
+      allow write: if request.auth != null && request.auth.uid == request.resource.data.uid;
     }
 
-    // 🛍️ Listagens públicas
+    // 🛍️ Listagens
     match /listagens/{docId} {
-      allow read: if true;
-      allow write: if request.auth != null &&
-                   request.auth.uid == request.resource.data.uid;
+      // get já está coberto pela regra de collection group acima
+      // allow get: if true;
+      allow write: if request.auth != null && request.auth.uid == request.resource.data.uid;
     }
 
-    // 📚 Stories públicos
+    // 📚 Stories
     match /stories/{storyId} {
-      allow read: if true;
-      allow write: if request.auth != null &&
-                   request.auth.uid == request.resource.data.userId;
+      // get já está coberto pela regra de collection group acima
+      // allow get: if true;
+      allow write: if request.auth != null && request.auth.uid == request.resource.data.userId;
     }
 
-    // 🔐 Admins: têm acesso total a qualquer documento
+    // 🔐 Admins: regra unificada para acesso total
+    // Esta regra é uma exceção e permite acesso total a admins.
     match /{document=**} {
       allow read, write: if request.auth != null &&
-                         exists(/databases/$(database)/documents/admins/$(request.auth.uid));
-    }
-
-    // 🚫 Tudo mais explicitamente negado
-    match /{document=**} {
-      allow read, write: if false;
+                           exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
   }
 }

@@ -3,7 +3,13 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
+// Importamos useAuth do nosso contexto, que agora vai nos dar a função de registro
 import { useAuth } from '../context/AuthContext';
+// Importamos a função para salvar o perfil do usuário no Firestore
+import { createUserProfile } from '../firebase/userFirestore'; // Ajuste o caminho se userFirestore.js estiver em outro lugar
+// Importamos a função do Firebase Auth para enviar e-mail de verificação
+import { sendEmailVerification } from 'firebase/auth'; // Importado diretamente do SDK do Firebase
+
 import {
   EyeIcon,
   EyeSlashIcon,
@@ -22,7 +28,9 @@ const RegisterPage = () => {
     reset,
   } = useForm();
 
-  const { registerWithEmail } = useAuth();
+  // Assumimos que registerUser do useAuth retorna o objeto UserCredential completo.
+  // Se seu AuthContext usa 'registerWithEmail', precisaremos que ele retorne o 'user'.
+  const { registerWithEmail: registerUser } = useAuth(); // Renomeado para evitar conflito e ser mais genérico
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -37,50 +45,73 @@ const RegisterPage = () => {
         return 'Formato de e-mail inválido. Verifique e tente novamente.';
       case 'auth/weak-password':
         return 'Senha muito fraca. Use no mínimo 6 caracteres.';
+      case 'auth/operation-not-allowed': // Adicionado para cobrir um caso comum de Firebase Auth
+        return 'O registro com e-mail/senha não está ativado. Contate o suporte.';
       case 'auth/too-many-requests':
         return 'Muitas tentativas. Tente novamente mais tarde.';
       default:
-        return 'Ocorreu um erro no cadastro. Tente novamente.';
+        return 'Ocorreu um erro inesperado no cadastro. Tente novamente.';
     }
   };
 
   const onSubmit = async (data) => {
     setIsLoading(true);
 
-    const additionalData = {
+    const profileData = {
+      // Renomeado para 'profileData' para clareza
       name: `${data.firstName} ${data.lastName}`,
       username: data.username.toLowerCase(),
       bio: 'Novo membro da comunidade OLLO!',
       avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(
         data.firstName + ' ' + data.lastName
       )}&background=4f46e5&color=fff&bold=true`,
+      createdAt: new Date().toISOString(), // Adiciona um timestamp de criação
+      // Adicione outros campos padrão do perfil aqui, se necessário (ex: followers, following, postsCount)
+      followers: 0,
+      following: 0,
+      postsCount: 0,
     };
 
     try {
-      const result = await registerWithEmail(
-        data.email,
-        data.password,
-        additionalData
-      );
+      // 1. REGISTRAR O USUÁRIO NO FIREBASE AUTH
+      // A função registerUser (que vem de useAuth) DEVE retornar o objeto userCredential
+      const userCredential = await registerUser(data.email, data.password);
+      const user = userCredential.user; // Extraímos o objeto user do UserCredential
 
-      if (result.success) {
-        toast.success(
-          'Conta criada com sucesso! Verifique seu e-mail para ativar.',
-          {
-            duration: 6000,
-            position: 'top-center',
-          }
-        );
-        reset();
-        navigate('/verify-email');
+      if (!user) {
+        throw new Error('Usuário não retornado após o registro.');
       }
+
+      // 2. SALVAR DADOS ADICIONAIS DO PERFIL NO FIRESTORE
+      await createUserProfile(user.uid, profileData);
+      console.log('Perfil do usuário salvo no Firestore:', user.uid);
+
+      // 3. ENVIAR E-MAIL DE VERIFICAÇÃO
+      // Certifique-se de que o Firebase Auth está ativado para envio de e-mails
+      // E que as configurações de template de e-mail estão corretas no console do Firebase
+      await sendEmailVerification(user);
+      console.log('E-mail de verificação enviado para:', user.email);
+
+      // Exibe mensagem de sucesso e redireciona
+      toast.success(
+        'Conta criada com sucesso! Verifique seu e-mail para ativar.',
+        {
+          duration: 8000, // Aumentado para dar mais tempo ao usuário ler
+          position: 'top-center',
+        }
+      );
+      reset(); // Limpa o formulário
+      navigate('/verify-email'); // Redireciona para a página de verificação
     } catch (error) {
-      console.error('Erro no cadastro:', error);
+      console.error('Erro detalhado no processo de cadastro:', error); // Log mais detalhado
       const errorMessage = getFriendlyError(error?.code);
       toast.error(errorMessage, {
-        duration: 5000,
+        duration: 7000, // Aumentado para o usuário ter tempo de ler o erro
         position: 'top-center',
       });
+      // Se houver erro de autenticação, e o perfil do firestore já tiver sido criado,
+      // você pode considerar remover o perfil do firestore ou marcar para remoção (lógica mais avançada).
+      // Por enquanto, apenas lidamos com o erro.
     } finally {
       setIsLoading(false);
     }

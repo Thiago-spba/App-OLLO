@@ -1,3 +1,6 @@
+// src/components/SidebarNav.jsx
+// OLLO - Menu lateral principal, seguro, responsivo, pronto para expansão e exportação default garantida
+
 import React from 'react';
 import { NavLink, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -22,7 +25,9 @@ import { SunIcon, MoonIcon } from '@heroicons/react/24/solid';
 // Hook de admin
 import { useIsAdmin } from '@/hooks/useIsAdmin';
 
-// --- Componente reutilizável de item de navegação ---
+/**
+ * Item de navegação reutilizável do menu lateral.
+ */
 const NavItem = ({ to, title, icon: Icon, end = false }) => {
   const getNavLinkClass = ({ isActive }) =>
     clsx(
@@ -43,8 +48,10 @@ const NavItem = ({ to, title, icon: Icon, end = false }) => {
   );
 };
 
-// --- Componente principal da sidebar ---
-function SideBarNav({ onTriggerCreatePost }) {
+/**
+ * Componente principal do menu lateral OLLO.
+ */
+function SidebarNav({ onTriggerCreatePost }) {
   const { currentUser, logout } = useAuth();
   const { darkMode, toggleTheme } = useTheme();
   const navigate = useNavigate();
@@ -53,7 +60,7 @@ function SideBarNav({ onTriggerCreatePost }) {
     try {
       await logout(navigate);
     } catch (error) {
-      console.error('Erro ao fazer logout:', error);
+      console.error('[OLLO] Erro ao fazer logout:', error);
     }
   };
 
@@ -75,6 +82,7 @@ function SideBarNav({ onTriggerCreatePost }) {
       aria-label="Barra de navegação principal"
       className="h-screen bg-ollo-light w-20 lg:w-64 flex flex-col p-3 lg:p-4 border-r border-gray-200/80 dark:border-gray-700/50 shadow-sm transition-all duration-300 ease-in-out dark:bg-ollo-deep"
     >
+      {/* Logo OLLO */}
       <div className="mb-8 lg:mb-10 flex-shrink-0 pt-2 flex flex-col items-center justify-center">
         <Link
           to="/"
@@ -89,6 +97,7 @@ function SideBarNav({ onTriggerCreatePost }) {
         </Link>
       </div>
 
+      {/* Navegação principal */}
       <nav className="flex-grow space-y-2" aria-label="Navegação principal">
         <NavItem to="/" title="Início" icon={HomeIcon} end />
         <NavItem to="/explore" title="Explorar" icon={MagnifyingGlassIcon} />
@@ -105,7 +114,9 @@ function SideBarNav({ onTriggerCreatePost }) {
         )}
       </nav>
 
+      {/* Área inferior: temas, criar post, admin, sair/entrar */}
       <div className="mt-auto flex-shrink-0 pb-2 flex flex-col items-center space-y-2">
+        {/* Botão de alternar tema */}
         <button
           onClick={toggleTheme}
           aria-label={darkMode ? 'Ativar modo claro' : 'Ativar modo escuro'}
@@ -119,9 +130,10 @@ function SideBarNav({ onTriggerCreatePost }) {
           )}
         </button>
 
+        {/* Se logado, mostra criar post, admin e sair */}
         {currentUser ? (
           <>
-            {/* Botão Criar Post */}
+            {/* Criar Post */}
             <button
               title="Criar Post"
               onClick={onTriggerCreatePost}
@@ -135,10 +147,10 @@ function SideBarNav({ onTriggerCreatePost }) {
               <span className="hidden lg:inline">Criar Post</span>
             </button>
 
-            {/* Botão visível somente para administradores */}
+            {/* Botão Admin, se admin */}
             <AdminButton />
 
-            {/* Botão Sair */}
+            {/* Sair */}
             <button
               title="Sair"
               onClick={handleLogout}
@@ -164,12 +176,12 @@ function SideBarNav({ onTriggerCreatePost }) {
   );
 }
 
-// --- Componente isolado do botão de Administração (usado apenas se admin) ---
+/**
+ * Botão visível apenas para administradores.
+ */
 function AdminButton() {
   const { isAdmin, loading } = useIsAdmin();
-
   if (loading || !isAdmin) return null;
-
   return (
     <Link
       to="/admin"
@@ -187,4 +199,5 @@ function AdminButton() {
   );
 }
 
-export default SideBarNav;
+// Exportação default garantida
+export default SidebarNav;

@@ -11,7 +11,6 @@ import { ThemeProvider } from './context/ThemeContext.jsx';
 // --- COMPONENTES DE LAYOUT E WRAPPERS ---
 import App from './App.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
-import RequireVerifiedEmail from './components/RequireVerifiedEmail.jsx';
 
 // --- PÁGINAS ---
 import HomePage from './pages/HomePage.jsx';
@@ -29,11 +28,11 @@ import ProfilePage from './pages/ProfilePage.jsx';
 import NotificationsPage from './pages/NotificationsPage.jsx';
 import TermsPage from './pages/TermsPage.jsx';
 import PostDetailPage from './pages/PostDetailPage.jsx';
-import PublicErrorPage from './pages/PublicErrorPage.jsx'; // <<<< Importação do fallback OLLO
+import PublicErrorPage from './pages/PublicErrorPage.jsx';
 
 import './index.css';
 
-// Garante que as chaves do Firebase existam antes de iniciar
+// --- Verificação das variáveis de ambiente do Firebase ---
 if (!import.meta.env.VITE_FIREBASE_API_KEY) {
   throw new Error(
     'As variáveis de ambiente do Firebase não foram configuradas corretamente.'
@@ -42,18 +41,36 @@ if (!import.meta.env.VITE_FIREBASE_API_KEY) {
 
 // --- DEFINIÇÃO CENTRALIZADA DAS ROTAS ---
 const router = createBrowserRouter([
-  // Rota raiz com layout e contextos globais
+  // --- Rotas de Autenticação (Tela Cheia) ---
+  { path: '/login', element: <LoginPage />, errorElement: <PublicErrorPage /> },
+  {
+    path: '/register',
+    element: <RegisterPage />,
+    errorElement: <PublicErrorPage />,
+  },
+  {
+    path: '/forgot-password',
+    element: <ForgotPasswordPage />,
+    errorElement: <PublicErrorPage />,
+  },
+  {
+    path: '/reset-password',
+    element: <ResetPasswordPage />,
+    errorElement: <PublicErrorPage />,
+  },
+  {
+    path: '/actions',
+    element: <ActionHandlerPage />,
+    errorElement: <PublicErrorPage />,
+  },
+
+  // --- Rotas Principais com Layout (Sidebar, etc.) ---
   {
     path: '/',
-    element: (
-      <AuthProvider>
-        <ThemeProvider>
-          <App />
-        </ThemeProvider>
-      </AuthProvider>
-    ),
-    errorElement: <PublicErrorPage />, // Fallback OLLO global
+    element: <App />,
+    errorElement: <PublicErrorPage />,
     children: [
+      // -- Rotas Públicas (acessíveis por todos) --
       { index: true, element: <HomePage /> },
       { path: 'explore', element: <ExplorePage /> },
       { path: 'terms', element: <TermsPage /> },
@@ -62,92 +79,34 @@ const router = createBrowserRouter([
         path: 'marketplace/detalhes/:listingId',
         element: <ListingDetailPage />,
       },
+
+      // -- Rotas Privadas (exigem login, mas não e-mail verificado) --
       {
-        element: <RequireVerifiedEmail />,
+        element: <ProtectedRoute />,
         children: [
           { path: 'marketplace', element: <MarketplacePage /> },
           { path: 'marketplace/criar', element: <CreateListingPage /> },
           { path: 'profile/:profileId?', element: <ProfilePage /> },
           { path: 'notifications', element: <NotificationsPage /> },
+          { path: 'verify-email', element: <VerifyEmailPage /> },
         ],
       },
-      {
-        path: '/verify-email',
-        element: (
-          <ProtectedRoute>
-            <VerifyEmailPage />
-          </ProtectedRoute>
-        ),
-      },
     ],
-  },
-
-  // --- Rotas de tela cheia com fallback público OLLO ---
-  {
-    path: '/login',
-    element: (
-      <AuthProvider>
-        <ThemeProvider>
-          <LoginPage />
-        </ThemeProvider>
-      </AuthProvider>
-    ),
-    errorElement: <PublicErrorPage />, // Fallback OLLO
-  },
-  {
-    path: '/register',
-    element: (
-      <AuthProvider>
-        <ThemeProvider>
-          <RegisterPage />
-        </ThemeProvider>
-      </AuthProvider>
-    ),
-    errorElement: <PublicErrorPage />,
-  },
-  {
-    path: '/forgot-password',
-    element: (
-      <AuthProvider>
-        <ThemeProvider>
-          <ForgotPasswordPage />
-        </ThemeProvider>
-      </AuthProvider>
-    ),
-    errorElement: <PublicErrorPage />,
-  },
-  {
-    path: '/reset-password',
-    element: (
-      <AuthProvider>
-        <ThemeProvider>
-          <ResetPasswordPage />
-        </ThemeProvider>
-      </AuthProvider>
-    ),
-    errorElement: <PublicErrorPage />,
-  },
-  {
-    path: '/actions',
-    element: (
-      <AuthProvider>
-        <ThemeProvider>
-          <ActionHandlerPage />
-        </ThemeProvider>
-      </AuthProvider>
-    ),
-    errorElement: <PublicErrorPage />,
   },
 ]);
 
 // --- RENDERIZAÇÃO DA APLICAÇÃO ---
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <RouterProvider router={router} />
+    <AuthProvider>
+      <ThemeProvider>
+        <RouterProvider router={router} />
+      </ThemeProvider>
+    </AuthProvider>
   </React.StrictMode>
 );
 
-// Service Worker (opcional)
+// --- Service Worker ---
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker

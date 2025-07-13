@@ -20,8 +20,10 @@ import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
 import { toast } from 'react-hot-toast';
 
+// Cria o contexto
 const AuthContext = createContext(null);
 
+// Hook de acesso ao contexto
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -30,44 +32,53 @@ export const useAuth = () => {
   return context;
 };
 
+// Componente provedor do contexto de autenticação
 export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Monitora o estado de autenticação do usuário
+  // Efeito: Monitora autenticação e carrega perfil no Firestore
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setLoading(true);
       if (firebaseUser) {
-        let extraData = {};
-        // Só consulta o Firestore se o e-mail estiver verificado
-        if (firebaseUser.emailVerified) {
-          try {
-            const userDocRef = doc(db, 'users', firebaseUser.uid);
-            const docSnap = await getDoc(userDocRef);
-            if (docSnap.exists()) {
-              extraData = docSnap.data();
-            }
-          } catch (error) {
-            // Tratamento de erro opcional
-            console.error('Erro ao buscar dados do Firestore:', error);
-          }
+        try {
+          const userDocRef = doc(db, 'users', firebaseUser.uid);
+          const docSnap = await getDoc(userDocRef);
+          const userDataFromFirestore = docSnap.exists() ? docSnap.data() : {};
+
+          // Combina dados do Auth e do Firestore
+          setCurrentUser({
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            emailVerified: firebaseUser.emailVerified,
+            displayName: firebaseUser.displayName,
+            photoURL: firebaseUser.photoURL,
+            ...userDataFromFirestore,
+          });
+        } catch (error) {
+          console.error(
+            '[OLLO] Erro ao buscar perfil do usuário no Firestore:',
+            error
+          );
+          setCurrentUser({
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            emailVerified: firebaseUser.emailVerified,
+            displayName: firebaseUser.displayName,
+            photoURL: firebaseUser.photoURL,
+          });
         }
-        setCurrentUser({
-          uid: firebaseUser.uid,
-          email: firebaseUser.email,
-          emailVerified: firebaseUser.emailVerified,
-          ...extraData,
-        });
       } else {
         setCurrentUser(null);
       }
       setLoading(false);
     });
+
     return () => unsubscribe();
   }, []);
 
-  // Login com email e senha
+  // Login
   const loginWithEmail = useCallback(async (email, password) => {
     try {
       const userCredential = await signInWithEmailAndPassword(
@@ -93,7 +104,7 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  // Cadastro com email e senha
+  // Cadastro
   const registerWithEmail = async (email, password, additionalData = {}) => {
     try {
       const userCredential = await createUserWithEmailAndPassword(
@@ -108,7 +119,6 @@ export const AuthProvider = ({ children }) => {
         photoURL: additionalData.avatarUrl || '',
       });
 
-      // Cria o documento do usuário no Firestore
       await setDoc(doc(db, 'users', user.uid), {
         uid: user.uid,
         name: additionalData.name || '',
@@ -121,7 +131,6 @@ export const AuthProvider = ({ children }) => {
         emailVerified: user.emailVerified,
       });
 
-      // Envia o e-mail de verificação
       await sendEmailVerification(user);
 
       return { success: true, user };
@@ -130,7 +139,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Reset de senha por email
+  // Reset de senha
   const resetPassword = async (email) => {
     try {
       await sendPasswordResetEmail(auth, email);
@@ -140,6 +149,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Valor exportado pelo contexto
   const value = {
     currentUser,
     loading,
@@ -149,6 +159,7 @@ export const AuthProvider = ({ children }) => {
     resetPassword,
   };
 
+  // Renderização com loading spinner
   return (
     <AuthContext.Provider value={value}>
       {!loading ? (
@@ -161,3 +172,10 @@ export const AuthProvider = ({ children }) => {
     </AuthContext.Provider>
   );
 };
+
+/*
+  [OLLO] Contexto de autenticação centralizado.
+  - Sempre reflete o estado mais recente do usuário.
+  - Evita race conditions.
+  - Pronto para uso em rotas protegidas, menus, etc.
+*/
