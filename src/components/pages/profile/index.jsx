@@ -7,19 +7,17 @@ import React, {
   useMemo,
   useCallback,
 } from 'react';
-import { useAuth } from '../../../context/AuthContext'; // <-- CORREÇÃO PRINCIPAL APLICADA AQUI
+import { useAuth } from '../../../context/AuthContext'; // Altere o caminho se seu contexto estiver em outro local
 import { db, storage } from '../../../firebase/config';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { v4 as uuidv4 } from 'uuid';
 
-// Importando os sub-componentes do perfil
+// Componentes internos do perfil
 import ProfileHeader from './ProfileHeader.jsx';
 import ProfileBio from './ProfileBio.jsx';
 import ProfileGallery from './ProfileGallery.jsx';
 import ProfileActions from './ProfileActions.jsx';
 
-// Constantes para evitar "magic strings"
 const DEFAULT_AVATAR = '/images/default-avatar.png';
 const DEFAULT_COVER = '/images/default-cover.png';
 
@@ -42,28 +40,21 @@ const initialProfileState = {
 };
 
 export default function ProfilePage() {
-  // --- CORREÇÃO: Usando o hook customizado useAuth() ---
   const { currentUser, loading: authLoading } = useAuth();
 
-  // --- Estados do componente ---
   const [profile, setProfile] = useState(initialProfileState);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState(initialProfileState);
-
-  // Estado para arquivos selecionados que ainda não foram enviados
   const [avatarFile, setAvatarFile] = useState(null);
   const [coverFile, setCoverFile] = useState(null);
-
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Referências para inputs de arquivo
   const galleryInputRef = useRef(null);
 
-  // --- Efeito para carregar os dados do perfil ---
+  // Carregar dados do perfil
   useEffect(() => {
-    // Não executa se o usuário não estiver logado ou se a autenticação ainda estiver carregando
     if (!currentUser || authLoading) return;
 
     const fetchProfile = async () => {
@@ -77,11 +68,12 @@ export default function ProfilePage() {
         if (docSnap.exists()) {
           dataToSet = { ...initialProfileState, ...docSnap.data() };
         } else {
-          // Cria um perfil padrão se não existir no Firestore
           dataToSet = {
             ...initialProfileState,
             name: currentUser.displayName || '',
             avatar: currentUser.photoURL || DEFAULT_AVATAR,
+            uid: currentUser.uid,
+            email: currentUser.email || '',
           };
           await setDoc(userDocRef, dataToSet);
         }
@@ -99,17 +91,16 @@ export default function ProfilePage() {
     fetchProfile();
   }, [currentUser, authLoading]);
 
-  // --- Funções de Manipulação (Handlers) ---
-
+  // Handlers
   const handleEdit = useCallback(() => {
     setEditing(true);
-    setForm(profile); // Inicia o formulário com os dados atuais do perfil
+    setForm(profile);
   }, [profile]);
 
   const handleCancel = useCallback(() => {
     setEditing(false);
-    setForm(profile); // Restaura o formulário para o estado original
-    setAvatarFile(null); // Limpa previews
+    setForm(profile);
+    setAvatarFile(null);
     setCoverFile(null);
   }, [profile]);
 
@@ -136,6 +127,7 @@ export default function ProfilePage() {
     setForm((prevForm) => ({ ...prevForm, [field]: !prevForm[field] }));
   }, []);
 
+  // --- SALVAR PERFIL (COM UID GARANTIDO) ---
   const handleSave = useCallback(async () => {
     if (!currentUser) return;
     setLoading(true);
@@ -163,7 +155,14 @@ export default function ProfilePage() {
         coverUrl = await getDownloadURL(coverRef);
       }
 
-      const dataToSave = { ...form, avatar: avatarUrl, cover: coverUrl };
+      // Garante sempre o campo uid correto!
+      const dataToSave = {
+        ...form,
+        avatar: avatarUrl,
+        cover: coverUrl,
+        uid: currentUser.uid,
+        email: currentUser.email || '',
+      };
 
       await setDoc(doc(db, 'users', currentUser.uid), dataToSave, {
         merge: true,
@@ -176,20 +175,20 @@ export default function ProfilePage() {
       setSuccess('Perfil salvo com sucesso!');
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
-      setError('Erro ao salvar o perfil.');
-      console.error(err);
+      setError('Erro ao salvar o perfil: ' + (err.message || err.code || err));
+      console.error('Erro completo ao salvar perfil:', err);
     } finally {
       setLoading(false);
     }
   }, [currentUser, form, avatarFile, coverFile]);
 
-  // Agrupando handlers para passar como props para os sub-componentes
+  // Agrupa handlers para repassar aos subcomponentes
   const handlers = {
     handleChange,
     toggleVisibility,
     handleAvatarChange: (e) => handleFileChange(e, setAvatarFile, 'avatar'),
     handleCoverChange: (e) => handleFileChange(e, setCoverFile, 'cover'),
-    // ... adicione outros handlers da galeria se necessário
+    // ... outros handlers
   };
 
   const isDirty = useMemo(
@@ -237,7 +236,6 @@ export default function ProfilePage() {
         loading={loading}
       />
 
-      {/* Exibição de mensagens de feedback */}
       {(error || success) && (
         <div className="my-4 text-center">
           {error && <p className="text-red-500">{error}</p>}

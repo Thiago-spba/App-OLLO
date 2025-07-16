@@ -1,13 +1,18 @@
 // src/context/ThemeContext.jsx
+
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { useAuth } from './AuthContext';
+// import { useAuth } from './AuthContext'; // COMENTAR ou DELETAR esta linha
+import * as AuthModule from './AuthContext'; // <--- NOVA LINHA DE IMPORTAÇÃO
+
 import { saveUserTheme, fetchUserTheme } from '../firebase/userFirestore';
 import { safeGetItem, safeSetItem } from '../utils/safeLocalStorage';
 
 const ThemeContext = createContext();
 
 export function ThemeProvider({ children }) {
-  const { currentUser } = useAuth();
+  // const { currentUser } = useAuth(); // LINHA ANTIGA
+  const { currentUser } = AuthModule.useAuth(); // <--- NOVA CHAMADA DO HOOK useAuth
+
   const [darkMode, setDarkMode] = useState(false);
   const [themeLoaded, setThemeLoaded] = useState(false);
 
@@ -31,16 +36,30 @@ export function ThemeProvider({ children }) {
   useEffect(() => {
     async function loadTheme() {
       if (currentUser) {
+        console.log(
+          '[OLLO ThemeContext] Tentando buscar tema para UID:',
+          currentUser.uid
+        ); // LOG
         try {
           const theme = await fetchUserTheme(currentUser.uid);
           if (theme === 'dark' || theme === 'light') {
             setDarkMode(theme === 'dark');
           }
-        } catch {}
+        } catch (error) {
+          // Capture o erro para logar aqui
+          console.error(
+            '[OLLO ThemeContext] Erro ao buscar tema do Firestore (fetchUserTheme):',
+            error
+          ); // LOG
+        }
+      } else {
+        console.log(
+          '[OLLO ThemeContext] Nenhum usuário logado para buscar tema.'
+        ); // LOG
       }
     }
     loadTheme();
-  }, [currentUser]);
+  }, [currentUser]); // currentUser como dependência é OK
 
   // Salva tema, aplica classe, salva no Firestore
   useEffect(() => {
@@ -51,7 +70,17 @@ export function ThemeProvider({ children }) {
     document.documentElement.classList.toggle('dark', darkMode);
 
     if (currentUser) {
+      console.log(
+        '[OLLO ThemeContext] Tentando salvar tema para UID:',
+        currentUser.uid,
+        'Tema:',
+        darkMode ? 'dark' : 'light'
+      ); // LOG
       saveUserTheme(currentUser.uid, darkMode ? 'dark' : 'light');
+    } else {
+      console.log(
+        '[OLLO ThemeContext] Nenhum usuário logado para salvar tema no Firestore.'
+      ); // LOG
     }
   }, [darkMode, currentUser, themeLoaded]);
 

@@ -4,53 +4,47 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "./config";
 
 /**
- * Cria ou atualiza o perfil do usuário no Firestore.
- * @param {string} userId - UID do usuário do Firebase Auth.
- * @param {object} profileData - Dados do perfil (name, username, bio, avatarUrl, etc).
- * @returns {Promise<void>}
- */
-export async function createUserProfile(userId, profileData) {
-  if (!userId || typeof profileData !== "object") {
-    throw new Error("Dados de usuário inválidos para salvar perfil.");
-  }
-  const userRef = doc(db, "users", userId);
-
-  try {
-    await setDoc(userRef, profileData, { merge: true });
-    console.log(`[OLLO] Perfil do usuário ${userId} salvo/atualizado no Firestore.`);
-  } catch (error) {
-    console.error(`[OLLO] Erro ao salvar perfil de ${userId}:`, error);
-    throw error;
-  }
-}
-
-/**
- * Salva o tema do usuário (dark/light) no Firestore.
+ * Salva o tema do usuário (dark/light) no Firestore, tratando erros de permissão de forma silenciosa.
  * @param {string} uid - UID do usuário.
  * @param {string} theme - "dark" | "light"
  * @returns {Promise<void>}
  */
 export async function saveUserTheme(uid, theme) {
   if (!uid || !["dark", "light"].includes(theme)) {
-    console.warn("[OLLO] UID ou tema inválido para salvar.");
+    console.warn("[OLLO userFirestore] UID ou tema inválido para salvar. UID:", uid, "Tema:", theme);
     return;
   }
   try {
     await setDoc(doc(db, "users", uid), { theme }, { merge: true });
-    console.log(`[OLLO] Tema '${theme}' salvo para usuário ${uid}.`);
+    // (Opcional) console.log(`[OLLO userFirestore] Tema '${theme}' salvo para usuário ${uid}.`);
   } catch (err) {
-    console.error(`[OLLO] Erro ao salvar tema de ${uid}:`, err);
+    // Silencia erro de permissão para anônimos ou não autorizados
+    if (
+      err.code === "permission-denied" ||
+      (typeof err.message === "string" && err.message.toLowerCase().includes("permission"))
+    ) {
+      // (Opcional) console.warn("[OLLO userFirestore] Permissão negada ao salvar tema:", uid, theme);
+      return;
+    }
+    // Outros erros devem ser exibidos
+    console.error(
+      `[OLLO userFirestore] Erro inesperado ao salvar tema de ${uid}:`,
+      err.code,
+      err.message,
+      err
+    );
+    throw err; // Repasse só erros inesperados para tratamento externo
   }
 }
 
 /**
- * Busca o tema do usuário no Firestore.
+ * Busca o tema do usuário no Firestore, tratando erros de permissão de forma silenciosa.
  * @param {string} uid - UID do usuário.
  * @returns {Promise<string|null>} - "dark", "light" ou null.
  */
 export async function fetchUserTheme(uid) {
   if (!uid) {
-    console.warn("[OLLO] UID ausente ao buscar tema.");
+    console.warn("[OLLO userFirestore] UID ausente ao buscar tema.");
     return null;
   }
   try {
@@ -61,7 +55,21 @@ export async function fetchUserTheme(uid) {
     }
     return null;
   } catch (err) {
-    console.error(`[OLLO] Erro ao buscar tema do Firestore (UID: ${uid}):`, err);
-    return null;
+    // Silencia erro de permissão para anônimos ou não autorizados
+    if (
+      err.code === "permission-denied" ||
+      (typeof err.message === "string" && err.message.toLowerCase().includes("permission"))
+    ) {
+      // (Opcional) console.warn("[OLLO userFirestore] Permissão negada ao buscar tema:", uid);
+      return null;
+    }
+    // Outros erros devem ser exibidos
+    console.error(
+      `[OLLO userFirestore] Erro inesperado ao buscar tema do Firestore (UID: ${uid}):`,
+      err.code,
+      err.message,
+      err
+    );
+    throw err;
   }
 }

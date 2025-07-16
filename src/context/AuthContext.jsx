@@ -16,7 +16,13 @@ import {
   sendPasswordResetEmail,
   updateProfile,
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import {
+  doc,
+  getDoc,
+  setDoc,
+  serverTimestamp,
+  updateDoc,
+} from 'firebase/firestore'; // Adicionei updateDoc
 import { auth, db } from '../firebase/config';
 import { toast } from 'react-hot-toast';
 
@@ -41,11 +47,64 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setLoading(true);
+
+      // --- DEBUG OLLO ---
+      console.log(
+        'DEBUG OLLO AuthContext: onAuthStateChanged - firebaseUser:',
+        firebaseUser
+      );
+      if (firebaseUser) {
+        console.log(
+          'DEBUG OLLO AuthContext: firebaseUser.uid:',
+          firebaseUser.uid
+        );
+      }
+      // --- FIM DEBUG OLLO ---
+
       if (firebaseUser) {
         try {
           const userDocRef = doc(db, 'users', firebaseUser.uid);
+          console.log(
+            'DEBUG OLLO AuthContext: userDocRef path:',
+            userDocRef.path
+          );
+
           const docSnap = await getDoc(userDocRef);
-          const userDataFromFirestore = docSnap.exists() ? docSnap.data() : {};
+          let userDataFromFirestore = {};
+
+          if (docSnap.exists()) {
+            userDataFromFirestore = docSnap.data();
+            // Opcional: Atualizar timestamp de último login ou outros campos se desejar
+            // Exemplo:
+            // await updateDoc(userDocRef, { lastLoginAt: serverTimestamp() });
+          } else {
+            // Se o documento do usuário não existe no Firestore, crie-o.
+            // Isso é essencial para usuários que se cadastraram antes de ter essa lógica,
+            // ou se o documento foi deletado manualmente.
+            console.log(
+              `[OLLO] Criando documento de perfil para ${firebaseUser.uid} (usuário recém-logado/migrado/sem perfil).`
+            );
+            await setDoc(
+              userDocRef,
+              {
+                uid: firebaseUser.uid,
+                email: firebaseUser.email,
+                displayName:
+                  firebaseUser.displayName || firebaseUser.email.split('@')[0], // Define um display name padrão
+                photoURL: firebaseUser.photoURL || '',
+                bio: '',
+                username: '', // Adicione outros campos padrão que seu perfil possui
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+                emailVerified: firebaseUser.emailVerified,
+              },
+              { merge: true }
+            ); // Use merge:true para garantir que não apaga outros campos se o doc for parcialmente criado
+
+            // Após criar, obtenha os dados para garantir que currentUser esteja completo
+            const newDocSnap = await getDoc(userDocRef);
+            userDataFromFirestore = newDocSnap.data();
+          }
 
           // Combina dados do Auth e do Firestore
           setCurrentUser({
@@ -54,13 +113,15 @@ export const AuthProvider = ({ children }) => {
             emailVerified: firebaseUser.emailVerified,
             displayName: firebaseUser.displayName,
             photoURL: firebaseUser.photoURL,
-            ...userDataFromFirestore,
+            ...userDataFromFirestore, // Os dados do Firestore complementam/substituem os do Auth se existirem
           });
         } catch (error) {
           console.error(
-            '[OLLO] Erro ao buscar perfil do usuário no Firestore:',
+            '[OLLO] Erro ao buscar ou criar perfil do usuário no Firestore:',
             error
           );
+          // Em caso de erro grave no Firestore, ainda tentamos definir o currentUser
+          // com os dados do Auth para que o app não quebre completamente.
           setCurrentUser({
             uid: firebaseUser.uid,
             email: firebaseUser.email,
@@ -70,13 +131,18 @@ export const AuthProvider = ({ children }) => {
           });
         }
       } else {
+        // --- DEBUG OLLO ---
+        console.log(
+          'DEBUG OLLO AuthContext: Nenhum usuário autenticado (firebaseUser é null).'
+        );
+        // --- FIM DEBUG OLLO ---
         setCurrentUser(null);
       }
       setLoading(false);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, []); // Dependência vazia, pois onAuthStateChanged já é um listener externo
 
   // Login
   const loginWithEmail = useCallback(async (email, password) => {
@@ -88,6 +154,7 @@ export const AuthProvider = ({ children }) => {
       );
       return { success: true, user: userCredential.user };
     } catch (error) {
+      console.error('[OLLO] Erro no login:', error); // Adicionei log aqui também
       return { success: false, error };
     }
   }, []);
@@ -99,7 +166,9 @@ export const AuthProvider = ({ children }) => {
       if (navigate) {
         navigate('/login');
       }
-    } catch {
+    } catch (error) {
+      // Capture o erro para logar
+      console.error('[OLLO] Erro no logout:', error); // Adicionei log aqui
       toast.error('Não foi possível sair.');
     }
   }, []);
@@ -119,6 +188,13 @@ export const AuthProvider = ({ children }) => {
         photoURL: additionalData.avatarUrl || '',
       });
 
+      // --- DEBUG OLLO ---
+      console.log(
+        'DEBUG OLLO AuthContext: Tentando setDoc para users/',
+        user.uid
+      );
+      // --- FIM DEBUG OLLO ---
+
       await setDoc(doc(db, 'users', user.uid), {
         uid: user.uid,
         name: additionalData.name || '',
@@ -135,6 +211,7 @@ export const AuthProvider = ({ children }) => {
 
       return { success: true, user };
     } catch (error) {
+      console.error('[OLLO] Erro no registro:', error); // Adicionei log aqui
       return { success: false, error };
     }
   };
@@ -145,6 +222,7 @@ export const AuthProvider = ({ children }) => {
       await sendPasswordResetEmail(auth, email);
       return { success: true };
     } catch (error) {
+      console.error('[OLLO] Erro no reset de senha:', error); // Adicionei log aqui
       return { success: false, error };
     }
   };
@@ -166,7 +244,7 @@ export const AuthProvider = ({ children }) => {
         children
       ) : (
         <div className="flex items-center justify-center min-h-screen">
-          <div className="w-16 h-16 border-4 border-ollo-primary-500 border-t-transparent rounded-full animate-spin" />
+          <div className="w-16 h-16 border-4 border-ollo-accent-light border-t-transparent rounded-full animate-spin" />
         </div>
       )}
     </AuthContext.Provider>

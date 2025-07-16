@@ -9,25 +9,21 @@ import {
   Image as ImageIcon,
 } from '@phosphor-icons/react';
 
-// --- NOVAS IMPORTAÇÕES DO FIREBASE ---
-import { auth, db } from '../firebase/config'; // Garanta que este caminho está correto
-import { onAuthStateChanged } from 'firebase/auth';
+import { db } from '../firebase/config';
 import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
-// --- FIM DAS NOVAS IMPORTAÇÕES ---
 
-import { useAuth } from '../context/AuthContext'; // Mantido para obter o currentUser enriquecido
+import { useAuth } from '../context/AuthContext';
 import PostCard from '../components/PostCard';
 import StoriesReel from '../components/StoriesReel';
 import CreatePostModal from '../components/CreatePostModal';
 import StoryModal from '../components/StoryModal';
 import CreateStoryModal from '../components/CreateStoryModal';
 
-// MOCK EXEMPLO — mantido como fallback ou para uso futuro
+// MOCK para stories
 const mockStories = [
-  // ...
+  // Coloque seus dados de exemplo aqui ou deixe vazio
 ];
 
-// O esqueleto do PostCard foi movido para o final do arquivo para melhor organização
 const PostCardSkeleton = () => (
   <div className="p-5 rounded-2xl bg-gray-100 dark:bg-gray-800 border border-gray-200/70 dark:border-gray-700/50">
     <div className="flex items-center gap-3 mb-4">
@@ -49,10 +45,13 @@ const PostCardSkeleton = () => (
 );
 
 const HomePage = ({ onCommentSubmit, onDeletePost }) => {
-  const { currentUser } = useAuth();
+  const { currentUser, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
-  // --- ESTADOS EXISTENTES MANTIDOS ---
+  // DEBUG para garantir o fluxo correto
+  console.log('DEBUG OLLO | currentUser:', currentUser);
+  console.log('DEBUG OLLO | authLoading:', authLoading);
+
   const [posts, setPosts] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -60,58 +59,45 @@ const HomePage = ({ onCommentSubmit, onDeletePost }) => {
   const [isStoryModalOpen, setIsStoryModalOpen] = useState(false);
   const [modalIndex, setModalIndex] = useState(null);
 
-  // --- LÓGICA DE BUSCA DE DADOS REFEITA ---
+  // --- BUSCA DE POSTS: SÓ QUANDO USUÁRIO ESTIVER AUTENTICADO ---
   useEffect(() => {
-    // Este é o "porteiro" do Firebase. Ele só executa o código
-    // quando tem certeza sobre o status de login do usuário.
-    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        // O usuário ESTÁ logado. Agora é seguro buscar os dados.
-        setIsLoading(true);
+    // Só executa após a autenticação estar 100% concluída
+    if (authLoading) return;
 
-        const postsCollectionRef = collection(db, 'posts');
-        // Cria uma query para ordenar os posts pelos mais recentes
-        const q = query(postsCollectionRef, orderBy('createdAt', 'desc'));
+    // Só busca posts se houver usuário logado
+    if (!currentUser) {
+      setPosts([]);
+      setIsLoading(false);
+      console.log('HomePage: Nenhum usuário logado. Limpando posts.');
+      return;
+    }
 
-        // onSnapshot cria um listener em tempo real. Os posts atualizarão sozinhos.
-        const unsubscribePosts = onSnapshot(
-          q,
-          (snapshot) => {
-            const postsData = snapshot.docs.map((doc) => ({
-              id: doc.id,
-              ...doc.data(),
-            }));
-            setPosts(postsData);
-            setIsLoading(false);
-          },
-          (error) => {
-            console.error('Erro ao buscar posts do Firestore:', error);
-            // Aqui o erro original acontecia!
-            setIsLoading(false);
-          }
-        );
+    setIsLoading(true);
+    const postsCollectionRef = collection(db, 'posts');
+    const q = query(postsCollectionRef, orderBy('createdAt', 'desc'));
 
-        // Retornamos a função de limpeza do listener de posts
-        return () => unsubscribePosts();
-      } else {
-        // O usuário NÃO está logado. Limpamos os dados e paramos o loading.
-        console.log('HomePage: Nenhum usuário logado. Limpando posts.');
-        setPosts([]);
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const postsData = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setPosts(postsData);
+        setIsLoading(false);
+      },
+      (error) => {
+        console.error('Erro ao buscar posts do Firestore:', error);
         setIsLoading(false);
       }
-    });
+    );
 
-    // Retornamos a função de limpeza do listener de autenticação
-    // quando o componente HomePage for desmontado.
-    return () => unsubscribeAuth();
-  }, []); // O array vazio [] garante que esta lógica rode apenas uma vez.
+    // Cleanup do listener ao desmontar/comutar usuário
+    return () => unsubscribe();
+  }, [currentUser, authLoading]);
 
-  // --- TODAS AS SUAS FUNÇÕES HANDLER FORAM MANTIDAS INTOCADAS ---
-
+  // --- HANDLERS ---
   const handleNewPost = (newPost) => {
-    // Esta função agora pode ser modificada para adicionar o post ao Firestore,
-    // o onSnapshot cuidará de atualizar a tela automaticamente.
-    // Por enquanto, a lógica original foi mantida.
     setPosts((prev) => [
       {
         ...newPost,
@@ -157,9 +143,7 @@ const HomePage = ({ onCommentSubmit, onDeletePost }) => {
 
   const handleOpenCreateStory = () => setIsStoryModalOpen(true);
   const handleCloseCreateStory = () => setIsStoryModalOpen(false);
-  const handleStoryCreated = () => {
-    setIsStoryModalOpen(false);
-  };
+  const handleStoryCreated = () => setIsStoryModalOpen(false);
 
   const getFirstName = (name) => {
     if (typeof name === 'string' && name.trim().length > 0) {
@@ -167,8 +151,6 @@ const HomePage = ({ onCommentSubmit, onDeletePost }) => {
     }
     return 'OLLO';
   };
-
-  // --- SEU JSX FOI MANTIDO 100% INTOCADO ---
 
   return (
     <div className="flex flex-col lg:flex-row lg:gap-x-6 xl:gap-x-8 pt-1 px-4 sm:px-6 lg:px-8">

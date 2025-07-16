@@ -6,7 +6,8 @@ import { useForm } from 'react-hook-form';
 // Importamos useAuth do nosso contexto, que agora vai nos dar a função de registro
 import { useAuth } from '../context/AuthContext';
 // Importamos a função para salvar o perfil do usuário no Firestore
-import { createUserProfile } from '../firebase/userFirestore'; // Ajuste o caminho se userFirestore.js estiver em outro lugar
+// import { createUserProfile } from '../firebase/userFirestore'; // LINHA 9: COMENTADA
+import * as FirestoreService from '../firebase/userFirestore'; // <--- NOVA LINHA DE IMPORTAÇÃO (LINHA 9 AGORA)
 // Importamos a função do Firebase Auth para enviar e-mail de verificação
 import { sendEmailVerification } from 'firebase/auth'; // Importado diretamente do SDK do Firebase
 
@@ -83,7 +84,9 @@ const RegisterPage = () => {
       }
 
       // 2. SALVAR DADOS ADICIONAIS DO PERFIL NO FIRESTORE
-      await createUserProfile(user.uid, profileData);
+      // await createUserProfile(user.uid, profileData); // LINHA ANTIGA
+      await FirestoreService.createUserProfile(user.uid, profileData); // <--- NOVA CHAMADA
+
       console.log('Perfil do usuário salvo no Firestore:', user.uid);
 
       // 3. ENVIAR E-MAIL DE VERIFICAÇÃO

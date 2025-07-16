@@ -8,6 +8,7 @@ import {
   Smiley,
   SpinnerGap,
 } from '@phosphor-icons/react';
+import { serverTimestamp } from 'firebase/firestore';
 
 export default function PostForm({ onPost, currentUser }) {
   const [content, setContent] = useState('');
@@ -25,18 +26,24 @@ export default function PostForm({ onPost, currentUser }) {
   }, [mediaPreviews]);
 
   useEffect(() => {
-    if (formContainerRef.current) {
-      const resizeObserver = new ResizeObserver(() => {
-        formContainerRef.current.style.maxHeight = '80vh';
-        formContainerRef.current.style.overflowY = 'auto';
+    const currentFormContainerRef = formContainerRef.current;
+    let resizeObserver;
+
+    if (currentFormContainerRef) {
+      resizeObserver = new ResizeObserver(() => {
+        if (formContainerRef.current) {
+          formContainerRef.current.style.maxHeight = '80vh';
+          formContainerRef.current.style.overflowY = 'auto';
+        }
       });
-
-      resizeObserver.observe(formContainerRef.current);
-
-      return () => {
-        resizeObserver.disconnect();
-      };
+      resizeObserver.observe(currentFormContainerRef);
     }
+
+    return () => {
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
+    };
   }, []);
 
   const handleMediaChange = (e) => {
@@ -65,10 +72,9 @@ export default function PostForm({ onPost, currentUser }) {
 
     setIsSubmitting(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 800));
+      await new Promise((resolve) => setTimeout(resolve, 800)); // Simula delay de rede
 
       const newPost = {
-        id: Date.now().toString(),
         content: content.trim(),
         media: mediaPreviews.map((preview) => ({
           url: preview.url,
@@ -78,10 +84,11 @@ export default function PostForm({ onPost, currentUser }) {
           name: currentUser?.name || 'Usuário OLLO',
           avatar: currentUser?.avatarUrl || '/images/default-avatar.png',
         },
-        createdAt: new Date().toISOString(),
+        createdAt: serverTimestamp(), // Timestamp do Firestore
         likes: [],
         comments: [],
-        authorId: currentUser?.uid, // <-- ESSENCIAL para funcionar com a regra do Firestore!
+        uid: currentUser?.uid, // ESSENCIAL para as regras do Firestore
+        authorId: currentUser?.uid, // Opcional (para exibição)
       };
 
       await onPost(newPost);
@@ -117,12 +124,10 @@ export default function PostForm({ onPost, currentUser }) {
 
   return (
     <div className="relative w-full max-w-2xl mx-auto">
-      {/* Container principal com efeito vidro e cores ajustadas */}
       <div
         ref={formContainerRef}
         className="relative z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm p-6 rounded-2xl shadow-lg border-2 border-green-300 dark:border-green-600 max-h-[80vh] overflow-y-auto"
       >
-        {/* Cabeçalho */}
         <div className="flex items-start gap-4 mb-6">
           <div className="flex-shrink-0 h-12 w-12 rounded-full overflow-hidden border-2 border-ollo-primary-400">
             <img
@@ -143,7 +148,6 @@ export default function PostForm({ onPost, currentUser }) {
           </div>
         </div>
 
-        {/* Área de texto */}
         <textarea
           ref={textareaRef}
           placeholder="No que você está pensando?"
@@ -152,7 +156,6 @@ export default function PostForm({ onPost, currentUser }) {
           onChange={(e) => setContent(e.target.value)}
         />
 
-        {/* Pré-visualização de mídia */}
         {mediaPreviews.length > 0 && (
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
             {mediaPreviews.map((preview) => (
@@ -188,7 +191,6 @@ export default function PostForm({ onPost, currentUser }) {
           </div>
         )}
 
-        {/* Opções de mídia */}
         <div className="mt-4 flex items-center justify-between p-3 rounded-xl bg-ollo-light-100/50 dark:bg-ollo-dark-700/50 border border-ollo-light-200/50 dark:border-ollo-dark-600/50">
           <span className="text-sm font-medium text-ollo-dark-600 dark:text-ollo-light-300">
             Adicionar à publicação
@@ -243,7 +245,6 @@ export default function PostForm({ onPost, currentUser }) {
           </div>
         </div>
 
-        {/* Botão de envio */}
         <div className="mt-6 flex justify-end">
           <button
             type="submit"
@@ -272,7 +273,6 @@ export default function PostForm({ onPost, currentUser }) {
         </div>
       </div>
 
-      {/* Efeito de borda sutil */}
       <div className="absolute -inset-0.5 rounded-2xl bg-gradient-to-r from-green-300/40 to-green-400/40 dark:from-green-500/30 dark:to-green-400/30 blur-sm -z-10" />
     </div>
   );
