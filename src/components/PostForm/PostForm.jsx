@@ -1,4 +1,6 @@
+// src/components/PostForm/PostForm.jsx
 // atualizado em junho de 2025
+
 import { useState, useEffect, useRef } from 'react';
 import {
   PaperPlaneRight,
@@ -8,9 +10,14 @@ import {
   Smiley,
   SpinnerGap,
 } from '@phosphor-icons/react';
-import { serverTimestamp } from 'firebase/firestore';
+// IMPORTAÇÕES DO FIREBASE FIRESTORE E AUTH
+import { db, auth } from '../../firebase/config'; // Caminho para seu firebase/config.js
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage'; // Para upload de mídia
 
-export default function PostForm({ onPost, currentUser }) {
+// Certifique-se de que o onClose está sendo passado como prop, conforme combinado anteriormente
+export default function PostForm({ onPost, currentUser, onClose }) {
+  // Adicionei onClose aqui
   const [content, setContent] = useState('');
   const [mediaPreviews, setMediaPreviews] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -18,6 +25,9 @@ export default function PostForm({ onPost, currentUser }) {
   const fileInputRef = useRef(null);
   const textareaRef = useRef(null);
   const formContainerRef = useRef(null);
+
+  // Inicializa o Storage do Firebase
+  const storage = getStorage();
 
   useEffect(() => {
     return () => {
@@ -52,7 +62,7 @@ export default function PostForm({ onPost, currentUser }) {
 
     const invalidFiles = files.filter((file) => file.size > 5 * 1024 * 1024);
     if (invalidFiles.length) {
-      alert('Alguns arquivos são muito grandes (máximo 5MB)');
+      alert('Alguns arquivos são muito grandes (máximo 5MB).');
       return;
     }
 
@@ -60,42 +70,83 @@ export default function PostForm({ onPost, currentUser }) {
       id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       url: URL.createObjectURL(file),
       type: file.type.startsWith('video') ? 'video' : 'image',
-      file,
+      file, // Mantemos o objeto File original para upload
     }));
 
     setMediaPreviews((prev) => [...prev, ...newPreviews]);
   };
 
+  // Alterada para async para lidar com upload e Firestore
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!content.trim() && !mediaPreviews.length) return;
+    if (!content.trim() && mediaPreviews.length === 0) {
+      // Alterei para === 0 para clareza
+      alert('O conteúdo do post não pode estar vazio nem sem mídia!');
+      return;
+    }
 
     setIsSubmitting(true);
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 800)); // Simula delay de rede
 
-      const newPost = {
+    // Verificação de autenticação no início do submit
+    if (!auth.currentUser) {
+      alert('Você precisa estar logado para publicar!');
+      setIsSubmitting(false);
+      // Opcional: Aqui você poderia redirecionar para o login
+      return;
+    }
+
+    let uploadedMedia = [];
+    try {
+      // 1. Upload de Mídia (se houver)
+      if (mediaPreviews.length > 0) {
+        const uploadPromises = mediaPreviews.map(async (preview) => {
+          const storageRef = ref(
+            storage,
+            `posts/${auth.currentUser.uid}/${preview.id}-${preview.file.name}`
+          );
+          await uploadBytes(storageRef, preview.file);
+          const downloadURL = await getDownloadURL(storageRef);
+          return {
+            url: downloadURL,
+            type: preview.type,
+            // Poderíamos adicionar outras infos do arquivo original aqui se necessário
+          };
+        });
+        uploadedMedia = await Promise.all(uploadPromises);
+      }
+
+      // 2. Criar o objeto do post para o Firestore
+      const newPostData = {
+        uid: auth.currentUser.uid, // ID do usuário autenticado (ESSENCIAL para as regras)
+        userName: auth.currentUser.displayName || 'Usuário OLLO', // Nome do usuário
+        userPhotoURL: auth.currentUser.photoURL || '/images/default-avatar.png', // URL da foto do usuário
         content: content.trim(),
-        media: mediaPreviews.map((preview) => ({
-          url: preview.url,
-          type: preview.type,
-        })),
-        user: {
-          name: currentUser?.name || 'Usuário OLLO',
-          avatar: currentUser?.avatarUrl || '/images/default-avatar.png',
-        },
-        createdAt: serverTimestamp(), // Timestamp do Firestore
-        likes: [],
-        comments: [],
-        uid: currentUser?.uid, // ESSENCIAL para as regras do Firestore
-        authorId: currentUser?.uid, // Opcional (para exibição)
+        media: uploadedMedia, // Usar as URLs das mídias carregadas
+        createdAt: serverTimestamp(), // Carimbo de data/hora do servidor
+        likes: [], // Pode ser um array de UIDs ou um contador, dependendo da sua estratégia
+        commentsCount: 0,
       };
 
-      await onPost(newPost);
+      // 3. Adicionar o documento ao Firestore
+      const postsCollectionRef = collection(db, 'posts');
+      await addDoc(postsCollectionRef, newPostData);
+
+      // 4. Limpar o formulário e fechar o modal
       setContent('');
+      mediaPreviews.forEach((preview) => URL.revokeObjectURL(preview.url)); // Limpa as URLs de preview
       setMediaPreviews([]);
+      // onPost pode ser chamada aqui se você tem uma lógica no pai para atualizar a lista
+      // onPost(newPostData); // Passa os dados do novo post para o pai, se necessário
+
+      alert('Post publicado com sucesso!'); // Feedback visual
+
+      // Chamada para fechar o modal, se a prop onClose for fornecida
+      if (onClose) {
+        onClose();
+      }
     } catch (error) {
-      console.error('Erro ao criar post:', error);
+      console.error('Erro ao criar post ou fazer upload de mídia:', error);
+      alert('Ocorreu um erro ao publicar seu post. Tente novamente.');
     } finally {
       setIsSubmitting(false);
     }
@@ -248,9 +299,9 @@ export default function PostForm({ onPost, currentUser }) {
         <div className="mt-6 flex justify-end">
           <button
             type="submit"
-            onClick={handleSubmit}
+            onClick={handleSubmit} // Chamando a função handleSubmit
             disabled={
-              isSubmitting || (!content.trim() && !mediaPreviews.length)
+              isSubmitting || (!content.trim() && mediaPreviews.length === 0)
             }
             className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all ${
               (!content.trim() && mediaPreviews.length === 0) || isSubmitting

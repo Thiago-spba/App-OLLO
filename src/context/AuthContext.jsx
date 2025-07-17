@@ -1,4 +1,4 @@
-// src/context/AuthContext.jsx
+// src/context/AuthContext.jsx (CORRIGIDO E ESTABILIZADO)
 
 import React, {
   createContext,
@@ -6,6 +6,7 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useMemo, // 1. IMPORTAÇÃO ADICIONADA
 } from 'react';
 import {
   onAuthStateChanged,
@@ -22,7 +23,7 @@ import {
   setDoc,
   serverTimestamp,
   updateDoc,
-} from 'firebase/firestore'; // Adicionei updateDoc
+} from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
 import { toast } from 'react-hot-toast';
 
@@ -47,104 +48,56 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setLoading(true);
-
-      // --- DEBUG OLLO ---
-      console.log(
-        'DEBUG OLLO AuthContext: onAuthStateChanged - firebaseUser:',
-        firebaseUser
-      );
-      if (firebaseUser) {
-        console.log(
-          'DEBUG OLLO AuthContext: firebaseUser.uid:',
-          firebaseUser.uid
-        );
-      }
-      // --- FIM DEBUG OLLO ---
-
       if (firebaseUser) {
         try {
           const userDocRef = doc(db, 'users', firebaseUser.uid);
-          console.log(
-            'DEBUG OLLO AuthContext: userDocRef path:',
-            userDocRef.path
-          );
-
           const docSnap = await getDoc(userDocRef);
           let userDataFromFirestore = {};
 
           if (docSnap.exists()) {
             userDataFromFirestore = docSnap.data();
-            // Opcional: Atualizar timestamp de último login ou outros campos se desejar
-            // Exemplo:
-            // await updateDoc(userDocRef, { lastLoginAt: serverTimestamp() });
           } else {
-            // Se o documento do usuário não existe no Firestore, crie-o.
-            // Isso é essencial para usuários que se cadastraram antes de ter essa lógica,
-            // ou se o documento foi deletado manualmente.
             console.log(
-              `[OLLO] Criando documento de perfil para ${firebaseUser.uid} (usuário recém-logado/migrado/sem perfil).`
+              `[OLLO] Criando documento de perfil para ${firebaseUser.uid} (usuário novo).`
             );
-            await setDoc(
-              userDocRef,
-              {
-                uid: firebaseUser.uid,
-                email: firebaseUser.email,
-                displayName:
-                  firebaseUser.displayName || firebaseUser.email.split('@')[0], // Define um display name padrão
-                photoURL: firebaseUser.photoURL || '',
-                bio: '',
-                username: '', // Adicione outros campos padrão que seu perfil possui
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp(),
-                emailVerified: firebaseUser.emailVerified,
-              },
-              { merge: true }
-            ); // Use merge:true para garantir que não apaga outros campos se o doc for parcialmente criado
-
-            // Após criar, obtenha os dados para garantir que currentUser esteja completo
-            const newDocSnap = await getDoc(userDocRef);
-            userDataFromFirestore = newDocSnap.data();
+            const defaultProfileData = {
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              displayName:
+                firebaseUser.displayName || firebaseUser.email.split('@')[0],
+              photoURL: firebaseUser.photoURL || '',
+              bio: '',
+              username: '',
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+              emailVerified: firebaseUser.emailVerified,
+            };
+            await setDoc(userDocRef, defaultProfileData, { merge: true });
+            userDataFromFirestore = defaultProfileData;
           }
 
-          // Combina dados do Auth e do Firestore
+          // Combina dados do Auth e do Firestore para um objeto de usuário completo
           setCurrentUser({
-            uid: firebaseUser.uid,
-            email: firebaseUser.email,
-            emailVerified: firebaseUser.emailVerified,
-            displayName: firebaseUser.displayName,
-            photoURL: firebaseUser.photoURL,
-            ...userDataFromFirestore, // Os dados do Firestore complementam/substituem os do Auth se existirem
+            ...firebaseUser, // Dados brutos do Auth (necessário para métodos como .reload())
+            ...userDataFromFirestore, // Seus dados do Firestore
           });
         } catch (error) {
           console.error(
-            '[OLLO] Erro ao buscar ou criar perfil do usuário no Firestore:',
+            '[OLLO] Erro ao buscar/criar perfil no Firestore:',
             error
           );
-          // Em caso de erro grave no Firestore, ainda tentamos definir o currentUser
-          // com os dados do Auth para que o app não quebre completamente.
-          setCurrentUser({
-            uid: firebaseUser.uid,
-            email: firebaseUser.email,
-            emailVerified: firebaseUser.emailVerified,
-            displayName: firebaseUser.displayName,
-            photoURL: firebaseUser.photoURL,
-          });
+          setCurrentUser(firebaseUser); // Fallback apenas com dados do Auth
         }
       } else {
-        // --- DEBUG OLLO ---
-        console.log(
-          'DEBUG OLLO AuthContext: Nenhum usuário autenticado (firebaseUser é null).'
-        );
-        // --- FIM DEBUG OLLO ---
         setCurrentUser(null);
       }
       setLoading(false);
     });
 
     return () => unsubscribe();
-  }, []); // Dependência vazia, pois onAuthStateChanged já é um listener externo
+  }, []); // Dependência vazia é correta aqui
 
-  // Login
+  // Funções de ação (já estavam estáveis com useCallback)
   const loginWithEmail = useCallback(async (email, password) => {
     try {
       const userCredential = await signInWithEmailAndPassword(
@@ -154,12 +107,11 @@ export const AuthProvider = ({ children }) => {
       );
       return { success: true, user: userCredential.user };
     } catch (error) {
-      console.error('[OLLO] Erro no login:', error); // Adicionei log aqui também
+      console.error('[OLLO] Erro no login:', error);
       return { success: false, error };
     }
   }, []);
 
-  // Logout
   const logout = useCallback(async (navigate) => {
     try {
       await signOut(auth);
@@ -167,13 +119,11 @@ export const AuthProvider = ({ children }) => {
         navigate('/login');
       }
     } catch (error) {
-      // Capture o erro para logar
-      console.error('[OLLO] Erro no logout:', error); // Adicionei log aqui
+      console.error('[OLLO] Erro no logout:', error);
       toast.error('Não foi possível sair.');
     }
   }, []);
 
-  // Cadastro
   const registerWithEmail = async (email, password, additionalData = {}) => {
     try {
       const userCredential = await createUserWithEmailAndPassword(
@@ -187,13 +137,6 @@ export const AuthProvider = ({ children }) => {
         displayName: additionalData.name || '',
         photoURL: additionalData.avatarUrl || '',
       });
-
-      // --- DEBUG OLLO ---
-      console.log(
-        'DEBUG OLLO AuthContext: Tentando setDoc para users/',
-        user.uid
-      );
-      // --- FIM DEBUG OLLO ---
 
       await setDoc(doc(db, 'users', user.uid), {
         uid: user.uid,
@@ -211,31 +154,33 @@ export const AuthProvider = ({ children }) => {
 
       return { success: true, user };
     } catch (error) {
-      console.error('[OLLO] Erro no registro:', error); // Adicionei log aqui
+      console.error('[OLLO] Erro no registro:', error);
       return { success: false, error };
     }
   };
 
-  // Reset de senha
   const resetPassword = async (email) => {
     try {
       await sendPasswordResetEmail(auth, email);
       return { success: true };
     } catch (error) {
-      console.error('[OLLO] Erro no reset de senha:', error); // Adicionei log aqui
+      console.error('[OLLO] Erro no reset de senha:', error);
       return { success: false, error };
     }
   };
 
-  // Valor exportado pelo contexto
-  const value = {
-    currentUser,
-    loading,
-    loginWithEmail,
-    logout,
-    registerWithEmail,
-    resetPassword,
-  };
+  // 2. ESTABILIZAÇÃO DO OBJETO DE VALOR DO CONTEXTO
+  const value = useMemo(
+    () => ({
+      currentUser,
+      loading,
+      loginWithEmail,
+      logout,
+      registerWithEmail,
+      resetPassword,
+    }),
+    [currentUser, loading, loginWithEmail, logout]
+  ); // As dependências são os valores que, se mudarem, devem gerar um novo objeto `value`
 
   // Renderização com loading spinner
   return (
@@ -250,10 +195,3 @@ export const AuthProvider = ({ children }) => {
     </AuthContext.Provider>
   );
 };
-
-/*
-  [OLLO] Contexto de autenticação centralizado.
-  - Sempre reflete o estado mais recente do usuário.
-  - Evita race conditions.
-  - Pronto para uso em rotas protegidas, menus, etc.
-*/
