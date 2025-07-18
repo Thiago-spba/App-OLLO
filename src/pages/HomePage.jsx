@@ -24,7 +24,34 @@ import StoriesReel from '../components/StoriesReel';
 import StoryModal from '../components/StoryModal';
 import CreateStoryModal from '../components/CreateStoryModal';
 
-// --- Componentes Internos da Página (sem alterações) ---
+// --- DADOS DE EXEMPLO PARA A VITRINE (AJUSTADO: Comentário removido do mock-1 e URL da imagem externa substituída) ---
+const mockPosts = [
+  {
+    id: 'mock-1',
+    userName: 'Explorador Ollo',
+    userAvatar: '/images/default-avatar.png',
+    content:
+      'Descubra o mundo com OLLO! Conecte-se e compartilhe suas ideias com nossa comunidade. Clique para saber mais!',
+    imageUrl: '/images/mock-post-image.jpg', // <<<<<<<<<< MODIFICADA AQUI: Usando imagem local (certifique-se de ter esta imagem em public/images) <<<<<<<<<<
+    createdAt: new Timestamp(Date.now() / 1000 - 3600, 0), // 1 hora atrás
+    likes: ['anon1', 'anon2', 'anon3'],
+    comments: [], // AGORA ESTÁ VAZIO
+  },
+  {
+    id: 'mock-2',
+    userName: 'Comunidade Ollo',
+    userAvatar: '/images/default-avatar.png',
+    content:
+      'Seja bem-vindo(a)! Crie seu perfil, faça sua primeira publicação e comece a seguir pessoas que te inspiram. O Ollo te espera!',
+    imageUrl: '', // Sem imagem para este post
+    createdAt: new Timestamp(Date.now() / 1000 - 7200, 0), // 2 horas atrás
+    likes: ['anon4', 'anon5'],
+    comments: [],
+  },
+  // Adicione mais posts de exemplo se desejar
+];
+
+// --- Componentes Internos da Página ---
 const CreatePostWidget = ({ currentUser, onOpenModal }) => {
   const getFirstName = (name) =>
     typeof name === 'string' && name.trim().length > 0
@@ -54,7 +81,14 @@ const CreatePostWidget = ({ currentUser, onOpenModal }) => {
   );
 };
 
-const FeedSection = ({ posts, isLoading, onAddComment, onDeletePost }) => {
+// <<<<<<<<<< MODIFICADA AQUI: ADICIONADA 'navigate' nas props de FeedSection e PostCard <<<<<<<<<<
+const FeedSection = ({
+  posts,
+  isLoading,
+  onAddComment,
+  onDeletePost,
+  navigate, // ADICIONADA AQUI
+}) => {
   const { currentUser } = useAuth();
   const { darkMode } = useTheme();
 
@@ -63,32 +97,116 @@ const FeedSection = ({ posts, isLoading, onAddComment, onDeletePost }) => {
       <div className="text-center p-8 text-gray-400">Carregando OLLOs...</div>
     );
   }
-  if (!posts || posts.length === 0) {
-    return (
-      <div className="text-center p-8 text-gray-500">
-        Ainda não há OLLOs para ver. Seja o primeiro!
-      </div>
-    );
-  }
   return (
     <div className="bg-white dark:bg-ollo-deep/80 rounded-2xl border border-gray-200 dark:border-gray-700/60">
-      {posts.map((post, index) => (
-        <PostCard
-          key={post.id}
-          postData={post}
-          onAddComment={onAddComment}
-          onDeletePost={onDeletePost}
-          darkMode={darkMode}
-          currentUser={currentUser}
-          isLast={index === posts.length - 1}
-        />
-      ))}
+      {posts && posts.length > 0 ? (
+        posts.map((post, index) => (
+          <PostCard
+            key={post.id}
+            postData={post}
+            onAddComment={onAddComment}
+            onDeletePost={onDeletePost}
+            darkMode={darkMode}
+            currentUser={currentUser}
+            isLast={index === posts.length - 1}
+            navigate={navigate} // ADICIONADA AQUI
+          />
+        ))
+      ) : (
+        <div className="text-center p-8 text-gray-500 dark:text-gray-400">
+          Não há OLLOs para exibir no momento.
+        </div>
+      )}
     </div>
   );
 };
 
-const RightSidebar = () => {
-  /* ...código mantido, sem alterações... */
+// <<<<<<<<<< MODIFICADA AQUI: ADICIONADA 'navigate' nas props de RightSidebar e proteções de clique <<<<<<<<<<
+const RightSidebar = ({ navigate }) => {
+  // ADICIONADA AQUI
+  // Função utilitária para proteger cliques, similar à do PostCard
+  const handleProtectedClick = useCallback(
+    (event) => {
+      event.preventDefault(); // Impede o comportamento padrão do link
+      navigate('/login');
+    },
+    [navigate]
+  );
+
+  return (
+    <aside className="hidden lg:block space-y-6">
+      {/* Exemplo de Conteúdo da Sidebar Direita */}
+      <div className="bg-white dark:bg-ollo-deep/80 rounded-2xl p-4 border border-gray-200 dark:border-gray-700/60">
+        <h3 className="font-semibold text-lg text-gray-800 dark:text-gray-100 mb-4">
+          Quem seguir
+        </h3>
+        <ul className="space-y-3">
+          <li>
+            <a
+              href="#"
+              className="flex items-center gap-3 text-gray-600 dark:text-gray-300 hover:text-ollo-deep dark:hover:text-ollo-accent-light transition-colors"
+              onClick={handleProtectedClick} // NOVA AQUI
+            >
+              <img
+                src="/images/default-avatar.png" // MODIFICADA AQUI: Corrigindo URL
+                alt="User Avatar"
+                className="w-10 h-10 rounded-full"
+              />
+              <span className="font-medium">Usuário Teste 1</span>
+            </a>
+          </li>
+          <li>
+            <a
+              href="#"
+              className="flex items-center gap-3 text-gray-600 dark:text-gray-300 hover:text-ollo-deep dark:hover:text-ollo-accent-light transition-colors"
+              onClick={handleProtectedClick} // NOVA AQUI
+            >
+              <img
+                src="/images/default-avatar.png" // MODIFICADA AQUI: Corrigindo URL
+                alt="User Avatar"
+                className="w-10 h-10 rounded-full"
+              />
+              <span className="font-medium">Usuário Teste 2</span>
+            </a>
+          </li>
+        </ul>
+      </div>
+      <div className="bg-white dark:bg-ollo-deep/80 rounded-2xl p-4 border border-gray-200 dark:border-gray-700/60">
+        <h3 className="font-semibold text-lg text-gray-800 dark:text-gray-100 mb-4">
+          Assuntos do momento
+        </h3>
+        <ul className="space-y-2 text-gray-600 dark:text-gray-300">
+          <li>
+            <a
+              href="#"
+              className="hover:text-ollo-deep dark:hover:text-ollo-accent-light transition-colors"
+              onClick={handleProtectedClick} // NOVA AQUI
+            >
+              #Tecnologia
+            </a>
+          </li>
+          <li>
+            <a
+              href="#"
+              className="hover:text-ollo-deep dark:hover:text-ollo-accent-light transition-colors"
+              onClick={handleProtectedClick} // NOVA AQUI
+            >
+              #InteligenciaArtificial
+            </a>
+          </li>
+          <li>
+            <a
+              href="#"
+              className="hover:text-ollo-deep dark:hover:text-ollo-accent-light transition-colors"
+              onClick={handleProtectedClick} // NOVA AQUI
+            >
+              #Natureza
+            </a>
+          </li>
+        </ul>
+      </div>
+    </aside>
+  );
 };
 
 // --- Dados de Exemplo para Stories ---
@@ -115,7 +233,8 @@ const HomePage = () => {
   const { currentUser, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
-  const [posts, setPosts] = useState([]);
+  // Inicializa posts com mockPosts para a vitrine
+  const [posts, setPosts] = useState(mockPosts);
   const [postsLoading, setPostsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -125,61 +244,102 @@ const HomePage = () => {
 
   // Lógica de carregamento de posts robusta
   useEffect(() => {
-    if (authLoading) return;
+    if (currentUser) {
+      setPostsLoading(true);
+      const postsCollectionRef = collection(db, 'posts');
+      const q = query(postsCollectionRef, orderBy('createdAt', 'desc'));
 
-    if (!currentUser) {
-      setPosts([]);
+      const unsubscribe = onSnapshot(
+        q,
+        (snapshot) => {
+          const postsData = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }));
+          setPosts(postsData.length > 0 ? postsData : mockPosts);
+          setPostsLoading(false);
+        },
+        (error) => {
+          console.error(
+            'Erro ao buscar posts (perm_denied pode ser esperado se não logado):',
+            error
+          );
+          setPosts(mockPosts);
+          setPostsLoading(false);
+        }
+      );
+      return () => unsubscribe();
+    } else {
+      setPosts(mockPosts);
       setPostsLoading(false);
-      return;
     }
+  }, [currentUser]);
 
-    setPostsLoading(true);
-    const postsCollectionRef = collection(db, 'posts');
-    const q = query(postsCollectionRef, orderBy('createdAt', 'desc'));
-
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const postsData = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        setPosts(postsData);
-        setPostsLoading(false);
-      },
-      (error) => {
-        console.error('Erro ao buscar posts:', error);
-        setPostsLoading(false);
-      }
-    );
-
-    return () => unsubscribe();
-  }, [currentUser, authLoading]);
-
-  // Handlers (sem alterações)
+  // Handlers
   const handleCommentSubmit = useCallback(
     async (postId, commentText) => {
-      /* ...código mantido... */
+      if (!currentUser) {
+        navigate('/login');
+        return;
+      }
+      try {
+        const postRef = doc(db, 'posts', postId);
+        const newComment = {
+          userId: currentUser.uid,
+          userName: currentUser.name,
+          userAvatar: currentUser.avatarUrl || '/images/default-avatar.png',
+          content: commentText,
+          createdAt: Timestamp.now(),
+        };
+        await updateDoc(postRef, {
+          comments: arrayUnion(newComment),
+        });
+      } catch (error) {
+        console.error('Erro ao adicionar comentário:', error);
+      }
     },
     [currentUser, navigate]
   );
-  const handleDeletePost = useCallback(async (postId) => {
-    /* ...código mantido... */
-  }, []);
+  const handleDeletePost = useCallback(
+    async (postId) => {
+      if (!currentUser) {
+        navigate('/login');
+        return;
+      }
+      try {
+        await deleteDoc(doc(db, 'posts', postId));
+      } catch (error) {
+        console.error('Erro ao deletar post:', error);
+      }
+    },
+    [currentUser, navigate]
+  );
   const handleNewPost = () => setIsModalOpen(false);
   const handleOpenModal = () => {
     if (currentUser) setIsModalOpen(true);
+    else navigate('/login');
   };
-  const handleStoryClick = (story) => setCurrentStory(story);
+  const handleStoryClick = (story) => {
+    if (!currentUser) {
+      navigate('/login');
+      return;
+    }
+    setCurrentStory(story);
+  };
   const handleCloseStoryModal = () => setCurrentStory(null);
-  const handleOpenCreateStory = () => setIsStoryModalOpen(true);
+  const handleOpenCreateStory = () => {
+    if (!currentUser) {
+      navigate('/login');
+      return;
+    }
+    setIsStoryModalOpen(true);
+  };
   const handleCloseCreateStory = () => setIsStoryModalOpen(false);
 
   return (
     <div className="w-full max-w-screen-xl mx-auto px-4 lg:px-8 py-6">
       <div className="lg:grid lg:grid-cols-[1fr_340px] lg:gap-8">
         <main className="space-y-6">
-          {/* CORREÇÃO FINAL: StoriesReel descomentado e renderizado */}
           <StoriesReel
             stories={stories}
             onStoryClick={handleStoryClick}
@@ -196,9 +356,11 @@ const HomePage = () => {
             isLoading={postsLoading}
             onAddComment={handleCommentSubmit}
             onDeletePost={handleDeletePost}
+            navigate={navigate}
           />
         </main>
-        <RightSidebar />
+        {/* <<<<<<<<<< MODIFICADA AQUI: Passando 'navigate' para RightSidebar <<<<<<<<<< */}
+        <RightSidebar navigate={navigate} />
       </div>
 
       {/* Modais */}
@@ -209,10 +371,10 @@ const HomePage = () => {
           currentUser={currentUser}
         />
       )}
-      {currentStory && (
+      {currentStory && currentUser && (
         <StoryModal story={currentStory} onClose={handleCloseStoryModal} />
       )}
-      {isStoryModalOpen && (
+      {isStoryModalOpen && currentUser && (
         <CreateStoryModal onClose={handleCloseCreateStory} />
       )}
     </div>
