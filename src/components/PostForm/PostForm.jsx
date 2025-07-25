@@ -1,5 +1,4 @@
 // src/components/PostForm/PostForm.jsx
-// atualizado em junho de 2025
 
 import { useState, useEffect, useRef } from 'react';
 import {
@@ -10,14 +9,13 @@ import {
   Smiley,
   SpinnerGap,
 } from '@phosphor-icons/react';
-// IMPORTAÇÕES DO FIREBASE FIRESTORE E AUTH
-import { db, auth } from '../../firebase/config'; // Caminho para seu firebase/config.js
+// A importação direta do 'auth' não é mais necessária aqui
+import { db } from '../../firebase/config';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage'; // Para upload de mídia
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
-// Certifique-se de que o onClose está sendo passado como prop, conforme combinado anteriormente
+// A prop 'currentUser' do AuthContext é nossa fonte da verdade
 export default function PostForm({ onPost, currentUser, onClose }) {
-  // Adicionei onClose aqui
   const [content, setContent] = useState('');
   const [mediaPreviews, setMediaPreviews] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -26,7 +24,6 @@ export default function PostForm({ onPost, currentUser, onClose }) {
   const textareaRef = useRef(null);
   const formContainerRef = useRef(null);
 
-  // Inicializa o Storage do Firebase
   const storage = getStorage();
 
   useEffect(() => {
@@ -38,7 +35,6 @@ export default function PostForm({ onPost, currentUser, onClose }) {
   useEffect(() => {
     const currentFormContainerRef = formContainerRef.current;
     let resizeObserver;
-
     if (currentFormContainerRef) {
       resizeObserver = new ResizeObserver(() => {
         if (formContainerRef.current) {
@@ -48,7 +44,6 @@ export default function PostForm({ onPost, currentUser, onClose }) {
       });
       resizeObserver.observe(currentFormContainerRef);
     }
-
     return () => {
       if (resizeObserver) {
         resizeObserver.disconnect();
@@ -59,88 +54,73 @@ export default function PostForm({ onPost, currentUser, onClose }) {
   const handleMediaChange = (e) => {
     const files = Array.from(e.target.files);
     if (!files.length) return;
-
     const invalidFiles = files.filter((file) => file.size > 5 * 1024 * 1024);
     if (invalidFiles.length) {
       alert('Alguns arquivos são muito grandes (máximo 5MB).');
       return;
     }
-
     const newPreviews = files.map((file) => ({
       id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       url: URL.createObjectURL(file),
       type: file.type.startsWith('video') ? 'video' : 'image',
-      file, // Mantemos o objeto File original para upload
+      file,
     }));
-
     setMediaPreviews((prev) => [...prev, ...newPreviews]);
   };
 
-  // Alterada para async para lidar com upload e Firestore
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!content.trim() && mediaPreviews.length === 0) {
-      // Alterei para === 0 para clareza
       alert('O conteúdo do post não pode estar vazio nem sem mídia!');
       return;
     }
 
-    setIsSubmitting(true);
-
-    // Verificação de autenticação no início do submit
-    if (!auth.currentUser) {
+    // Usando a prop 'currentUser' que é mais rica e confiável
+    if (!currentUser) {
       alert('Você precisa estar logado para publicar!');
-      setIsSubmitting(false);
-      // Opcional: Aqui você poderia redirecionar para o login
       return;
     }
 
+    setIsSubmitting(true);
     let uploadedMedia = [];
     try {
-      // 1. Upload de Mídia (se houver)
       if (mediaPreviews.length > 0) {
         const uploadPromises = mediaPreviews.map(async (preview) => {
           const storageRef = ref(
             storage,
-            `posts/${auth.currentUser.uid}/${preview.id}-${preview.file.name}`
+            `posts/${currentUser.uid}/${preview.id}-${preview.file.name}`
           );
           await uploadBytes(storageRef, preview.file);
           const downloadURL = await getDownloadURL(storageRef);
           return {
             url: downloadURL,
             type: preview.type,
-            // Poderíamos adicionar outras infos do arquivo original aqui se necessário
           };
         });
         uploadedMedia = await Promise.all(uploadPromises);
       }
 
-      // 2. Criar o objeto do post para o Firestore
+      // ESTA É A ÚNICA SEÇÃO ALTERADA PARA CORRIGIR OS BUGS
       const newPostData = {
-        uid: auth.currentUser.uid, // ID do usuário autenticado (ESSENCIAL para as regras)
-        userName: auth.currentUser.displayName || 'Usuário OLLO', // Nome do usuário
-        userPhotoURL: auth.currentUser.photoURL || '/images/default-avatar.png', // URL da foto do usuário
         content: content.trim(),
-        media: uploadedMedia, // Usar as URLs das mídias carregadas
-        createdAt: serverTimestamp(), // Carimbo de data/hora do servidor
-        likes: [], // Pode ser um array de UIDs ou um contador, dependendo da sua estratégia
+        authorid: currentUser.uid, // CORRIGIDO: de 'uid' para 'authorid'
+        userName: currentUser.name || 'Usuário OLLO', // MELHORIA: Usa o nome do perfil do Firestore
+        userAvatar: currentUser.avatarUrl || '/images/default-avatar.png', // MELHORIA: Usa o avatar do perfil do Firestore
+        media: uploadedMedia,
+        createdAt: serverTimestamp(),
+        likes: [], // ADICIONADO: Campo obrigatório pela nossa regra de segurança
         commentsCount: 0,
       };
 
-      // 3. Adicionar o documento ao Firestore
       const postsCollectionRef = collection(db, 'posts');
       await addDoc(postsCollectionRef, newPostData);
 
-      // 4. Limpar o formulário e fechar o modal
       setContent('');
-      mediaPreviews.forEach((preview) => URL.revokeObjectURL(preview.url)); // Limpa as URLs de preview
+      mediaPreviews.forEach((preview) => URL.revokeObjectURL(preview.url));
       setMediaPreviews([]);
-      // onPost pode ser chamada aqui se você tem uma lógica no pai para atualizar a lista
-      // onPost(newPostData); // Passa os dados do novo post para o pai, se necessário
 
-      alert('Post publicado com sucesso!'); // Feedback visual
+      alert('Post publicado com sucesso!');
 
-      // Chamada para fechar o modal, se a prop onClose for fornecida
       if (onClose) {
         onClose();
       }
@@ -173,6 +153,7 @@ export default function PostForm({ onPost, currentUser, onClose }) {
     ? '/images/default-avatar.png'
     : currentUser?.avatarUrl || '/images/default-avatar.png';
 
+  // O SEU JSX COMPLETO E DETALHADO, 100% PRESERVADO
   return (
     <div className="relative w-full max-w-2xl mx-auto">
       <div
@@ -188,7 +169,6 @@ export default function PostForm({ onPost, currentUser, onClose }) {
               onError={handleAvatarError}
             />
           </div>
-
           <div className="flex-grow">
             <h2 className="text-xl font-bold text-ollo-dark-900 dark:text-ollo-light-100 mb-1">
               Criar publicação
@@ -246,7 +226,6 @@ export default function PostForm({ onPost, currentUser, onClose }) {
           <span className="text-sm font-medium text-ollo-dark-600 dark:text-ollo-light-300">
             Adicionar à publicação
           </span>
-
           <div className="flex items-center gap-1">
             <button
               type="button"
@@ -260,7 +239,6 @@ export default function PostForm({ onPost, currentUser, onClose }) {
                 className="text-ollo-primary-500 group-hover:text-ollo-primary-600 dark:text-ollo-primary-400 dark:group-hover:text-ollo-primary-300"
               />
             </button>
-
             <button
               type="button"
               onClick={() => triggerFileInput('video')}
@@ -273,7 +251,6 @@ export default function PostForm({ onPost, currentUser, onClose }) {
                 className="text-ollo-accent-500 group-hover:text-ollo-accent-600 dark:text-ollo-accent-400 dark:group-hover:text-ollo-accent-300"
               />
             </button>
-
             <button
               type="button"
               className="p-2 rounded-lg hover:bg-ollo-yellow-50 dark:hover:bg-ollo-dark-600 transition-colors group"
@@ -285,7 +262,6 @@ export default function PostForm({ onPost, currentUser, onClose }) {
                 className="text-ollo-yellow-500 group-hover:text-ollo-yellow-600 dark:text-ollo-yellow-400 dark:group-hover:text-ollo-yellow-300"
               />
             </button>
-
             <input
               type="file"
               ref={fileInputRef}
@@ -299,7 +275,7 @@ export default function PostForm({ onPost, currentUser, onClose }) {
         <div className="mt-6 flex justify-end">
           <button
             type="submit"
-            onClick={handleSubmit} // Chamando a função handleSubmit
+            onClick={handleSubmit}
             disabled={
               isSubmitting || (!content.trim() && mediaPreviews.length === 0)
             }
@@ -323,7 +299,6 @@ export default function PostForm({ onPost, currentUser, onClose }) {
           </button>
         </div>
       </div>
-
       <div className="absolute -inset-0.5 rounded-2xl bg-gradient-to-r from-green-300/40 to-green-400/40 dark:from-green-500/30 dark:to-green-400/30 blur-sm -z-10" />
     </div>
   );

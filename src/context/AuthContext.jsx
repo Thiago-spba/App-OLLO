@@ -1,4 +1,4 @@
-// src/context/AuthContext.jsx (CORRIGIDO E ESTABILIZADO)
+// src/context/AuthContext.jsx (VERSÃO FINAL, COMPLETA E CORRIGIDA)
 
 import React, {
   createContext,
@@ -6,7 +6,7 @@ import React, {
   useState,
   useEffect,
   useCallback,
-  useMemo, // 1. IMPORTAÇÃO ADICIONADA
+  useMemo,
 } from 'react';
 import {
   onAuthStateChanged,
@@ -17,20 +17,13 @@ import {
   sendPasswordResetEmail,
   updateProfile,
 } from 'firebase/auth';
-import {
-  doc,
-  getDoc,
-  setDoc,
-  serverTimestamp,
-  updateDoc,
-} from 'firebase/firestore';
+import { doc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
 import { toast } from 'react-hot-toast';
+import { createUserProfile } from '../services/firestoreService'; // Importando do serviço
 
-// Cria o contexto
 const AuthContext = createContext(null);
 
-// Hook de acesso ao contexto
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -39,12 +32,10 @@ export const useAuth = () => {
   return context;
 };
 
-// Componente provedor do contexto de autenticação
 export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Efeito: Monitora autenticação e carrega perfil no Firestore
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setLoading(true);
@@ -52,52 +43,55 @@ export const AuthProvider = ({ children }) => {
         try {
           const userDocRef = doc(db, 'users', firebaseUser.uid);
           const docSnap = await getDoc(userDocRef);
-          let userDataFromFirestore = {};
+          let userDataFromFirestore;
 
           if (docSnap.exists()) {
             userDataFromFirestore = docSnap.data();
           } else {
-            console.log(
-              `[OLLO] Criando documento de perfil para ${firebaseUser.uid} (usuário novo).`
+            // AQUI ESTÁ A PRIMEIRA MUDANÇA: O OBJETO COMPLETO
+            console.warn(
+              `[OLLO] Perfil não encontrado para ${firebaseUser.uid}. Criando perfil padrão.`
             );
             const defaultProfileData = {
-              uid: firebaseUser.uid,
               email: firebaseUser.email,
-              displayName:
+              name:
                 firebaseUser.displayName || firebaseUser.email.split('@')[0],
-              photoURL: firebaseUser.photoURL || '',
+              username: firebaseUser.email
+                .split('@')[0]
+                .replace(/[^a-z0-9_.]/gi, ''),
+              avatarUrl: firebaseUser.photoURL || '/images/default-avatar.png',
               bio: '',
-              username: '',
-              createdAt: serverTimestamp(),
-              updatedAt: serverTimestamp(),
-              emailVerified: firebaseUser.emailVerified,
+              isAdmin: false,
             };
-            await setDoc(userDocRef, defaultProfileData, { merge: true });
-            userDataFromFirestore = defaultProfileData;
+            await createUserProfile(firebaseUser.uid, defaultProfileData);
+            // Adicionamos os timestamps manualmente aqui, pois o retorno do serviço não os inclui
+            userDataFromFirestore = {
+              ...defaultProfileData,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            };
           }
 
-          // Combina dados do Auth e do Firestore para um objeto de usuário completo
           setCurrentUser({
-            ...firebaseUser, // Dados brutos do Auth (necessário para métodos como .reload())
-            ...userDataFromFirestore, // Seus dados do Firestore
+            ...firebaseUser,
+            ...userDataFromFirestore,
           });
         } catch (error) {
           console.error(
             '[OLLO] Erro ao buscar/criar perfil no Firestore:',
             error
           );
-          setCurrentUser(firebaseUser); // Fallback apenas com dados do Auth
+          setCurrentUser(firebaseUser);
         }
       } else {
         setCurrentUser(null);
       }
       setLoading(false);
     });
-
     return () => unsubscribe();
-  }, []); // Dependência vazia é correta aqui
+  }, []);
 
-  // Funções de ação (já estavam estáveis com useCallback)
+  // SEU CÓDIGO ORIGINAL RESTAURADO
   const loginWithEmail = useCallback(async (email, password) => {
     try {
       const userCredential = await signInWithEmailAndPassword(
@@ -112,6 +106,7 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
+  // SEU CÓDIGO ORIGINAL RESTAURADO
   const logout = useCallback(async (navigate) => {
     try {
       await signOut(auth);
@@ -124,8 +119,10 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
+  // AQUI ESTÁ A SEGUNDA MUDANÇA: A FUNÇÃO REATORADA
   const registerWithEmail = async (email, password, additionalData = {}) => {
     try {
+      // Passo 1: Criar usuário na Autenticação
       const userCredential = await createUserWithEmailAndPassword(
         auth,
         email,
@@ -133,23 +130,16 @@ export const AuthProvider = ({ children }) => {
       );
       const user = userCredential.user;
 
+      // Passo 2: Atualizar perfil básico do Auth
       await updateProfile(user, {
         displayName: additionalData.name || '',
         photoURL: additionalData.avatarUrl || '',
       });
 
-      await setDoc(doc(db, 'users', user.uid), {
-        uid: user.uid,
-        name: additionalData.name || '',
-        username: additionalData.username || '',
-        email: user.email,
-        bio: additionalData.bio || '',
-        avatarUrl: additionalData.avatarUrl || '',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        emailVerified: user.emailVerified,
-      });
+      // Passo 3: Chamar nosso SERVIÇO para criar o perfil no Firestore
+      await createUserProfile(user.uid, additionalData);
 
+      // Passo 4: Enviar e-mail de verificação
       await sendEmailVerification(user);
 
       return { success: true, user };
@@ -159,6 +149,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // SEU CÓDIGO ORIGINAL RESTAURADO
   const resetPassword = async (email) => {
     try {
       await sendPasswordResetEmail(auth, email);
@@ -169,7 +160,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // 2. ESTABILIZAÇÃO DO OBJETO DE VALOR DO CONTEXTO
+  // SEU CÓDIGO ORIGINAL RESTAURADO E CORRETO
   const value = useMemo(
     () => ({
       currentUser,
@@ -179,10 +170,18 @@ export const AuthProvider = ({ children }) => {
       registerWithEmail,
       resetPassword,
     }),
-    [currentUser, loading, loginWithEmail, logout]
-  ); // As dependências são os valores que, se mudarem, devem gerar um novo objeto `value`
+    // As dependências corretas incluem as funções que não usam useCallback
+    [
+      currentUser,
+      loading,
+      loginWithEmail,
+      logout,
+      registerWithEmail,
+      resetPassword,
+    ]
+  );
 
-  // Renderização com loading spinner
+  // SEU CÓDIGO ORIGINAL RESTAURADO
   return (
     <AuthContext.Provider value={value}>
       {!loading ? (

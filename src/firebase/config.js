@@ -49,6 +49,7 @@ const firebaseConfig = {
 // Inicialização segura
 let app;
 try {
+  // Verifica se o app já foi inicializado para evitar erros em Hot Module Reload
   app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 } catch (error) {
   console.error('[OLLO] Erro na inicialização do Firebase:', error);
