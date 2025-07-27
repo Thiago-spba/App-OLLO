@@ -1,27 +1,24 @@
-import { useEffect, useState } from "react";
-import { getAuth } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
-import { db } from "@/firebase/config"; // ✅ certifique-se que está importando da fonte correta
+// src/hooks/useIsAdmin.js (VERSÃO CORRETA E UNIFICADA)
 
+import { useAuth } from '../context/AuthContext';
+
+/**
+ * Hook customizado que verifica, a partir do estado JÁ CARREGADO na memória,
+ * se o usuário atual é um administrador.
+ * 
+ * Esta versão NÃO FAZ NENHUMA CHAMADA AO BANCO DE DADOS, tornando-a
+ * instantânea e prevenindo o erro de permissão.
+ */
 export function useIsAdmin() {
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const { currentUser, loading: authLoading } = useAuth();
 
-  useEffect(() => {
-    const auth = getAuth();
-    const unsubscribe = auth.onAuthStateChanged(async (user) => {
-      if (user) {
-        const adminRef = doc(db, "admins", user.uid);
-        const snapshot = await getDoc(adminRef);
-        setIsAdmin(snapshot.exists());
-      } else {
-        setIsAdmin(false);
-      }
-      setLoading(false);
-    });
+  // A informação 'isAdmin' já foi carregada pelo nosso AuthContext.
+  // Se o usuário não estiver carregado ou não tiver o campo, ele não é admin.
+  const isAdmin = currentUser?.isAdmin === true;
 
-    return () => unsubscribe();
-  }, []);
-
-  return { isAdmin, loading };
+  return {
+    isAdmin,
+    // O status de "carregando" é o mesmo do AuthContext. Não precisamos de um loading próprio.
+    loading: authLoading, 
+  };
 }

@@ -1,15 +1,16 @@
-// src/context/AuthContext.jsx (VERSÃO FINAL, COMPLETA E CORRIGIDA)
+// src/context/AuthContext.jsx
 
 import React, {
   createContext,
   useContext,
   useState,
   useEffect,
-  useCallback,
   useMemo,
+  useCallback,
 } from 'react';
 import {
-  onAuthStateChanged,
+  // IMPORTANTE: Trocamos onAuthStateChanged por onIdTokenChanged para evitar a race condition
+  onIdTokenChanged,
   signOut,
   createUserWithEmailAndPassword,
   sendEmailVerification,
@@ -17,10 +18,10 @@ import {
   sendPasswordResetEmail,
   updateProfile,
 } from 'firebase/auth';
-import { doc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
 import { toast } from 'react-hot-toast';
-import { createUserProfile } from '../services/firestoreService'; // Importando do serviço
+import { createUserProfile } from '../services/firestoreService';
 
 const AuthContext = createContext(null);
 
@@ -36,52 +37,63 @@ export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // MUDANÇA CRÍTICA: Usando onIdTokenChanged para garantir que o token esteja pronto
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
       setLoading(true);
       if (firebaseUser) {
         try {
-          const userDocRef = doc(db, 'users', firebaseUser.uid);
-          const docSnap = await getDoc(userDocRef);
-          let userDataFromFirestore;
+          // Precisamos buscar de AMBAS as coleções agora
+          const privateDocRef = doc(db, 'users', firebaseUser.uid);
+          const publicDocRef = doc(db, 'users_public', firebaseUser.uid);
 
-          if (docSnap.exists()) {
-            userDataFromFirestore = docSnap.data();
-          } else {
-            // AQUI ESTÁ A PRIMEIRA MUDANÇA: O OBJETO COMPLETO
+          const [privateDocSnap, publicDocSnap] = await Promise.all([
+            getDoc(privateDocRef),
+            getDoc(publicDocRef),
+          ]);
+
+          let finalUserData;
+
+          // Se o perfil PÚBLICO não existir, consideramos que é um novo usuário ou um login antigo
+          if (!publicDocSnap.exists()) {
             console.warn(
               `[OLLO] Perfil não encontrado para ${firebaseUser.uid}. Criando perfil padrão.`
             );
+            // Prepara os dados iniciais para o novo perfil
             const defaultProfileData = {
               email: firebaseUser.email,
               name:
                 firebaseUser.displayName || firebaseUser.email.split('@')[0],
-              username: firebaseUser.email
-                .split('@')[0]
-                .replace(/[^a-z0-9_.]/gi, ''),
-              avatarUrl: firebaseUser.photoURL || '/images/default-avatar.png',
-              bio: '',
-              isAdmin: false,
+              username: `user_${firebaseUser.uid.substring(0, 5)}`, // Gera um username único inicial
             };
-            await createUserProfile(firebaseUser.uid, defaultProfileData);
-            // Adicionamos os timestamps manualmente aqui, pois o retorno do serviço não os inclui
-            userDataFromFirestore = {
-              ...defaultProfileData,
-              createdAt: new Date(),
-              updatedAt: new Date(),
+
+            // O serviço agora cuida da criação de ambos os perfis
+            finalUserData = await createUserProfile(
+              firebaseUser.uid,
+              defaultProfileData
+            );
+          } else {
+            // Se existir, mesclamos os dados dos dois documentos
+            finalUserData = {
+              ...privateDocSnap.data(),
+              ...publicDocSnap.data(),
             };
           }
 
+          // Define o currentUser com os dados do Auth e do Firestore mesclados
           setCurrentUser({
             ...firebaseUser,
-            ...userDataFromFirestore,
+            ...finalUserData,
           });
         } catch (error) {
           console.error(
-            '[OLLO] Erro ao buscar/criar perfil no Firestore:',
+            '[OLLO] Erro CRÍTICO ao buscar/criar perfil no Firestore:',
             error
           );
+          // O erro que você via acontecerá aqui. Se ele sumir, o problema foi resolvido.
+          // Se o perfil falhar, logamos apenas com os dados basicos do Auth.
           setCurrentUser(firebaseUser);
+          toast.error('Houve um erro ao carregar seu perfil.');
         }
       } else {
         setCurrentUser(null);
@@ -91,8 +103,8 @@ export const AuthProvider = ({ children }) => {
     return () => unsubscribe();
   }, []);
 
-  // SEU CÓDIGO ORIGINAL RESTAURADO
   const loginWithEmail = useCallback(async (email, password) => {
+    // Nenhuma mudança necessária aqui
     try {
       const userCredential = await signInWithEmailAndPassword(
         auth,
@@ -106,8 +118,8 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  // SEU CÓDIGO ORIGINAL RESTAURADO
   const logout = useCallback(async (navigate) => {
+    // Nenhuma mudança necessária aqui
     try {
       await signOut(auth);
       if (navigate) {
@@ -119,10 +131,9 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  // AQUI ESTÁ A SEGUNDA MUDANÇA: A FUNÇÃO REATORADA
-  const registerWithEmail = async (email, password, additionalData = {}) => {
+  // MUDANÇA: Atualizado para a nova arquitetura
+  const registerWithEmail = async (email, password, additionalData) => {
     try {
-      // Passo 1: Criar usuário na Autenticação
       const userCredential = await createUserWithEmailAndPassword(
         auth,
         email,
@@ -130,18 +141,16 @@ export const AuthProvider = ({ children }) => {
       );
       const user = userCredential.user;
 
-      // Passo 2: Atualizar perfil básico do Auth
-      await updateProfile(user, {
-        displayName: additionalData.name || '',
-        photoURL: additionalData.avatarUrl || '',
+      await updateProfile(user, { displayName: additionalData.name });
+
+      // O serviço createUserProfile já faz tudo o que precisamos
+      await createUserProfile(user.uid, {
+        email: user.email,
+        name: additionalData.name,
+        username: additionalData.username,
       });
 
-      // Passo 3: Chamar nosso SERVIÇO para criar o perfil no Firestore
-      await createUserProfile(user.uid, additionalData);
-
-      // Passo 4: Enviar e-mail de verificação
       await sendEmailVerification(user);
-
       return { success: true, user };
     } catch (error) {
       console.error('[OLLO] Erro no registro:', error);
@@ -149,8 +158,8 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // SEU CÓDIGO ORIGINAL RESTAURADO
   const resetPassword = async (email) => {
+    // Nenhuma mudança necessária aqui
     try {
       await sendPasswordResetEmail(auth, email);
       return { success: true };
@@ -160,7 +169,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // SEU CÓDIGO ORIGINAL RESTAURADO E CORRETO
+  // Nenhuma mudança necessária aqui
   const value = useMemo(
     () => ({
       currentUser,
@@ -170,18 +179,9 @@ export const AuthProvider = ({ children }) => {
       registerWithEmail,
       resetPassword,
     }),
-    // As dependências corretas incluem as funções que não usam useCallback
-    [
-      currentUser,
-      loading,
-      loginWithEmail,
-      logout,
-      registerWithEmail,
-      resetPassword,
-    ]
+    [currentUser, loading, loginWithEmail, logout] // useCallback remove a necessidade de outras dependências
   );
 
-  // SEU CÓDIGO ORIGINAL RESTAURADO
   return (
     <AuthContext.Provider value={value}>
       {!loading ? (

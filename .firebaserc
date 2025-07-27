@@ -1,5 +1,7 @@
 {
-  "projects": {},
+  "projects": {
+    "default": "olloapp-egl2025"
+  },
   "targets": {},
   "etags": {}
 }
