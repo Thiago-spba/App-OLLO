@@ -74,3 +74,18 @@ src/lista-arquivos.txt
 /.next
 /.cache
 /.parcel-cache
+
+# Firebase Cloud Functions
+functions/lib
+functions/index.js
+functions/index.js.map
+# Compiled JavaScript files
+lib/**/*.js
+lib/**/*.js.map
+
+# TypeScript v1 declaration files
+typings/
+
+# Node.js dependency directory
+node_modules/
+*.local

@@ -109,3 +109,7 @@ exports.deleteExpiredStories = onSchedule("every 1 hours", async (event) => {
 
   return null;
 });
+
+// A função helloWorld que estava causando a confusão pode ser removida ou comentada.
+// Se você não precisa dela, pode apagar esta linha:
+// exports.helloWorld = ...
