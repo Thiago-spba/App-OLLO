@@ -8,7 +8,6 @@ import {
   EyeIcon,
   EyeSlashIcon,
   ArrowPathIcon,
-  InformationCircleIcon,
 } from '@heroicons/react/24/outline';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -23,14 +22,13 @@ const RegisterPage = () => {
     reset,
   } = useForm();
 
-  // Estados para controlar a visibilidade das senhas e do tooltip
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [isUsernameTooltipVisible, setIsUsernameTooltipVisible] =
-    useState(false);
 
-  const getFriendlyError = (errorCode) => {
+  // CORREÇÃO: Função de erro mais robusta para lidar com casos onde o erro não tem um 'code'.
+  const getFriendlyError = (error) => {
+    const errorCode = error?.code;
     switch (errorCode) {
       case 'auth/email-already-in-use':
         return 'Este e-mail já está em uso. Tente outro.';
@@ -39,10 +37,12 @@ const RegisterPage = () => {
       case 'auth/weak-password':
         return 'Senha muito fraca. Use no mínimo 6 caracteres.';
       default:
-        return 'Ocorreu um erro inesperado no cadastro.';
+        return 'Ocorreu um erro inesperado. Tente novamente.';
     }
   };
 
+  // EXPLICAÇÃO: Esta função agora apenas cria o usuário. A responsabilidade de enviar
+  // o e-mail de verificação foi totalmente delegada para nossa Cloud Function no backend.
   const onSubmit = async (data) => {
     setIsLoading(true);
     try {
@@ -51,10 +51,11 @@ const RegisterPage = () => {
         username: data.username.toLowerCase(),
         avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(
           data.firstName + ' ' + data.lastName
-        )}&background=005A4B&color=fff&bold=true`, // Corrigido para cores Ollo
+        )}&background=0D4D44&color=fff&bold=true`, // MUDANÇA: Cor do avatar ajustada para um tom mais escuro do verde OLLO
         bio: 'Novo membro da comunidade OLLO!',
       };
 
+      // A função registerWithEmail no AuthContext NÃO DEVE mais chamar a verificação de e-mail do cliente.
       const result = await registerWithEmail(
         data.email,
         data.password,
@@ -62,28 +63,34 @@ const RegisterPage = () => {
       );
 
       if (result.success) {
-        toast.success('Conta criada! Verifique seu e-mail para ativar.', {
-          duration: 8000,
-        });
+        // MUDANÇA: A mensagem de sucesso foi ajustada para refletir que o e-mail (personalizado) está a caminho.
+        toast.success(
+          'Conta criada! Um e-mail de verificação da OLLO foi enviado para você.',
+          {
+            duration: 8000,
+          }
+        );
         reset();
+        // O usuário é direcionado para uma página intermediária enquanto espera o e-mail.
         navigate('/verify-email');
       } else {
+        // Lança o erro para ser pego pelo bloco catch.
         throw result.error;
       }
     } catch (error) {
-      const errorMessage = getFriendlyError(error?.code);
+      const errorMessage = getFriendlyError(error);
       toast.error(errorMessage, { duration: 7000 });
     } finally {
       setIsLoading(false);
     }
   };
 
-  // O JSX COMPLETO E CORRIGIDO
   return (
     <>
       <Toaster position="top-center" />
       <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50 dark:bg-gray-900">
-        <div className="w-full max-w-lg p-8 rounded-xl bg-white dark:bg-gray-800 shadow-lg border border-gray-200 dark:border-gray-700">
+        {/* MUDANÇA: Padding ajustado para melhor responsividade em telas de todos os tamanhos. */}
+        <div className="w-full max-w-lg p-4 sm:p-6 lg:p-8 rounded-xl bg-white dark:bg-gray-800 shadow-lg border border-gray-200 dark:border-gray-700">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
               Junte-se à Comunidade OLLO
@@ -94,8 +101,7 @@ const RegisterPage = () => {
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-            {/* Nome e Sobrenome */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div>
                 <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
                   Nome
@@ -105,7 +111,7 @@ const RegisterPage = () => {
                     required: 'Nome é obrigatório',
                     minLength: { value: 2, message: 'Mínimo 2 caracteres' },
                   })}
-                  className="w-full px-4 py-3 rounded-lg border dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 dark:focus:ring-ollo-accent-light outline-none"
+                  className="w-full px-4 py-3 rounded-lg border dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 dark:focus:ring-ollo-accent-light outline-none"
                   placeholder="Seu nome"
                 />
                 {errors.firstName && (
@@ -123,7 +129,7 @@ const RegisterPage = () => {
                     required: 'Sobrenome é obrigatório',
                     minLength: { value: 2, message: 'Mínimo 2 caracteres' },
                   })}
-                  className="w-full px-4 py-3 rounded-lg border dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 dark:focus:ring-ollo-accent-light outline-none"
+                  className="w-full px-4 py-3 rounded-lg border dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 dark:focus:ring-ollo-accent-light outline-none"
                   placeholder="Seu sobrenome"
                 />
                 {errors.lastName && (
@@ -134,8 +140,7 @@ const RegisterPage = () => {
               </div>
             </div>
 
-            {/* Nome de usuário */}
-            <div className="relative">
+            <div>
               <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
                 Nome de usuário
               </label>
@@ -144,13 +149,12 @@ const RegisterPage = () => {
                   required: 'Nome de usuário é obrigatório',
                   pattern: {
                     value: /^[a-z0-9_.]+$/,
-                    message:
-                      'Use apenas letras minúsculas, números, ponto ou underline',
+                    message: 'Apenas letras minúsculas, números, . ou _',
                   },
                   minLength: { value: 3, message: 'Mínimo 3 caracteres' },
                   maxLength: { value: 20, message: 'Máximo 20 caracteres' },
                 })}
-                className="w-full px-4 py-3 rounded-lg border dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 dark:focus:ring-ollo-accent-light outline-none"
+                className="w-full px-4 py-3 rounded-lg border dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 dark:focus:ring-ollo-accent-light outline-none"
                 placeholder="ex: ana.silva"
               />
               {errors.username && (
@@ -160,7 +164,6 @@ const RegisterPage = () => {
               )}
             </div>
 
-            {/* E-mail */}
             <div>
               <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
                 E-mail
@@ -174,7 +177,7 @@ const RegisterPage = () => {
                     message: 'Formato de e-mail inválido',
                   },
                 })}
-                className="w-full px-4 py-3 rounded-lg border dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 dark:focus:ring-ollo-accent-light outline-none"
+                className="w-full px-4 py-3 rounded-lg border dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 dark:focus:ring-ollo-accent-light outline-none"
                 placeholder="email@exemplo.com"
               />
               {errors.email && (
@@ -184,31 +187,33 @@ const RegisterPage = () => {
               )}
             </div>
 
-            {/* Senha */}
-            <div className="relative">
+            {/* MUDANÇA E CORREÇÃO: Posição do botão de ver senha corrigida com Flexbox para robustez. */}
+            <div>
               <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
                 Senha
               </label>
-              <input
-                type={showPassword ? 'text' : 'password'}
-                {...register('password', {
-                  required: 'Senha é obrigatória',
-                  minLength: { value: 6, message: 'Mínimo 6 caracteres' },
-                })}
-                className="w-full px-4 py-3 pr-10 rounded-lg border dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 dark:focus:ring-ollo-accent-light outline-none"
-                placeholder="••••••••"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute top-10 right-3"
-              >
-                {showPassword ? (
-                  <EyeSlashIcon className="h-5 w-5 text-gray-500" />
-                ) : (
-                  <EyeIcon className="h-5 w-5 text-gray-500" />
-                )}
-              </button>
+              <div className="relative flex items-center">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  {...register('password', {
+                    required: 'Senha é obrigatória',
+                    minLength: { value: 6, message: 'Mínimo 6 caracteres' },
+                  })}
+                  className="w-full px-4 py-3 pr-10 rounded-lg border dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 dark:focus:ring-ollo-accent-light outline-none"
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                >
+                  {showPassword ? (
+                    <EyeSlashIcon className="h-5 w-5" />
+                  ) : (
+                    <EyeIcon className="h-5 w-5" />
+                  )}
+                </button>
+              </div>
               {errors.password && (
                 <p className="text-sm text-red-500 mt-1">
                   {errors.password.message}
@@ -216,32 +221,33 @@ const RegisterPage = () => {
               )}
             </div>
 
-            {/* Confirmar senha */}
-            <div className="relative">
+            <div>
               <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
                 Confirmar Senha
               </label>
-              <input
-                type={showConfirmPassword ? 'text' : 'password'}
-                {...register('confirmPassword', {
-                  required: 'Confirme sua senha',
-                  validate: (value) =>
-                    value === watch('password') || 'As senhas não coincidem',
-                })}
-                className="w-full px-4 py-3 pr-10 rounded-lg border dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 dark:focus:ring-ollo-accent-light outline-none"
-                placeholder="••••••••"
-              />
-              <button
-                type="button"
-                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                className="absolute top-10 right-3"
-              >
-                {showConfirmPassword ? (
-                  <EyeSlashIcon className="h-5 w-5 text-gray-500" />
-                ) : (
-                  <EyeIcon className="h-5 w-5 text-gray-500" />
-                )}
-              </button>
+              <div className="relative flex items-center">
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  {...register('confirmPassword', {
+                    required: 'Confirme sua senha',
+                    validate: (value) =>
+                      value === watch('password') || 'As senhas não coincidem',
+                  })}
+                  className="w-full px-4 py-3 pr-10 rounded-lg border dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 dark:focus:ring-ollo-accent-light outline-none"
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                >
+                  {showConfirmPassword ? (
+                    <EyeSlashIcon className="h-5 w-5" />
+                  ) : (
+                    <EyeIcon className="h-5 w-5" />
+                  )}
+                </button>
+              </div>
               {errors.confirmPassword && (
                 <p className="text-sm text-red-500 mt-1">
                   {errors.confirmPassword.message}
@@ -249,11 +255,10 @@ const RegisterPage = () => {
               )}
             </div>
 
-            {/* Botão de ação */}
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3 px-4 rounded-lg bg-ollo-deep dark:bg-ollo-accent-light text-white dark:text-gray-900 font-semibold hover:bg-opacity-90 transition disabled:opacity-50 flex justify-center items-center"
+              className="w-full py-3 px-4 rounded-lg bg-ollo-deep dark:bg-ollo-accent-light text-white dark:text-gray-900 font-semibold hover:bg-opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center"
             >
               {isLoading ? (
                 <>

@@ -9,11 +9,10 @@ import React, {
   useCallback,
 } from 'react';
 import {
-  // IMPORTANTE: Trocamos onAuthStateChanged por onIdTokenChanged para evitar a race condition
   onIdTokenChanged,
   signOut,
   createUserWithEmailAndPassword,
-  sendEmailVerification,
+  // sendEmailVerification, // MUDANÇA: Não vamos mais importar isso diretamente.
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
   updateProfile,
@@ -37,13 +36,11 @@ export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // MUDANÇA CRÍTICA: Usando onIdTokenChanged para garantir que o token esteja pronto
   useEffect(() => {
     const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
       setLoading(true);
       if (firebaseUser) {
         try {
-          // Precisamos buscar de AMBAS as coleções agora
           const privateDocRef = doc(db, 'users', firebaseUser.uid);
           const publicDocRef = doc(db, 'users_public', firebaseUser.uid);
 
@@ -54,33 +51,28 @@ export const AuthProvider = ({ children }) => {
 
           let finalUserData;
 
-          // Se o perfil PÚBLICO não existir, consideramos que é um novo usuário ou um login antigo
           if (!publicDocSnap.exists()) {
             console.warn(
               `[OLLO] Perfil não encontrado para ${firebaseUser.uid}. Criando perfil padrão.`
             );
-            // Prepara os dados iniciais para o novo perfil
             const defaultProfileData = {
               email: firebaseUser.email,
               name:
                 firebaseUser.displayName || firebaseUser.email.split('@')[0],
-              username: `user_${firebaseUser.uid.substring(0, 5)}`, // Gera um username único inicial
+              username: `user_${firebaseUser.uid.substring(0, 5)}`,
             };
 
-            // O serviço agora cuida da criação de ambos os perfis
             finalUserData = await createUserProfile(
               firebaseUser.uid,
               defaultProfileData
             );
           } else {
-            // Se existir, mesclamos os dados dos dois documentos
             finalUserData = {
               ...privateDocSnap.data(),
               ...publicDocSnap.data(),
             };
           }
 
-          // Define o currentUser com os dados do Auth e do Firestore mesclados
           setCurrentUser({
             ...firebaseUser,
             ...finalUserData,
@@ -90,8 +82,6 @@ export const AuthProvider = ({ children }) => {
             '[OLLO] Erro CRÍTICO ao buscar/criar perfil no Firestore:',
             error
           );
-          // O erro que você via acontecerá aqui. Se ele sumir, o problema foi resolvido.
-          // Se o perfil falhar, logamos apenas com os dados basicos do Auth.
           setCurrentUser(firebaseUser);
           toast.error('Houve um erro ao carregar seu perfil.');
         }
@@ -104,7 +94,6 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const loginWithEmail = useCallback(async (email, password) => {
-    // Nenhuma mudança necessária aqui
     try {
       const userCredential = await signInWithEmailAndPassword(
         auth,
@@ -119,7 +108,6 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const logout = useCallback(async (navigate) => {
-    // Nenhuma mudança necessária aqui
     try {
       await signOut(auth);
       if (navigate) {
@@ -131,35 +119,46 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  // MUDANÇA: Atualizado para a nova arquitetura
-  const registerWithEmail = async (email, password, additionalData) => {
-    try {
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
-      const user = userCredential.user;
+  // MUDANÇA CRÍTICA APLICADA
+  const registerWithEmail = useCallback(
+    async (email, password, additionalData) => {
+      try {
+        const userCredential = await createUserWithEmailAndPassword(
+          auth,
+          email,
+          password
+        );
+        const user = userCredential.user;
 
-      await updateProfile(user, { displayName: additionalData.name });
+        // Primeiro, atualizamos o perfil no Firebase Auth (isso é rápido)
+        await updateProfile(user, { displayName: additionalData.name });
 
-      // O serviço createUserProfile já faz tudo o que precisamos
-      await createUserProfile(user.uid, {
-        email: user.email,
-        name: additionalData.name,
-        username: additionalData.username,
-      });
+        // Em seguida, criamos os documentos no Firestore
+        await createUserProfile(user.uid, {
+          email: user.email,
+          name: additionalData.name,
+          username: additionalData.username,
+        });
 
-      await sendEmailVerification(user);
-      return { success: true, user };
-    } catch (error) {
-      console.error('[OLLO] Erro no registro:', error);
-      return { success: false, error };
-    }
-  };
+        // CORREÇÃO: A linha abaixo foi REMOVIDA.
+        // Esta era a linha que enviava o e-mail de verificação PADRÃO do Firebase.
+        // Ao removê-la, nós permitimos que a nossa Cloud Function seja a ÚNICA
+        // responsável por enviar o e-mail PERSONALIZADO da OLLO.
+        // await sendEmailVerification(user);
+
+        return { success: true, user };
+      } catch (error) {
+        console.error('[OLLO] Erro no registro:', error);
+        return { success: false, error };
+      }
+    },
+    []
+  );
 
   const resetPassword = async (email) => {
-    // Nenhuma mudança necessária aqui
+    // PRÓXIMO PASSO: Para personalizar este e-mail, teremos que refatorar esta função.
+    // Criaremos uma Cloud Function "Callable" que gera o link de reset e o envia
+    // com nosso template da OLLO, assim como fizemos para o e-mail de boas-vindas.
     try {
       await sendPasswordResetEmail(auth, email);
       return { success: true };
@@ -169,7 +168,9 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Nenhuma mudança necessária aqui
+  // CORREÇÃO: Otimizando o hook useMemo para incluir todas as suas dependências.
+  // Isso garante que o contexto sempre fornecerá as versões mais recentes das funções,
+  // evitando bugs de "stale closure" e melhorando a estabilidade.
   const value = useMemo(
     () => ({
       currentUser,
@@ -179,7 +180,14 @@ export const AuthProvider = ({ children }) => {
       registerWithEmail,
       resetPassword,
     }),
-    [currentUser, loading, loginWithEmail, logout] // useCallback remove a necessidade de outras dependências
+    [
+      currentUser,
+      loading,
+      loginWithEmail,
+      logout,
+      registerWithEmail,
+      resetPassword,
+    ]
   );
 
   return (
