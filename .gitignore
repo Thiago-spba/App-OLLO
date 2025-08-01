@@ -3,89 +3,44 @@
 # ===================================================================
 
 # 1. SEGURANÇA: Arquivos de Senhas e Chaves de API
-# NUNCA envie estes arquivos para o GitHub.
-# O padrão .env* cobre .env, .env.local, .env.development, etc.
+# Ignora todos os arquivos .env, .env.local, .env.production, etc.
 .env*
-# Permite que um arquivo de exemplo seja enviado (boa prática).
-!*.env.example
+# Exceção: Permite que um arquivo de exemplo seja versionado (boa prática).
+!/.env.example
 
-# Adicional: Ignorar variantes e backups de arquivos de ambiente
-*_env*
-*.bkp
-*.bak
-*.backup
-*.tmp
-*.temp
+# Outros arquivos de segredos comuns
 secrets.*
 credentials.*
 private.*
 
-# 2. DEPENDÊNCIAS: Pasta de pacotes do Node
-# Esta pasta é recriada com o comando `npm install`.
+# 2. DEPENDÊNCIAS E BUILDS
+# Pasta de pacotes do Node (recriada com 'npm install')
 /node_modules
-
-# 3. BUILD: Pasta com a versão final do site
-# Esta pasta é recriada com o comando `npm run build`.
+# Pasta de build do frontend Vite (recriada com 'npm run build')
 /dist
+# Pasta de build das Cloud Functions (recriada com 'tsc')
+/functions/lib
 
-# 4. FIREBASE: Arquivos de cache e configuração local
-# Gerados pelo Firebase CLI para testes locais.
-.firebase/
-hosting.*.log
+# 3. FIREBASE: Arquivos de cache e configuração local
+.firebase
 .firebaserc.local
-firestore.indexes.json
-firestore.rules.bak
-*.firebase/
+hosting.*.log
 
-# 5. LOGS: Arquivos de registro e depuração
+# 4. LOGS E CACHES DE FERRAMENTAS
 npm-debug.log*
 yarn-debug.log*
 *.log
-*.log.*
-
-# Adicional: Arquivos de logs de cobertura de testes
-coverage/
-coverage-final.json
-
-# 6. SISTEMA OPERACIONAL E EDITORES
-# Arquivos gerados automaticamente pelo seu computador ou editor de código.
-.DS_Store
-.vscode/
-.idea/
-Thumbs.db
-*.swp
-*.swo
-
-# 7. ARQUIVOS TEMPORÁRIOS DO SEU PROJETO
-# Os arquivos que você mencionou.
-src/cors.json
-src/lista-arquivos.txt
-
-# 8. OUTROS AJUSTES RELEVANTES
-# Ignorar arquivos gerados por testes e builds auxiliares
-*.test.js
-*.spec.js
-*.test.ts
-*.spec.ts
-*.map
-
-# Pastas auxiliares de cache de ferramentas
 /.turbo
-/.next
 /.cache
 /.parcel-cache
+/coverage
 
-# Firebase Cloud Functions
-functions/lib
-functions/index.js
-functions/index.js.map
-# Compiled JavaScript files
-lib/**/*.js
-lib/**/*.js.map
+# 5. SISTEMA OPERACIONAL E EDITORES
+.DS_Store
+.vscode/
+Thumbs.db
+*.swp
 
-# TypeScript v1 declaration files
-typings/
-
-# Node.js dependency directory
-node_modules/
-*.local
+# 6. ARQUIVOS TEMPORÁRIOS DO PROJETO (Exemplos)
+# src/cors.json
+# src/lista-arquivos.txt
