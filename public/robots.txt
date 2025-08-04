@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://olloapp.com.br/sitemap.xml

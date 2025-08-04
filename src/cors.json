@@ -1,0 +1,13 @@
+[
+  {
+    "origin": [
+      "http://localhost:5173",
+      "https://ollo-app-e5224.web.app",
+      "https://ollo-app-e5224.firebaseapp.com",
+      "https://olloapp.com.br"
+    ],
+    "method": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    "maxAgeSeconds": 3600,
+    "responseHeader": ["Content-Type", "Authorization", "x-goog-meta-*"]
+  }
+]
