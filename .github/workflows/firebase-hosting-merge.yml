@@ -2,7 +2,7 @@
 # https://github.com/firebase/firebase-tools
 
 name: Deploy to Firebase Hosting on merge
-on:
+'on':
   push:
     branches:
       - main
@@ -14,7 +14,10 @@ jobs:
       - run: npm ci && npm run build
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_OLLO_APP_E5224 }}
+          repoToken: '${{ secrets.GITHUB_TOKEN }}'
+          # CORREÇÃO: Atualizamos o nome do secret para refletir o projeto correto.
+          # Lembre-se de criar este novo secret nas configurações do seu repositório no GitHub.
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_OLLOAPP_EGL2025 }}'
           channelId: live
-          projectId: ollo-app-e5224
+          # CORREÇÃO: O projectId foi atualizado para o ID do nosso projeto OLLO atual.
+          projectId: olloapp-egl2025
