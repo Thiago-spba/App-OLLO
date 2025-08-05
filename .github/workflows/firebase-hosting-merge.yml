@@ -19,5 +19,4 @@ jobs:
           # Lembre-se de criar este novo secret nas configurações do seu repositório no GitHub.
           firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_OLLOAPP_EGL2025 }}'
           channelId: live
-          # CORREÇÃO: O projectId foi atualizado para o ID do nosso projeto OLLO atual.
-          projectId: olloapp-egl2025
+          projectId: ollo-app-e5224
