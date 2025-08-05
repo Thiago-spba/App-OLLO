@@ -15,8 +15,6 @@ jobs:
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: '${{ secrets.GITHUB_TOKEN }}'
-          # CORREÇÃO: Atualizamos o nome do secret para refletir o projeto correto.
-          # Lembre-se de criar este novo secret nas configurações do seu repositório no GitHub.
           firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_OLLOAPP_EGL2025 }}'
           channelId: live
-projectId: olloapp-egl2025
+          projectId: olloapp-egl2025
