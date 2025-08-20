@@ -11,10 +11,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: npm ci && npm run build
+      - run: npm ci && npm run build # MUDANÇA: Mantivemos seu passo de build, que é o correto para nosso projeto.
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: '${{ secrets.GITHUB_TOKEN }}'
-          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_OLLOAPP_EGL2025 }}'
+          # CORREÇÃO: Apontamos para o nome exato do Segredo do Repositório que criamos.
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}'
           channelId: live
-          projectId: olloapp-egl2025
+          projectId: olloapp-egl2025 # MUDANÇA: Confirmado como o ID correto.
