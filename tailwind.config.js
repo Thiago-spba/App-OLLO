@@ -1,4 +1,4 @@
-// tailwind.config.js - atualizado em junho de 2025
+// tailwind.config.js - atualizado em agosto de 2025
 
 /** @type {import('tailwindcss').Config} */
 export default {
@@ -38,6 +38,8 @@ export default {
 
       backgroundImage: {
         'ollo-gradient-main': 'linear-gradient(to top right, var(--tw-gradient-from), var(--tw-gradient-to))',
+        // MUDANÇA: Linha adicionada conforme solicitado, sem alterar o existente.
+        'ollo-error-gradient': 'linear-gradient(135deg, #19232D 60%, #31e6b2 100%)',
       },
 
       // Novas extensões adicionadas abaixo (sem modificar o existente)

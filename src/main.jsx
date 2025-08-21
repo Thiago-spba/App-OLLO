@@ -1,4 +1,4 @@
-// src/main.jsx
+// ARQUIVO FINALIZADO: src/main.jsx
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
@@ -29,6 +29,9 @@ import NotificationsPage from './pages/NotificationsPage.jsx';
 import TermsPage from './pages/TermsPage.jsx';
 import PostDetailPage from './pages/PostDetailPage.jsx';
 import PublicErrorPage from './pages/PublicErrorPage.jsx';
+
+// MUDANÇA 1: Importamos nossa nova e estilizada página NotFoundPage.
+import NotFoundPage from './pages/NotFoundPage.jsx';
 
 import './index.css';
 
@@ -86,11 +89,15 @@ const router = createBrowserRouter([
         children: [
           { path: 'marketplace', element: <MarketplacePage /> },
           { path: 'marketplace/criar', element: <CreateListingPage /> },
-          { path: 'profile/:profileId?', element: <ProfilePage /> },
+          { path: 'profile/:username', element: <ProfilePage /> }, // CORREÇÃO: Mudei de profileId para username para clareza
           { path: 'notifications', element: <NotificationsPage /> },
           { path: 'verify-email', element: <VerifyEmailPage /> },
         ],
       },
+
+      // MUDANÇA 2: Adicionamos a rota coringa (catch-all) como filha do layout principal.
+      // Qualquer URL que não corresponda a nada acima cairá aqui.
+      { path: '*', element: <NotFoundPage /> },
     ],
   },
 ]);
