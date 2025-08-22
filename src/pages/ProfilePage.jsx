@@ -1,4 +1,4 @@
-// ARQUIVO CORRIGIDO E FINALIZADO: src/pages/ProfilePage.jsx
+// ARQUIVO FINALIZADO E CORRIGIDO: src/pages/ProfilePage.jsx
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
@@ -6,8 +6,8 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/firebase/config';
 import { useAuth } from '../context/AuthContext';
 
-// MUDANÇA: Importamos nosso store central de estado para o perfil.
-import { useProfileEditor } from '../hooks/useProfileStore';
+// MUDANÇA CRÍTICA: Corrigimos o nome da importação para corresponder ao nosso store.
+import { useProfileStore } from '../hooks/useProfileStore';
 
 import AuthWrapper from '../components/AuthWrapper';
 import Profile from '../components/pages/profile'; // O componente de apresentação
@@ -23,11 +23,11 @@ export default function ProfilePage() {
   const { username } = useParams();
   const { currentUser } = useAuth();
 
-  // MUDANÇA: Pegamos a ação `initialize` do nosso store.
-  // Usamos um seletor para evitar re-renderizações desnecessárias.
-  const initializeProfileState = useProfileEditor((state) => state.initialize);
+  // MUDANÇA: Usamos o nome correto do store para pegar a ação `initialize`.
+  const { initialize, setCurrentUser } = useProfileStore(
+    (state) => state.actions
+  );
 
-  // O estado de loading e erro da busca de dados permanece local a este componente.
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
@@ -52,13 +52,13 @@ export default function ProfilePage() {
         } else {
           const userDoc = querySnapshot.docs[0];
           const profileData = { id: userDoc.id, ...userDoc.data() };
-
           const isOwner = currentUser?.uid === profileData.id;
 
           // CORREÇÃO: Ponto central da refatoração.
           // Em vez de passar dados via props, nós inicializamos o store global.
           // Agora, qualquer componente dentro de <Profile /> pode acessar esses dados.
-          initializeProfileState({ ...profileData, isOwner });
+          initialize(profileData);
+          setCurrentUser({ ...currentUser, isOwner }); // Também informamos ao store quem é o dono.
         }
       } catch (err) {
         console.error('[OLLO] Erro ao buscar perfil do usuário:', err);
@@ -69,21 +69,19 @@ export default function ProfilePage() {
     };
 
     fetchUserProfile();
-    // A dependência `initializeProfileState` é estável e não causa re-execuções.
-  }, [username, currentUser, initializeProfileState]);
+  }, [username, currentUser, initialize, setCurrentUser]);
 
   if (loading) {
     return <LoadingSpinner text="Carregando perfil..." />;
   }
 
-  // Se o fetch falhou, o store não foi inicializado e mostramos a página de erro.
   if (error) {
     return <NotFoundPage />;
   }
 
   // ARQUITETURA: O componente <Profile /> não recebe mais props.
   // Ele se tornou autossuficiente, lendo tudo o que precisa diretamente do
-  // hook `useProfileEditor`. Isso é um desacoplamento poderoso.
+  // store `useProfileStore`.
   return (
     <AuthWrapper>
       <Profile />
