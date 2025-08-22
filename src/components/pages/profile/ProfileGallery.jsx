@@ -1,177 +1,248 @@
-// src/pages/profile/ProfileGallery.jsx
+// ARQUIVO FINALIZADO: src/components/pages/profile/ProfileGallery.jsx
 
-import { useState } from 'react';
-import EyeIcon from './EyeIcon.jsx';
-import { FiX } from 'react-icons/fi';
+import React, { useState, useEffect } from 'react';
+// MUDANÇA ARQUITETÔNICA: Importamos o store com o nome correto.
+import { useProfileStore } from '@/hooks/useProfileStore';
+// MUDANÇA: Usando ícones do nosso kit padrão.
+import {
+  EyeIcon,
+  EyeSlashIcon,
+  XMarkIcon,
+  VideoCameraIcon,
+} from '@heroicons/react/24/solid';
+import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { db } from '@/firebase/config';
 
-export default function ProfileGallery({
-  profile,
-  editing,
-  form,
-  handlers = {}, // ✅ fallback seguro para evitar erros se não for passado
-  galleryInputRef,
-  loading,
-}) {
+const ProfileGallerySkeleton = () => (
+  <section className="p-4 border-t border-gray-200 dark:border-gray-700 animate-pulse">
+    <div className="h-6 w-24 bg-gray-300 dark:bg-gray-700 rounded mb-4"></div>
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+      <div className="aspect-square bg-gray-300 dark:bg-gray-700 rounded-lg"></div>
+      <div className="aspect-square bg-gray-300 dark:bg-gray-700 rounded-lg"></div>
+      <div className="aspect-square bg-gray-300 dark:bg-gray-700 rounded-lg"></div>
+      <div className="aspect-square bg-gray-300 dark:bg-gray-700 rounded-lg hidden sm:block"></div>
+    </div>
+  </section>
+);
+
+export default function ProfileGallery() {
+  // MUDANÇA ARQUITETÔNICA: Usando seletores otimizados do Zustand.
+  const initialProfileData = useProfileStore(
+    (state) => state.initialProfileData
+  );
+  const form = useProfileStore((state) => state.form);
+  const isOwner = useProfileStore((state) => state.isOwner);
+  const editing = useProfileStore((state) => state.editing);
+  // MELHORIA: Renomeamos o 'loading' do store para evitar conflito com o estado local.
+  const isUploading = useProfileStore((state) => state.loading);
+  const { handleMediaUpload, handleMediaDelete, toggleVisibility } =
+    useProfileStore((state) => state.actions);
+
+  const [mediaItems, setMediaItems] = useState([]);
+  const [loadingMedia, setLoadingMedia] = useState(true);
   const [selectedMedia, setSelectedMedia] = useState(null);
 
-  const galleryItems = editing ? form.gallery || [] : profile.gallery || [];
-  const photos = galleryItems.filter((item) => item.type === 'image');
-  const videos = galleryItems.filter((item) => item.type === 'video');
-  const isGalleryVisible = editing ? form.showGallery : profile.showGallery;
+  // EXPLICAÇÃO: Sua lógica de busca de dados em tempo real está perfeita e foi mantida.
+  useEffect(() => {
+    const profileId = initialProfileData?.id;
+    if (!profileId) return;
+
+    setLoadingMedia(true);
+    const mediaCollectionRef = collection(db, 'users', profileId, 'media');
+    const q = query(mediaCollectionRef, orderBy('createdAt', 'desc'));
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const mediaData = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        const visibleMedia = isOwner
+          ? mediaData
+          : mediaData.filter((item) => item.privacy !== 'private');
+        setMediaItems(visibleMedia);
+        setLoadingMedia(false);
+      },
+      (error) => {
+        console.error('OLLO: Erro ao buscar mídias da galeria:', error);
+        setLoadingMedia(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [initialProfileData?.id, isOwner]);
+
+  if (!initialProfileData) {
+    return <ProfileGallerySkeleton />;
+  }
+
+  const handleFileUpload = (event) => {
+    const files = Array.from(event.target.files);
+    files.forEach((file) => {
+      // CORREÇÃO: A ação agora não precisa mais do currentUser, pois o store já o conhece.
+      handleMediaUpload(file);
+    });
+  };
 
   const closeModal = () => setSelectedMedia(null);
 
+  const photos = mediaItems.filter((item) => item.type === 'image');
+  const videos = mediaItems.filter((item) => item.type === 'video');
+  const isGalleryVisible = editing
+    ? form?.showGallery
+    : initialProfileData.showGallery;
+
   return (
-    <section className="mb-8">
-      <div className="flex items-center gap-2 mb-4">
-        <h2 className="font-semibold text-lg text-emerald-700 dark:text-emerald-300">
+    <section className="p-4 border-t border-gray-200 dark:border-gray-700">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100">
           Galeria
         </h2>
-        <div className="flex items-center gap-2 ml-auto">
-          {editing && (
+        {isOwner && editing && (
+          <div className="flex items-center gap-4">
             <button
               type="button"
-              onClick={
-                () => handlers.toggleVisibility?.('showGallery') // ✅ proteção com optional chaining
-              }
-              className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+              onClick={() => toggleVisibility('showGallery')}
+              title={isGalleryVisible ? 'Ocultar galeria' : 'Mostrar galeria'}
             >
-              <EyeIcon visible={isGalleryVisible} />
+              {isGalleryVisible ? (
+                <EyeIcon className="h-5 w-5 text-gray-500" />
+              ) : (
+                <EyeSlashIcon className="h-5 w-5 text-gray-500" />
+              )}
             </button>
-          )}
-          <label
-            className={`px-3 py-1 bg-emerald-600 text-white rounded-lg cursor-pointer hover:bg-emerald-700 text-sm font-medium transition-all duration-200 hover:shadow-lg ${
-              loading ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
-          >
-            + Mídia
-            <input
-              type="file"
-              accept="image/*,video/*"
-              multiple
-              className="hidden"
-              onChange={handlers.handleInstantUpload}
-              ref={galleryInputRef}
-              disabled={loading}
-            />
-          </label>
+            <label
+              className={`flex items-center gap-2 px-3 py-1.5 bg-ollo-accent text-white rounded-lg cursor-pointer hover:bg-ollo-accent-light text-sm font-medium transition-all ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              + Adicionar Mídia
+              <input
+                type="file"
+                accept="image/*,video/*"
+                multiple
+                className="hidden"
+                onChange={handleFileUpload}
+                disabled={isUploading}
+              />
+            </label>
+          </div>
+        )}
+      </div>
+
+      {loadingMedia ? (
+        <ProfileGallerySkeleton />
+      ) : (
+        <div className="space-y-6">
+          <div>
+            <h3 className="font-semibold mb-2 text-gray-700 dark:text-gray-300">
+              Fotos ({photos.length})
+            </h3>
+            {photos.length > 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                {photos.map((item) => (
+                  <div
+                    key={item.id}
+                    onClick={() => setSelectedMedia(item)}
+                    className="relative group aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 cursor-pointer"
+                  >
+                    <img
+                      src={item.url}
+                      alt="Foto da galeria"
+                      className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                    />
+                    {isOwner && editing && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleMediaDelete(item);
+                        }}
+                        className="absolute top-1 right-1 bg-red-600/80 text-white w-6 h-6 flex items-center justify-center rounded-full hover:bg-red-700 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <XMarkIcon className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-400 text-sm italic">
+                Nenhuma foto na galeria.
+              </p>
+            )}
+          </div>
+          <div>
+            <h3 className="font-semibold mb-2 text-gray-700 dark:text-gray-300">
+              Vídeos ({videos.length})
+            </h3>
+            {videos.length > 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                {videos.map((item) => (
+                  <div
+                    key={item.id}
+                    onClick={() => setSelectedMedia(item)}
+                    className="relative group aspect-square rounded-lg overflow-hidden bg-gray-900 cursor-pointer"
+                  >
+                    <video
+                      src={item.url}
+                      muted
+                      playsInline
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute bottom-1 right-1 bg-black/50 p-1 rounded-full">
+                      <VideoCameraIcon className="h-4 w-4 text-white" />
+                    </div>
+                    {isOwner && editing && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleMediaDelete(item);
+                        }}
+                        className="absolute top-1 right-1 bg-red-600/80 text-white w-6 h-6 flex items-center justify-center rounded-full hover:bg-red-700 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <XMarkIcon className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-400 text-sm italic">
+                Nenhum vídeo na galeria.
+              </p>
+            )}
+          </div>
         </div>
-      </div>
-
-      <div className="mb-6">
-        <h3 className="font-medium mb-2 text-gray-700 dark:text-gray-300">
-          Fotos
-        </h3>
-        {photos.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {photos.map((item) => (
-              <div
-                key={item.id}
-                onClick={() => setSelectedMedia(item)}
-                className="relative group aspect-square rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700 cursor-pointer"
-              >
-                <img
-                  src={item.url}
-                  alt="Foto da galeria"
-                  className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                />
-                {editing && (
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handlers.handleRemoveMedia?.(item.id); // ✅ proteção contra ausência
-                      }}
-                      className="absolute top-1 right-1 bg-red-500 text-white w-6 h-6 flex items-center justify-center rounded-full hover:bg-red-600"
-                    >
-                      <FiX size={16} />
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-gray-400 text-sm italic">
-            Nenhuma foto na galeria.
-          </p>
-        )}
-      </div>
-
-      <div>
-        <h3 className="font-medium mb-2 text-gray-700 dark:text-gray-300">
-          Vídeos
-        </h3>
-        {videos.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {videos.map((item) => (
-              <div
-                key={item.id}
-                onClick={() => setSelectedMedia(item)}
-                className="relative group aspect-square rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700 cursor-pointer"
-              >
-                <video
-                  src={item.url}
-                  muted
-                  playsInline
-                  className="w-full h-full object-cover"
-                />
-                {editing && (
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handlers.handleRemoveMedia?.(item.id); // ✅ proteção
-                      }}
-                      className="absolute top-1 right-1 bg-red-500 text-white w-6 h-6 flex items-center justify-center rounded-full hover:bg-red-600"
-                    >
-                      <FiX size={16} />
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-gray-400 text-sm italic">
-            Nenhum vídeo na galeria.
-          </p>
-        )}
-      </div>
+      )}
 
       {selectedMedia && (
         <div
-          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
           onClick={closeModal}
-          role="dialog"
-          aria-modal="true"
         >
           <div
-            className="relative w-auto max-h-[90vh] flex flex-col items-center"
+            className="relative w-auto max-h-[90vh]"
             onClick={(e) => e.stopPropagation()}
           >
             <button
               onClick={closeModal}
               className="absolute -top-2 -right-2 sm:top-0 sm:-right-10 bg-white/20 text-white rounded-full p-2 hover:bg-white/40 transition-colors z-10"
             >
-              <FiX size={24} />
+              <XMarkIcon className="h-6 w-6" />
             </button>
-            <div className="p-1.5 bg-gray-900/50 rounded-lg border-2 border-emerald-400 dark:border-emerald-500 shadow-[0_0_15px_rgba(52,211,153,0.6)] dark:shadow-[0_0_25px_rgba(16,185,129,0.7)]">
-              {selectedMedia.type === 'image' ? (
-                <img
-                  src={selectedMedia.url}
-                  alt="Mídia em destaque"
-                  className="max-h-[85vh] max-w-[90vw] rounded-md object-contain"
-                />
-              ) : (
-                <video
-                  src={selectedMedia.url}
-                  controls
-                  autoPlay
-                  className="max-h-[85vh] max-w-[90vw] rounded-md object-contain"
-                />
-              )}
-            </div>
+            {selectedMedia.type === 'image' ? (
+              <img
+                src={selectedMedia.url}
+                alt="Mídia em destaque"
+                className="max-h-[85vh] max-w-[90vw] rounded-lg object-contain"
+              />
+            ) : (
+              <video
+                src={selectedMedia.url}
+                controls
+                autoPlay
+                className="max-h-[85vh] max-w-[90vw] rounded-lg object-contain"
+              />
+            )}
           </div>
         </div>
       )}

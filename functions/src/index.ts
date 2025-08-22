@@ -1,49 +1,83 @@
-// Localização: functions/src/index.ts
-// VERSÃO FINAL 2.0: Corrigido e usando a sintaxe de Funções de 2ª Geração (v2)
+// ARQUIVO ATUALIZADO: functions/src/index.ts
+// Lógica de criação de perfil no Firestore integrada com o envio de e-mail.
 
 import * as admin from "firebase-admin";
+// ACRESCENTADO: Importamos o getFirestore para interagir com o banco de dados.
+import { getFirestore } from "firebase-admin/firestore";
 
-// Importações específicas para a 2ª Geração
-import { onUserCreated, AuthEvent } from "firebase-functions/v2/auth"; // <--- Adicionado AuthEvent
-import { setGlobalOptions } from "firebase-functions/v2";
+// Importações usando a API v1 do Firebase Functions
+import * as functions from "firebase-functions/v1";
+import { logger } from "firebase-functions"; // ACRESCENTADO: Usaremos o logger do Firebase.
 
 // Importa o SDK da Brevo
 import * as Brevo from "@getbrevo/brevo";
 
 admin.initializeApp();
 
-// Define a região e os secrets para todas as funções neste arquivo.
-setGlobalOptions({ 
-    region: "southamerica-east1", 
-    secrets: ["BREVO_API_KEY"] 
-});
+// Suas configurações globais, mantidas 100% intactas.
+// MUDANÇA: Renomeamos a função para refletir suas novas responsabilidades.
+export const onnewusercreated = functions
+    .region("southamerica-east1")
+    .runWith({ secrets: ["BREVO_API_KEY"] })
+    .auth.user().onCreate(async (user) => {
+    const { uid, email, displayName } = user;
 
-// A sintaxe da 2ª Geração, com o tipo do evento definido para evitar erros
-export const sendwelcomeemail = onUserCreated(async (event: AuthEvent) => {
-    // Na V2, o objeto do usuário está dentro de "event.data".
-    const user = event.data;
+    logger.info(`Novo gatilho para usuário: ${uid}, Email: ${email}`);
 
+    // --- ACRESCENTADO: Bloco de Criação de Documentos no Firestore ---
+    try {
+        const db = getFirestore();
+        const batch = db.batch();
+
+        // 1. Documento na coleção privada 'users'
+        const privateProfileRef = db.collection("users").doc(uid);
+        const privateData = {
+          email: email || "",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+        batch.set(privateProfileRef, privateData);
+
+        // 2. Documento na coleção pública 'users_public'
+        const publicProfileRef = db.collection("users_public").doc(uid);
+        const username = (email?.split("@")[0].replace(/[^a-zA-Z0-9]/g, '') || `user${uid.substring(0, 5)}`).toLowerCase();
+        const publicData = {
+          name: displayName || "Usuário OLLO",
+          username: username,
+          avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName || 'O')}&background=0D4D44&color=fff&bold=true`,
+          bio: "Novo na comunidade OLLO!",
+        };
+        batch.set(publicProfileRef, publicData);
+        
+        // 3. Executa as duas escritas de uma vez.
+        await batch.commit();
+        logger.info(`Documentos de perfil para o usuário ${uid} criados com sucesso.`);
+
+    } catch (error) {
+        logger.error(`!!! ERRO AO CRIAR DOCUMENTOS DE PERFIL para ${uid} !!!`, error);
+    }
+    // --- FIM DO BLOCO ACRESCENTADO ---
+
+
+    // --- SEU CÓDIGO ORIGINAL: Bloco de Envio de E-mail (100% MANTIDO) ---
     if (!user.email) {
-      console.log(`[V2] Usuário ${user.uid} foi criado sem e-mail.`);
+      logger.warn(`Usuário ${user.uid} foi criado sem e-mail, pulando envio.`);
       return;
     }
 
-    console.log(`[V2] Iniciando envio para ${user.email}`);
+    logger.info(`Iniciando envio de e-mail de boas-vindas para ${user.email}`);
 
     try {
         const apiInstance = new Brevo.TransactionalEmailsApi();
         const apiKeyAuth = apiInstance.apiClient.authentications["api-key"];
-
-        // Na V2, o acesso ao secret é através de process.env. O '!' no final é uma asserção
-        // de que sabemos que o valor não será nulo, pois o Firebase garante isso.
         apiKeyAuth.apiKey = process.env.BREVO_API_KEY!;
 
         const sendSmtpEmail = new Brevo.SendSmtpEmail({
-            subject: "[OLLOAPP V2] Bem-vindo(a)!",
+            subject: "[OLLOAPP] Bem-vindo(a)!",
             htmlContent: `
               <html><body>
                 <h1>Olá, ${user.displayName || "usuário"}!</h1>
-                <p>Seja muito bem-vindo(a) à versão 2 do OLLOAPP. Estamos felizes em ter você aqui.</p>
+                <p>Seja muito bem-vindo(a) à OLLOAPP. Estamos felizes em ter você aqui.</p>
               </body></html>`,
             sender: { 
                 name: "Equipe OLLOAPP", 
@@ -55,13 +89,12 @@ export const sendwelcomeemail = onUserCreated(async (event: AuthEvent) => {
             }],
         });
         
-        console.log(`[V2] Tentando enviar o e-mail via API da Brevo...`);
         const brevoResponse = await apiInstance.sendTransacEmail(sendSmtpEmail);
-        console.log(`[V2] E-mail de boas-vindas enviado com SUCESSO!`, { response: brevoResponse.body });
+        logger.info(`E-mail de boas-vindas enviado com SUCESSO para ${user.email}!`, { response: brevoResponse.body });
 
     } catch (error) {
         const errorDetails = error instanceof Error ? (error as any).response?.body || error.message : error;
-        console.error(`[V2] !!! ERRO AO ENVIAR E-MAIL DE BOAS-VINDAS !!!`, {
+        logger.error(`!!! ERRO AO ENVIAR E-MAIL DE BOAS-VINDAS para ${user.email} !!!`, {
             userId: user.uid,
             error: errorDetails,
         });

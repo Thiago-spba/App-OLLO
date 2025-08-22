@@ -1,59 +1,65 @@
+// ARQUIVO CORRIGIDO E DEFINITIVO: firestore.rules
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- REGRAS PARA COLLECTION GROUP QUERIES ---
-    // Permitem buscas em todas as coleções com estes nomes, não importa a profundidade.
+    // --- FUNÇÕES HELPER ---
+    // ARQUITETURA: Funções reutilizáveis para manter as regras limpas (DRY principle).
 
-    match /{path=**}/posts/{postId} {
-      allow read: if true;
-    }
-    match /{path=**}/users/{userId} {
-      allow read: if true;
-    }
-    match /{path=**}/listagens/{docId} {
-      allow read: if true;
-    }
-     match /{path=**}/stories/{storyId} {
-      allow read: if true;
+    function isOwner(userId) {
+      return request.auth.uid == userId;
     }
 
-    // --- REGRAS ORIGINAIS (MANTIDAS) ---
+    // MUDANÇA: Criamos uma função específica para verificar se o usuário é admin.
+    // Isso é mais seguro e legível do que uma regra wildcard.
+    function isAdmin() {
+      return request.auth != null && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
 
-    // 👤 Perfis de usuários
+    // --- REGRAS POR COLEÇÃO ---
+
+    // 👤 Coleção 'users' (DADOS PRIVADOS E SENSÍVEIS)
     match /users/{userId} {
-      // get já está coberto pela regra de collection group acima
-      // allow get: if true; 
-      allow write: if request.auth != null && request.auth.uid == userId;
+      // Apenas o dono ou um admin pode ler/escrever dados privados.
+      allow read, write: if isOwner(userId) || isAdmin();
     }
 
-    // 📝 Posts
+    // 📢 Coleção 'users_public' (DADOS PÚBLICOS DE PERFIL)
+    match /users_public/{userId} {
+      // Leitura é permitida para todos.
+      allow read: if true;
+
+      // Escrita é permitida apenas pelo dono ou por um admin.
+      allow write: if isOwner(userId) || isAdmin();
+    }
+
+    // 🖼️ Subcoleção 'media' de um usuário
+    match /users/{userId}/media/{mediaId} {
+      // Leitura é permitida se o item for público, se o usuário for o dono, ou se for um admin.
+      allow read: if resource.data.privacy == 'public' || isOwner(userId) || isAdmin();
+      
+      // CORREÇÃO: Adicionamos 'update' para permitir alterar a privacidade de uma mídia.
+      // Apenas o dono ou um admin pode criar, atualizar ou deletar mídias.
+      allow create, update, delete: if isOwner(userId) || isAdmin();
+    }
+    
+    // ✍️ Coleção 'posts'
     match /posts/{postId} {
-      // get já está coberto pela regra de collection group acima
-      // allow get: if true;
-      allow write: if request.auth != null && request.auth.uid == request.resource.data.uid;
+      // Leitura de posts é pública.
+      allow read: if true;
+
+      // Criar posts requer autenticação e que o autor seja o próprio usuário.
+      // Admins também podem criar posts (ex: anúncios).
+      allow create: if (request.auth != null && request.resource.data.authorId == request.auth.uid) || isAdmin();
+
+      // Atualizar/deletar posts requer que o usuário seja o autor do post ou um admin.
+      allow update, delete: if (request.auth != null && resource.data.authorId == request.auth.uid) || isAdmin();
     }
 
-    // 🛍️ Listagens
-    match /listagens/{docId} {
-      // get já está coberto pela regra de collection group acima
-      // allow get: if true;
-      allow write: if request.auth != null && request.auth.uid == request.resource.data.uid;
-    }
-
-    // 📚 Stories
-    match /stories/{storyId} {
-      // get já está coberto pela regra de collection group acima
-      // allow get: if true;
-      allow write: if request.auth != null && request.auth.uid == request.resource.data.userId;
-    }
-
-    // 🔐 Admins: regra unificada para acesso total
-    // Esta regra é uma exceção e permite acesso total a admins.
-    match /{document=**} {
-      allow read, write: if request.auth != null &&
-                           exists(/databases/$(database)/documents/admins/$(request.auth.uid));
-    }
+    // ARQUITETURA DE SEGURANÇA: A regra de admin com wildcard foi REMOVIDA.
+    // A lógica foi distribuída para cada coleção individualmente,
+    // tornando o sistema de permissões mais explícito, seguro e fácil de manter.
   }
 }

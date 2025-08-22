@@ -1,212 +1,148 @@
-import EyeIcon from './EyeIcon.jsx';
+// ARQUIVO REATORADO E CORRIGIDO: src/components/pages/profile/ProfileHeader.jsx
 
-export default function ProfileHeader({
-  profile,
-  editing,
-  form,
-  handlers,
-  avatarPreview,
-  avatarInputRef,
-}) {
-  // Garante que campos de array sempre são arrays
-  const safeProfile = {
-    ...profile,
-    emojis: Array.isArray(profile.emojis) ? profile.emojis : [],
-  };
-  const safeForm = {
-    ...form,
-    emojis: Array.isArray(form.emojis) ? form.emojis : [],
-  };
-  const _ = (field) => (editing ? safeForm[field] : safeProfile[field]);
+import React from 'react';
+// MUDANÇA ARQUITETÔNICA: Importamos o store com o nome correto.
+import { useProfileStore } from '@/hooks/useProfileStore';
+import {
+  EyeIcon,
+  EyeSlashIcon,
+  ArrowUpTrayIcon,
+} from '@heroicons/react/24/solid';
+
+const ProfileHeaderSkeleton = () => (
+  <div className="w-full mb-6 rounded-xl shadow-md bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 animate-pulse">
+    <div className="h-40 sm:h-52 bg-gray-300 dark:bg-gray-700"></div>
+    <div className="relative flex justify-center -mt-16">
+      <div className="w-32 h-32 rounded-full bg-gray-300 dark:bg-gray-600 border-4 border-white dark:border-gray-800"></div>
+    </div>
+    <div className="text-center p-4 pb-6">
+      <div className="h-7 w-48 mx-auto bg-gray-300 dark:bg-gray-700 rounded"></div>
+      <div className="h-5 w-32 mx-auto bg-gray-300 dark:bg-gray-700 rounded mt-2"></div>
+    </div>
+  </div>
+);
+
+export default function ProfileHeader() {
+  // MUDANÇA ARQUITETÔNICA: Conectando ao store com seletores.
+  // Selecionamos apenas os pedaços de estado que este componente precisa.
+  const form = useProfileStore((state) => state.form);
+  const initialProfileData = useProfileStore(
+    (state) => state.initialProfileData
+  );
+  const editing = useProfileStore((state) => state.editing);
+  const isOwner = useProfileStore((state) => state.isOwner); // Supondo que o isOwner também virá do store no futuro
+
+  // Selecionamos as ações que vamos usar.
+  const { handleChange, handleFileChange, toggleVisibility } = useProfileStore(
+    (state) => state.actions
+  );
+
+  // Sua guarda condicional, mantida pois é uma excelente prática.
+  if (!form || !initialProfileData) {
+    return <ProfileHeaderSkeleton />;
+  }
+
+  const coverImage = editing ? form.cover : initialProfileData.cover;
+  const avatarImage = editing ? form.avatar : initialProfileData.avatar;
+  const emojis = editing ? form.emojis || [] : initialProfileData.emojis || [];
 
   return (
-    <div className="w-full mb-6 rounded-xl overflow-hidden shadow bg-white dark:bg-gray-900">
+    <div className="w-full mb-6 rounded-xl overflow-hidden shadow-md bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
       {/* Capa */}
-      <div className="relative w-full h-40 sm:h-52 bg-gray-200 dark:bg-gray-800">
+      <div className="relative w-full h-40 sm:h-52 bg-gray-200 dark:bg-gray-700">
         <img
-          src={
-            editing ? safeForm.cover || safeProfile.cover : safeProfile.cover
-          }
+          src={coverImage}
           alt="Capa do perfil"
           className="w-full h-full object-cover"
-          style={{ minHeight: 120, maxHeight: 260 }}
         />
-        {editing && (
-          <label
-            className="absolute bottom-2 right-2 bg-emerald-600 text-white py-1 px-3 rounded-lg shadow cursor-pointer hover:bg-emerald-700 text-sm"
-            style={{ zIndex: 2 }}
-          >
+        {isOwner && editing && (
+          <label className="absolute bottom-2 right-2 bg-ollo-accent text-white py-1 px-3 rounded-lg shadow cursor-pointer hover:bg-ollo-accent-light text-sm font-semibold transition-colors">
             Trocar capa
             <input
               type="file"
               accept="image/*"
               className="hidden"
-              onChange={handlers.handleCoverChange}
+              onChange={(e) => handleFileChange(e, 'cover')}
             />
           </label>
         )}
       </div>
 
-      {/* Layout horizontal: infos à esquerda, avatar à direita */}
-      <div className="flex flex-row items-start mt-0 sm:-mt-12 px-4 pb-4">
-        {/* Infos à esquerda */}
-        <div className="flex-1 flex flex-col gap-2 pt-4 sm:pt-12">
-          {/* Nome */}
-          <div className="flex items-center gap-2">
-            {editing ? (
+      {/* Avatar */}
+      <div className="relative flex justify-center -mt-16">
+        <div className="relative">
+          <img
+            src={avatarImage}
+            alt="Avatar"
+            className="w-32 h-32 rounded-full border-4 border-white dark:border-gray-800 shadow-lg object-cover bg-gray-100 dark:bg-gray-700"
+          />
+          {isOwner && editing && (
+            <label
+              htmlFor="avatar-upload"
+              className="absolute bottom-2 right-1 bg-ollo-accent text-white p-2 rounded-full cursor-pointer hover:bg-ollo-accent-light shadow-md transition-colors"
+              title="Trocar avatar"
+            >
               <input
-                type="text"
-                name="name"
-                value={safeForm.name}
-                onChange={handlers.handleChange}
-                maxLength={40}
-                className="input input-bordered text-xl font-bold px-2 w-52 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                placeholder="Nome"
-                required
+                id="avatar-upload"
+                type="file"
+                accept="image/*"
+                onChange={(e) => handleFileChange(e, 'avatar')}
+                className="hidden"
               />
-            ) : (
-              <span className="text-xl font-bold text-gray-900 dark:text-gray-100">
-                {safeProfile.name || 'Nome não preenchido'}
-              </span>
-            )}
-          </div>
-          {/* Usuário */}
-          <div className="flex items-center gap-2">
-            {editing ? (
-              <input
-                type="text"
-                name="username"
-                value={safeForm.username}
-                onChange={handlers.handleChange}
-                maxLength={20}
-                className="input input-bordered text-base px-2 w-52 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300"
-                placeholder="@usuario"
-                required
-              />
-            ) : (
-              <span className="text-base text-gray-500 dark:text-gray-300">
-                @{safeProfile.username}
-              </span>
-            )}
-          </div>
-          {/* Localização + privacidade */}
-          <div className="flex items-center gap-2">
-            {editing ? (
-              <>
-                <input
-                  type="text"
-                  name="location"
-                  value={safeForm.location}
-                  onChange={handlers.handleChange}
-                  maxLength={32}
-                  className="input input-bordered px-2 w-40 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300"
-                  placeholder="Cidade, País"
-                />
-                <button
-                  type="button"
-                  onClick={() => handlers.toggleVisibility('showLocation')}
-                  className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 focus:ring-2 focus:ring-emerald-500"
-                  aria-label={
-                    safeForm.showLocation
-                      ? 'Ocultar localização'
-                      : 'Mostrar localização'
-                  }
-                >
-                  <EyeIcon visible={safeForm.showLocation} />
-                </button>
-              </>
-            ) : safeProfile.showLocation && safeProfile.location ? (
-              <>
-                <span className="text-gray-600 dark:text-gray-300">
-                  {safeProfile.location}
-                </span>
-                <EyeIcon visible={true} />
-              </>
-            ) : (
-              <span className="text-gray-400 dark:text-gray-500">
-                Localização oculta
-              </span>
-            )}
-          </div>
-          {/* Idade + privacidade */}
-          <div className="flex items-center gap-2">
-            {editing ? (
-              <>
-                <input
-                  type="number"
-                  name="age"
-                  value={safeForm.age}
-                  min={1}
-                  max={120}
-                  onChange={handlers.handleChange}
-                  className="input input-bordered w-20 px-2 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300"
-                  placeholder="Idade"
-                />
-                <button
-                  type="button"
-                  onClick={() => handlers.toggleVisibility('showAge')}
-                  className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 focus:ring-2 focus:ring-emerald-500"
-                  aria-label={
-                    safeForm.showAge ? 'Ocultar idade' : 'Mostrar idade'
-                  }
-                >
-                  <EyeIcon visible={safeForm.showAge} />
-                </button>
-              </>
-            ) : safeProfile.showAge && safeProfile.age ? (
-              <>
-                <span className="text-gray-600 dark:text-gray-300">
-                  {safeProfile.age} anos
-                </span>
-                <EyeIcon visible={true} />
-              </>
-            ) : (
-              <span className="text-gray-400 dark:text-gray-500">
-                Idade oculta
-              </span>
-            )}
-          </div>
-          {/* Status online */}
-          <div className="flex items-center mt-1">
-            {editing ? (
-              <>
-                <input
-                  type="checkbox"
-                  checked={safeForm.statusOnline}
-                  onChange={() =>
-                    handlers.handleChange({
-                      target: {
-                        name: 'statusOnline',
-                        value: !safeForm.statusOnline,
-                      },
-                    })
-                  }
-                  className="mr-2 accent-emerald-600"
-                  aria-label="Status online"
-                />
-                <span className="text-gray-800 dark:text-gray-100">Online</span>
-              </>
-            ) : (
-              _(`statusOnline`) && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-200 text-xs font-medium">
-                  Online
-                </span>
-              )
-            )}
-          </div>
-          {/* Emojis */}
-          <div className="flex flex-wrap items-center gap-1">
-            {editing ? (
-              <>
-                {safeForm.emojis.map((emoji, idx) => (
+              <ArrowUpTrayIcon className="w-5 h-5" />
+            </label>
+          )}
+        </div>
+      </div>
+
+      {/* Informações do Perfil */}
+      <div className="text-center p-4">
+        {editing ? (
+          <>
+            <input
+              type="text"
+              name="name"
+              value={form.name || ''}
+              onChange={handleChange}
+              placeholder="Seu Nome"
+              // MUDANÇA: Estilos de formulário padronizados
+              className="text-2xl font-bold text-center block w-full bg-gray-100 dark:bg-gray-700 rounded-md py-1 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:ring-2 focus:ring-ollo-accent-light outline-none"
+            />
+            <p className="text-base text-gray-500 dark:text-gray-400 mt-1">
+              @{initialProfileData.username} {/* Username não é editável */}
+            </p>
+          </>
+        ) : (
+          <>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+              {initialProfileData.name || 'Nome não preenchido'}
+            </h1>
+            <p className="text-base text-gray-500 dark:text-gray-400">
+              @{initialProfileData.username}
+            </p>
+          </>
+        )}
+
+        <div className="mt-4 flex justify-center items-center flex-wrap gap-x-4 gap-y-2 text-sm text-gray-600 dark:text-gray-400">
+          {/* Lógica de Localização, Idade, etc. que estava aqui foi movida para o ProfileBio */}
+        </div>
+
+        {/* Emojis */}
+        <div className="mt-4 flex justify-center items-center flex-wrap gap-2">
+          {editing ? (
+            // Lógica de edição de emojis
+            <div className="flex flex-col items-center gap-2 w-full">
+              <div className="flex flex-wrap justify-center gap-2">
+                {emojis.map((emoji, i) => (
                   <span
-                    key={idx}
-                    className="text-xl cursor-pointer"
+                    key={i}
+                    className="text-2xl cursor-pointer"
+                    title="Remover emoji"
                     onClick={() =>
-                      handlers.handleChange({
+                      handleChange({
                         target: {
                           name: 'emojis',
-                          value: safeForm.emojis.filter((_, i) => i !== idx),
+                          value: emojis.filter((_, idx) => i !== idx),
                         },
                       })
                     }
@@ -214,78 +150,34 @@ export default function ProfileHeader({
                     {emoji}
                   </span>
                 ))}
-                <input
-                  type="text"
-                  placeholder="😊"
-                  maxLength={2}
-                  className="input input-bordered w-12 px-2 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300"
-                  onBlur={(e) => {
-                    if (e.target.value) {
-                      handlers.handleChange({
-                        target: {
-                          name: 'emojis',
-                          value: [...safeForm.emojis, e.target.value],
-                        },
-                      });
-                      e.target.value = '';
-                    }
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && e.target.value) {
-                      handlers.handleChange({
-                        target: {
-                          name: 'emojis',
-                          value: [...safeForm.emojis, e.target.value],
-                        },
-                      });
-                      e.target.value = '';
-                    }
-                  }}
-                />
-              </>
-            ) : (
-              safeProfile.emojis.length > 0 && (
-                <span className="flex flex-wrap gap-1 text-xl">
-                  {safeProfile.emojis.map((emoji, i) => (
-                    <span key={i}>{emoji}</span>
-                  ))}
-                </span>
-              )
-            )}
-          </div>
-        </div>
-        {/* Avatar à direita */}
-        <div className="flex-shrink-0 flex flex-col items-center ml-4 pt-4 sm:pt-12">
-          <div className="relative">
-            <img
-              src={
-                editing ? avatarPreview || safeForm.avatar : safeProfile.avatar
-              }
-              alt="Avatar"
-              className="w-32 h-32 sm:w-36 sm:h-36 rounded-full border-4 border-white dark:border-gray-900 shadow-lg object-cover bg-gray-100 dark:bg-gray-700"
-            />
-            {editing && (
-              <label className="absolute bottom-2 right-2 bg-emerald-600 text-white p-1 rounded-full cursor-pointer hover:bg-emerald-700 shadow">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handlers.handleAvatarChange}
-                  className="hidden"
-                  ref={avatarInputRef}
-                />
-                <svg
-                  width="18"
-                  height="18"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  viewBox="0 0 24 24"
-                >
-                  <path d="M12 16v-4M12 16l4-4M12 16l-4-4" />
-                </svg>
-              </label>
-            )}
-          </div>
+              </div>
+              <input
+                type="text"
+                onBlur={(e) => {
+                  if (e.target.value) {
+                    handleChange({
+                      target: {
+                        name: 'emojis',
+                        value: [...emojis, e.target.value],
+                      },
+                    });
+                    e.target.value = '';
+                  }
+                }}
+                maxLength={2}
+                placeholder="😊"
+                className="w-16 text-center bg-gray-100 dark:bg-gray-700 rounded-md focus:ring-2 focus:ring-ollo-accent-light outline-none"
+              />
+            </div>
+          ) : (
+            emojis.length > 0 && (
+              <div className="flex flex-wrap gap-2 text-2xl">
+                {emojis.map((emoji, i) => (
+                  <span key={i}>{emoji}</span>
+                ))}
+              </div>
+            )
+          )}
         </div>
       </div>
     </div>

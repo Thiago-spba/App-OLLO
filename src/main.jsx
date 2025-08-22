@@ -25,12 +25,12 @@ import MarketplacePage from './pages/MarketplacePage.jsx';
 import CreateListingPage from './pages/CreateListingPage.jsx';
 import ListingDetailPage from './pages/ListingDetailPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
+// MUDANÇA: Acrescentamos a importação do nosso novo componente de redirecionamento.
+import ProfileRedirectPage from './pages/ProfileRedirectPage.jsx';
 import NotificationsPage from './pages/NotificationsPage.jsx';
 import TermsPage from './pages/TermsPage.jsx';
 import PostDetailPage from './pages/PostDetailPage.jsx';
 import PublicErrorPage from './pages/PublicErrorPage.jsx';
-
-// MUDANÇA 1: Importamos nossa nova e estilizada página NotFoundPage.
 import NotFoundPage from './pages/NotFoundPage.jsx';
 
 import './index.css';
@@ -89,14 +89,18 @@ const router = createBrowserRouter([
         children: [
           { path: 'marketplace', element: <MarketplacePage /> },
           { path: 'marketplace/criar', element: <CreateListingPage /> },
-          { path: 'profile/:username', element: <ProfilePage /> }, // CORREÇÃO: Mudei de profileId para username para clareza
+
+          // MUDANÇA: Acrescentamos a rota para /profile, que redireciona o usuário logado.
+          // Ela precisa vir ANTES da rota dinâmica para ser encontrada primeiro.
+          { path: 'profile', element: <ProfileRedirectPage /> },
+
+          { path: 'profile/:username', element: <ProfilePage /> },
           { path: 'notifications', element: <NotificationsPage /> },
           { path: 'verify-email', element: <VerifyEmailPage /> },
         ],
       },
 
-      // MUDANÇA 2: Adicionamos a rota coringa (catch-all) como filha do layout principal.
-      // Qualquer URL que não corresponda a nada acima cairá aqui.
+      // Rota coringa (catch-all) para URLs não encontradas
       { path: '*', element: <NotFoundPage /> },
     ],
   },

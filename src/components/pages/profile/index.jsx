@@ -1,48 +1,77 @@
-// ARQUIVO REATORADO: src/pages/profile/index.jsx
+// ARQUIVO FINALIZADO: src/components/pages/profile/index.jsx
 
-import React, { useRef } from 'react';
-// MUDANÇA ESTRUTURAL: Removemos quase todos os imports. Agora só precisamos do nosso hook.
-import { useProfileEditor } from '../../../hooks/useProfileEditor';
+import React, { useEffect } from 'react';
+import { useAuth } from '../../../context/AuthContext';
 
-// MUDANÇA: Mantemos os imports dos seus subcomponentes. Eles continuam corretos.
+// MUDANÇA ESTRUTURAL: Importamos nosso novo store do Zustand e o renomeamos.
+import { useProfileStore } from '../../../hooks/useProfileStore';
+
+// Seus subcomponentes, sem alteração.
 import ProfileHeader from './ProfileHeader.jsx';
 import ProfileBio from './ProfileBio.jsx';
 import ProfileGallery from './ProfileGallery.jsx';
 import ProfileActions from './ProfileActions.jsx';
 
-// CORREÇÃO: O nome do componente foi alterado de "ProfilePage" para "Profile" para refletir sua nova responsabilidade.
-// CORREÇÃO: A função agora recebe 'profileData' e 'isOwner' como props, em vez de buscar dados por conta própria.
 export default function Profile({ profileData, isOwner }) {
-  // MUDANÇA ESTRUTURAL: Toda a lógica complexa de useState e useCallback foi substituída
-  // por esta única linha. Nosso hook `useProfileEditor` agora gerencia tudo.
-  const { editing, form, loading, error, success, isDirty, actions, handlers } =
-    useProfileEditor(profileData);
+  const { currentUser } = useAuth();
 
-  const galleryInputRef = useRef(null);
+  // MUDANÇA ESTRUTURAL: Selecionamos os dados e ações que precisamos do store.
+  // Usar seletores assim (state => state.actions) é mais otimizado.
+  const actions = useProfileStore((state) => state.actions);
+  const editing = useProfileStore((state) => state.editing);
+  const form = useProfileStore((state) => state.form);
+  const loading = useProfileStore((state) => state.loading);
+  const error = useProfileStore((state) => state.error);
+  const success = useProfileStore((state) => state.success);
+  const initialProfileData = useProfileStore(
+    (state) => state.initialProfileData
+  );
+  const avatarFile = useProfileStore((state) => state.avatarFile);
+  const coverFile = useProfileStore((state) => state.coverFile);
 
-  // EXPLICAÇÃO: O JSX permanece quase o mesmo, mas agora ele é mais limpo,
-  // pois os dados e funções vêm de fontes bem definidas (props e o hook).
+  // EXPLICAÇÃO: Este useEffect é crucial. Ele "sincroniza" os dados que vêm de fora
+  // (profileData e currentUser) com o nosso store Zustand, inicializando-o.
+  useEffect(() => {
+    if (profileData) {
+      actions.initialize(profileData);
+    }
+    if (currentUser) {
+      actions.setCurrentUser(currentUser);
+    }
+  }, [profileData, currentUser, actions]);
+
+  // Se o formulário ainda não foi inicializado pelo useEffect, mostramos um loading.
+  if (!form) {
+    return <div className="text-center p-8">Carregando perfil...</div>;
+  }
+
+  // A lógica para verificar se o formulário foi alterado.
+  const isDirty =
+    JSON.stringify(form) !== JSON.stringify(initialProfileData) ||
+    !!avatarFile ||
+    !!coverFile;
+
   return (
-    <main className="max-w-2xl mx-auto bg-white dark:bg-gray-900 shadow-xl rounded-lg my-4 md:my-8 p-4 md:p-6">
+    <main className="max-w-2xl mx-auto bg-white dark:bg-gray-800/50 shadow-xl rounded-2xl my-4 md:my-8">
       <ProfileHeader
-        profile={profileData}
+        profile={initialProfileData} // Usamos o initialProfileData para a visualização
         editing={editing}
         form={form}
-        handlers={handlers}
+        handlers={actions}
         isOwner={isOwner}
       />
       <ProfileBio
-        profile={profileData}
+        profile={initialProfileData}
         editing={editing}
         form={form}
-        handlers={handlers}
+        handlers={actions}
       />
       <ProfileGallery
-        profile={profileData}
+        profile={initialProfileData}
         editing={editing}
         form={form}
-        handlers={handlers}
-        galleryInputRef={galleryInputRef}
+        handlers={actions}
+        isOwner={isOwner}
         loading={loading}
       />
 
@@ -53,7 +82,6 @@ export default function Profile({ profileData, isOwner }) {
         </div>
       )}
 
-      {/* A lógica de só mostrar os botões para o dono do perfil agora é explícita e clara. */}
       {isOwner && (
         <ProfileActions
           editing={editing}
@@ -61,6 +89,8 @@ export default function Profile({ profileData, isOwner }) {
           isDirty={isDirty}
           onEdit={actions.handleEdit}
           onCancel={actions.handleCancel}
+          // CORREÇÃO: A chamada onSave agora não precisa de argumentos,
+          // pois o store já tem acesso ao currentUser.
           onSave={actions.handleSave}
         />
       )}
