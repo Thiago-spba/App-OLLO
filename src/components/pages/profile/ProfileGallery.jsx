@@ -1,16 +1,21 @@
-// ARQUIVO FINALIZADO: src/components/pages/profile/ProfileGallery.jsx
+// ARQUIVO FINAL E COMPLETO: src/components/pages/profile/ProfileGallery.jsx
 
 import React, { useState, useEffect } from 'react';
-// MUDANÇA ARQUITETÔNICA: Importamos o store com o nome correto.
 import { useProfileStore } from '@/hooks/useProfileStore';
-// MUDANÇA: Usando ícones do nosso kit padrão.
 import {
   EyeIcon,
   EyeSlashIcon,
   XMarkIcon,
   VideoCameraIcon,
 } from '@heroicons/react/24/solid';
-import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+// MUDANÇA: Adicionamos 'where' para a nossa nova busca condicional.
+import {
+  collection,
+  query,
+  orderBy,
+  onSnapshot,
+  where,
+} from 'firebase/firestore';
 import { db } from '@/firebase/config';
 
 const ProfileGallerySkeleton = () => (
@@ -26,14 +31,12 @@ const ProfileGallerySkeleton = () => (
 );
 
 export default function ProfileGallery() {
-  // MUDANÇA ARQUITETÔNICA: Usando seletores otimizados do Zustand.
   const initialProfileData = useProfileStore(
     (state) => state.initialProfileData
   );
   const form = useProfileStore((state) => state.form);
   const isOwner = useProfileStore((state) => state.isOwner);
   const editing = useProfileStore((state) => state.editing);
-  // MELHORIA: Renomeamos o 'loading' do store para evitar conflito com o estado local.
   const isUploading = useProfileStore((state) => state.loading);
   const { handleMediaUpload, handleMediaDelete, toggleVisibility } =
     useProfileStore((state) => state.actions);
@@ -42,14 +45,29 @@ export default function ProfileGallery() {
   const [loadingMedia, setLoadingMedia] = useState(true);
   const [selectedMedia, setSelectedMedia] = useState(null);
 
-  // EXPLICAÇÃO: Sua lógica de busca de dados em tempo real está perfeita e foi mantida.
   useEffect(() => {
     const profileId = initialProfileData?.id;
-    if (!profileId) return;
+    if (!profileId) {
+      setLoadingMedia(false);
+      return;
+    }
 
     setLoadingMedia(true);
     const mediaCollectionRef = collection(db, 'users', profileId, 'media');
-    const q = query(mediaCollectionRef, orderBy('createdAt', 'desc'));
+
+    // CORREÇÃO CRÍTICA: A query agora é condicional para respeitar as regras de segurança.
+    let q;
+    if (isOwner) {
+      // Se for o dono, busca todas as mídias, ordenadas por data.
+      q = query(mediaCollectionRef, orderBy('createdAt', 'desc'));
+    } else {
+      // Se for um visitante, busca APENAS as mídias públicas, ordenadas por data.
+      q = query(
+        mediaCollectionRef,
+        where('privacy', '==', 'public'),
+        orderBy('createdAt', 'desc')
+      );
+    }
 
     const unsubscribe = onSnapshot(
       q,
@@ -58,10 +76,7 @@ export default function ProfileGallery() {
           id: doc.id,
           ...doc.data(),
         }));
-        const visibleMedia = isOwner
-          ? mediaData
-          : mediaData.filter((item) => item.privacy !== 'private');
-        setMediaItems(visibleMedia);
+        setMediaItems(mediaData);
         setLoadingMedia(false);
       },
       (error) => {
@@ -80,7 +95,6 @@ export default function ProfileGallery() {
   const handleFileUpload = (event) => {
     const files = Array.from(event.target.files);
     files.forEach((file) => {
-      // CORREÇÃO: A ação agora não precisa mais do currentUser, pois o store já o conhece.
       handleMediaUpload(file);
     });
   };
@@ -128,7 +142,6 @@ export default function ProfileGallery() {
           </div>
         )}
       </div>
-
       {loadingMedia ? (
         <ProfileGallerySkeleton />
       ) : (
@@ -213,18 +226,17 @@ export default function ProfileGallery() {
           </div>
         </div>
       )}
-
       {selectedMedia && (
         <div
           className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          onClick={closeModal}
+          onClick={() => setSelectedMedia(null)}
         >
           <div
             className="relative w-auto max-h-[90vh]"
             onClick={(e) => e.stopPropagation()}
           >
             <button
-              onClick={closeModal}
+              onClick={() => setSelectedMedia(null)}
               className="absolute -top-2 -right-2 sm:top-0 sm:-right-10 bg-white/20 text-white rounded-full p-2 hover:bg-white/40 transition-colors z-10"
             >
               <XMarkIcon className="h-6 w-6" />
