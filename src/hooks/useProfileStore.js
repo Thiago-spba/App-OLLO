@@ -1,37 +1,30 @@
-// ARQUIVO ATUALIZADO: src/hooks/useProfileStore.js
+// ARQUIVO FINAL E COMPLETO (COM UPLOAD DE GALERIA): src/hooks/useProfileStore.js
 
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { db, storage } from '../firebase/config';
-import { doc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { v4 as uuidv4 } from 'uuid'; // Precisamos de IDs únicos para a mídia
 
-// MUDANÇA: A estrutura do store foi "aplainada". O estado e as ações agora estão no mesmo nível.
-// Isso segue as melhores práticas do Zustand para simplificar o uso e a seleção de estado/ações nos componentes.
 export const useProfileStore = create(
   immer((set, get) => ({
-    // --- ESTADO CENTRALIZADO ---
+    // Estado
     currentUser: null,
     initialProfileData: null,
-    media: [],
-    editing: false,
     form: null,
+    editing: false,
     avatarFile: null,
     coverFile: null,
     loading: false,
     success: '',
     error: '',
 
-    // --- AÇÕES (MÉTODOS PARA MODIFICAR O ESTADO) ---
-    // MUDANÇA: As ações foram movidas do objeto aninhado 'actions' para o nível raiz.
-    
-    setCurrentUser: (user) => set({ currentUser: user }),
-
-    initialize: (profileData, mediaData = []) => {
+    // Ações
+    initialize: (profileData) => {
       set({
         initialProfileData: profileData,
         form: profileData,
-        media: mediaData,
         editing: false,
         avatarFile: null,
         coverFile: null,
@@ -40,10 +33,11 @@ export const useProfileStore = create(
       });
     },
 
+    setCurrentUser: (user) => set({ currentUser: user }),
+    
     handleEdit: () => set({ editing: true }),
 
     handleCancel: () => {
-      console.log('--- [OLLO] Ação handleCancel foi chamada! ---');
       set((state) => {
         state.editing = false;
         state.form = state.initialProfileData;
@@ -58,7 +52,6 @@ export const useProfileStore = create(
       const { name, value, type, checked } = e.target;
       const val = type === 'checkbox' ? checked : value;
       set((state) => {
-        // Garante que 'form' não seja nulo antes de tentar atribuir uma propriedade
         if (state.form) {
           state.form[name] = val;
         }
@@ -70,6 +63,7 @@ export const useProfileStore = create(
       if (!file) return;
 
       set((state) => {
+        if (!state.form) return;
         if (fileType === 'avatar') {
           state.avatarFile = file;
           state.form.avatar = URL.createObjectURL(file);
@@ -81,35 +75,37 @@ export const useProfileStore = create(
     },
 
     handleSave: async () => {
-      console.log('--- [OLLO] Ação handleSave foi chamada! ---');
-      const { currentUser, form, avatarFile, coverFile } = get();
-      if (!currentUser) return;
-
+      const { currentUser, form, avatarFile, coverFile, initialProfileData } = get();
+      if (!currentUser || !form) {
+        set({ error: 'Dados do usuário ou formulário ausentes.' });
+        return;
+      }
       set({ loading: true, error: '', success: '' });
 
       try {
-        let finalAvatarUrl = form.avatar;
-        let finalCoverUrl = form.cover;
+        let finalAvatarUrl = initialProfileData?.avatar || null;
+        let finalCoverUrl = initialProfileData?.cover || null;
 
         if (avatarFile) {
-          // CORREÇÃO: Usamos um caminho fixo e previsível para o avatar para evitar arquivos órfãos.
-          // Isso garante que o usuário tenha apenas uma imagem de avatar, que é substituída a cada upload.
           const avatarRef = ref(storage, `avatars/${currentUser.uid}`);
           await uploadBytes(avatarRef, avatarFile);
           finalAvatarUrl = await getDownloadURL(avatarRef);
         }
 
         if (coverFile) {
-          // CORREÇÃO: O mesmo princípio é aplicado à imagem de capa. Um caminho, um arquivo por usuário.
           const coverRef = ref(storage, `covers/${currentUser.uid}`);
           await uploadBytes(coverRef, coverFile);
           finalCoverUrl = await getDownloadURL(coverRef);
         }
 
-        const dataToSave = { ...form, avatar: finalAvatarUrl, cover: finalCoverUrl };
+        const dataToSave = {
+          ...initialProfileData,
+          ...form,
+          avatar: finalAvatarUrl,
+          cover: finalCoverUrl,
+        };
+
         const userDocRef = doc(db, 'users_public', currentUser.uid);
-        
-        // Usamos setDoc com merge:true para criar o documento se não existir, ou atualizar se existir.
         await setDoc(userDocRef, dataToSave, { merge: true });
 
         set((state) => {
@@ -119,47 +115,48 @@ export const useProfileStore = create(
           state.form = dataToSave;
           state.avatarFile = null;
           state.coverFile = null;
+          state.error = '';
         });
       } catch (err) {
         console.error("Erro ao salvar perfil:", err);
-        set({ error: 'Falha ao salvar o perfil. Tente novamente.' });
-      } finally {
-        set({ loading: false });
-      }
-    },
-
-    updateMediaPrivacy: async (mediaId, newPrivacy) => {
-      const { currentUser } = get();
-      if (!currentUser) return;
-
-      set({ loading: true, error: '' });
-
-      try {
-        const mediaRef = doc(db, 'users', currentUser.uid, 'media', mediaId);
-        await updateDoc(mediaRef, { privacy: newPrivacy });
-
-        set((state) => {
-          const mediaToUpdate = state.media.find((item) => item.id === mediaId);
-          if (mediaToUpdate) {
-            mediaToUpdate.privacy = newPrivacy;
-          }
-          state.success = 'Privacidade da mídia atualizada!';
-        });
-      } catch (err) {
-        console.error("Erro ao atualizar privacidade:", err);
-        set({ error: 'Falha ao atualizar a privacidade da mídia.' });
+        set({ error: 'Falha ao salvar o perfil. Verifique as regras de segurança.' });
       } finally {
         set({ loading: false });
       }
     },
     
-    // Deixamos estes como placeholders para implementações futuras.
+    // ✅ AÇÃO DE UPLOAD DE MÍDIA PARA A GALERIA
     handleMediaUpload: async (file) => {
-        // Lógica de upload para a galeria...
-    },
+      const { currentUser } = get();
+      if (!currentUser || !file) {
+        set({ error: 'Usuário não autenticado ou arquivo não selecionado.' });
+        return;
+      }
+      set({ loading: true, success: '', error: '' });
 
-    handleMediaDelete: async (mediaDoc) => {
-        // Lógica para apagar mídia da galeria e do storage...
+      const mediaId = uuidv4(); // Gera um ID único para o arquivo
+      const mediaRef = ref(storage, `users/${currentUser.uid}/media/${mediaId}`);
+
+      try {
+        await uploadBytes(mediaRef, file);
+        const url = await getDownloadURL(mediaRef);
+        
+        const mediaDocRef = doc(db, 'users', currentUser.uid, 'media', mediaId);
+        
+        // Salva as informações da mídia no Firestore
+        await setDoc(mediaDocRef, {
+            url: url,
+            type: file.type,
+            createdAt: serverTimestamp(),
+            privacy: 'public' // Ou 'private', como padrão
+        });
+
+        set({ success: 'Mídia adicionada com sucesso!', loading: false });
+
+      } catch(err) {
+          console.error("Erro ao fazer upload da mídia:", err);
+          set({ error: 'Falha ao adicionar mídia. Verifique as regras de segurança.', loading: false });
+      }
     },
   }))
 );

@@ -1,26 +1,24 @@
-﻿// ARQUIVO: src/components/pages/profile/MediaItem.jsx
+﻿// ARQUIVO FINAL E CORRIGIDO: src/components/pages/profile/MediaItem.jsx
 
 import React from 'react';
-import { useProfileStore } from '@/hooks/useProfileStore';
-import { useAuth } from '@/context/AuthContext';
-import { XMarkIcon, VideoCameraIcon } from '@heroicons/react/24/solid';
-import PrivacyControl from './PrivacyControl';
+// Imports dos hooks globais (useProfileStore, useAuth) são removidos.
+import { VideoCameraIcon, XMarkIcon } from '@heroicons/react/24/solid';
+import PrivacyControl from './PrivacyControl'; // Assumimos que PrivacyControl será refatorado de forma similar se necessário.
 
-export default function MediaItem({ item, onSelect }) {
-  // --- Lendo dados do nosso cérebro (Zustand) ---
-  const { initialProfileData, editing } = useProfileStore();
-  const { handleMediaDelete } = useProfileStore((state) => state.actions);
-
-  // --- Lendo o usuário logado da fonte correta (AuthContext) ---
-  const { currentUser, loading: authLoading } = useAuth();
-
-  // --- Lógica de permissão robusta ---
-  const isOwner =
-    !authLoading && currentUser && currentUser.uid === initialProfileData?.id;
-
+// --- REATORAÇÃO PARA COMPONENTE DE APRESENTAÇÃO ---
+// O componente agora recebe tudo o que precisa via props.
+export default function MediaItem({
+  item,
+  onSelect,
+  isOwner,
+  editing,
+  onDelete,
+}) {
   const handleDelete = (e) => {
-    e.stopPropagation();
-    handleMediaDelete(item);
+    e.stopPropagation(); // Impede que o clique no botão de delete também abra o modal.
+    if (onDelete) {
+      onDelete(item); // Chama a função onDelete passada pelo pai.
+    }
   };
 
   const isImage = item.type?.startsWith('image');
@@ -52,7 +50,7 @@ export default function MediaItem({ item, onSelect }) {
         </>
       )}
 
-      {/* CONDIÇÃO FINAL: Mostra os controles se for o dono E estiver no modo de edição */}
+      {/* A lógica de exibição agora usa as props `isOwner` e `editing` */}
       {isOwner && editing && (
         <>
           <PrivacyControl mediaId={item.id} currentPrivacy={item.privacy} />

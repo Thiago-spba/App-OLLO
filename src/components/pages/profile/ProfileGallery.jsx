@@ -1,8 +1,7 @@
-// ARQUIVO: src/components/pages/profile/ProfileGallery.jsx
+// ARQUIVO FINAL E CORRIGIDO: src/components/pages/profile/ProfileGallery.jsx
 
 import React, { useState, useEffect } from 'react';
-import { useProfileStore } from '@/hooks/useProfileStore';
-import { useAuth } from '@/context/AuthContext';
+// Imports de hooks globais removidos.
 import { XMarkIcon, PlusCircleIcon } from '@heroicons/react/24/solid';
 import {
   collection,
@@ -12,9 +11,10 @@ import {
   where,
 } from 'firebase/firestore';
 import { db } from '@/firebase/config';
-import MediaItem from './MediaItem'; // Assumindo que MediaItem.jsx existe
+import MediaItem from './MediaItem';
 import { toast } from 'react-hot-toast';
 
+// O Skeleton continua sendo uma ótima prática.
 const ProfileGallerySkeleton = () => (
   <section className="p-4 border-t border-gray-200 dark:border-gray-700 animate-pulse">
     <div className="h-6 w-24 bg-gray-300 dark:bg-gray-700 rounded mb-4"></div>
@@ -27,32 +27,31 @@ const ProfileGallerySkeleton = () => (
   </section>
 );
 
-export default function ProfileGallery() {
-  // --- Lendo dados do nosso cérebro (Zustand) ---
-  const { initialProfileData, media, editing, loading } = useProfileStore();
-  const { initialize, handleMediaUpload } = useProfileStore(
-    (state) => state.actions
-  );
-
-  // --- Lendo o usuário logado da fonte correta (AuthContext) ---
-  const { currentUser, loading: authLoading } = useAuth();
-  const isOwner =
-    !authLoading && currentUser && currentUser.uid === initialProfileData?.id;
-
-  // --- Estado local apenas para controle da UI deste componente ---
+// --- REATORAÇÃO PARA COMPONENTE DE APRESENTAÇÃO COM LÓGICA INTERNA ---
+export default function ProfileGallery({
+  profileData,
+  editing,
+  isOwner,
+  loading,
+  onMediaUpload,
+}) {
+  // Estado local para a mídia da galeria e controle de UI.
+  const [media, setMedia] = useState([]);
   const [loadingMedia, setLoadingMedia] = useState(true);
   const [selectedMedia, setSelectedMedia] = useState(null);
 
-  // Efeito para buscar e ouvir as mídias do Firestore em tempo real
+  // Efeito para buscar e ouvir as mídias do Firestore em tempo real.
+  // Agora depende de `profileData` e `isOwner` recebidos via props.
   useEffect(() => {
-    if (!initialProfileData?.id) return;
+    // A busca só começa se tivermos o ID do perfil.
+    if (!profileData?.id) {
+      setLoadingMedia(false);
+      return;
+    }
+    setLoadingMedia(true);
 
-    const mediaCollectionRef = collection(
-      db,
-      'users',
-      initialProfileData.id,
-      'media'
-    );
+    const mediaCollectionRef = collection(db, 'users', profileData.id, 'media');
+
     let q;
     if (isOwner) {
       q = query(mediaCollectionRef, orderBy('createdAt', 'desc'));
@@ -71,8 +70,7 @@ export default function ProfileGallery() {
           id: doc.id,
           ...doc.data(),
         }));
-        // Sincroniza os dados do Firestore com nosso store
-        initialize(initialProfileData, mediaData);
+        setMedia(mediaData); // Atualiza o estado local do componente.
         setLoadingMedia(false);
       },
       (error) => {
@@ -82,25 +80,21 @@ export default function ProfileGallery() {
       }
     );
 
-    return () => unsubscribe();
-  }, [initialProfileData, isOwner, initialize]);
+    return () => unsubscribe(); // Limpeza do listener ao desmontar.
+  }, [profileData?.id, isOwner]); // Dependências explícitas e seguras.
 
-  // MUDANÇA: Função para lidar com a seleção de arquivos
   const handleFileSelect = (event) => {
     const file = event.target.files?.[0];
     if (file) {
-      handleMediaUpload(file);
+      // Chama a função de upload que foi passada via props pelo componente pai.
+      onMediaUpload(file);
     }
-    // Limpa o input para permitir selecionar o mesmo arquivo novamente
     event.target.value = null;
   };
 
-  if (!initialProfileData) {
+  if (!profileData) {
     return <ProfileGallerySkeleton />;
   }
-
-  const photos = media.filter((item) => item.type?.startsWith('image'));
-  const videos = media.filter((item) => item.type?.startsWith('video'));
 
   return (
     <section className="p-4 border-t border-gray-200 dark:border-gray-700">
@@ -114,7 +108,6 @@ export default function ProfileGallery() {
         <ProfileGallerySkeleton />
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-          {/* MUDANÇA: Botão para adicionar mídia aparece primeiro, se aplicável */}
           {isOwner && editing && (
             <label
               className={`relative group aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 cursor-pointer flex items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-ollo-accent dark:hover:border-ollo-accent transition-colors ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -135,20 +128,18 @@ export default function ProfileGallery() {
             </label>
           )}
 
-          {/* Renderiza os itens de mídia existentes */}
           {media.map((item) => (
             <MediaItem key={item.id} item={item} onSelect={setSelectedMedia} />
           ))}
         </div>
       )}
 
-      {media.length === 0 && !editing && (
+      {media.length === 0 && !loadingMedia && !editing && (
         <p className="text-gray-400 text-sm italic mt-4">
           Nenhuma mídia na galeria.
         </p>
       )}
 
-      {/* Modal para visualizar mídia em tela cheia */}
       {selectedMedia && (
         <div
           className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
