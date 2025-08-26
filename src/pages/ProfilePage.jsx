@@ -1,42 +1,57 @@
-// ARQUIVO FINALIZADO E CORRIGIDO: src/pages/ProfilePage.jsx
+// ARQUIVO FINAL E CORRIGIDO: src/pages/ProfilePage.jsx
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from '@/firebase/config';
+
+// CORREÇÃO FINAL: O caminho foi ajustado para a localização exata do arquivo, descoberta via terminal.
+import { db } from '../firebase/config'; // <--- ESTA É A LINHA CORRIGIDA
+
 import { useAuth } from '../context/AuthContext';
-
-// MUDANÇA CRÍTICA: Corrigimos o nome da importação para corresponder ao nosso store.
 import { useProfileStore } from '../hooks/useProfileStore';
+import { shallow } from 'zustand/shallow';
 
-import AuthWrapper from '../components/AuthWrapper';
-import Profile from '../components/pages/profile'; // O componente de apresentação
+import ProfileHeader from '../components/pages/profile/ProfileHeader';
+import ProfileBio from '../components/pages/profile/ProfileBio';
+import ProfileGallery from '../components/pages/profile/ProfileGallery';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import NotFoundPage from './NotFoundPage';
 
-// ARQUITETURA: Este componente agora atua como um "Container Inteligente" ou "Orquestrador".
-// Sua única responsabilidade é:
-// 1. Buscar os dados do perfil com base na URL.
-// 2. Inicializar o estado global (Zustand store) com esses dados.
-// 3. Renderizar o componente de apresentação ou os estados de erro/loading.
 export default function ProfilePage() {
   const { username } = useParams();
   const { currentUser } = useAuth();
 
-  // MUDANÇA: Usamos o nome correto do store para pegar a ação `initialize`.
   const { initialize, setCurrentUser } = useProfileStore(
-    (state) => state.actions
+    (state) => ({
+      initialize: state.initialize,
+      setCurrentUser: state.setCurrentUser,
+    }),
+    shallow
   );
+
+  const form = useProfileStore((state) => state.form);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
   useEffect(() => {
     const fetchUserProfile = async () => {
-      if (!username) return;
+      if (!username) {
+        setLoading(false);
+        setError(true);
+        return;
+      }
 
       setLoading(true);
       setError(false);
+
+      if (form && form.username === username.toLowerCase()) {
+        console.log(
+          '[OLLO] Perfil encontrado no cache do store. Exibindo dados.'
+        );
+        setLoading(false);
+        return;
+      }
 
       try {
         const usersRef = collection(db, 'users_public');
@@ -47,18 +62,13 @@ export default function ProfilePage() {
         const querySnapshot = await getDocs(q);
 
         if (querySnapshot.empty) {
-          console.error('[OLLO] Nenhum usuário encontrado com esse username.');
           setError(true);
         } else {
           const userDoc = querySnapshot.docs[0];
           const profileData = { id: userDoc.id, ...userDoc.data() };
-          const isOwner = currentUser?.uid === profileData.id;
 
-          // CORREÇÃO: Ponto central da refatoração.
-          // Em vez de passar dados via props, nós inicializamos o store global.
-          // Agora, qualquer componente dentro de <Profile /> pode acessar esses dados.
           initialize(profileData);
-          setCurrentUser({ ...currentUser, isOwner }); // Também informamos ao store quem é o dono.
+          setCurrentUser(currentUser);
         }
       } catch (err) {
         console.error('[OLLO] Erro ao buscar perfil do usuário:', err);
@@ -69,7 +79,7 @@ export default function ProfilePage() {
     };
 
     fetchUserProfile();
-  }, [username, currentUser, initialize, setCurrentUser]);
+  }, [username, currentUser, initialize, setCurrentUser, form]);
 
   if (loading) {
     return <LoadingSpinner text="Carregando perfil..." />;
@@ -79,12 +89,11 @@ export default function ProfilePage() {
     return <NotFoundPage />;
   }
 
-  // ARQUITETURA: O componente <Profile /> não recebe mais props.
-  // Ele se tornou autossuficiente, lendo tudo o que precisa diretamente do
-  // store `useProfileStore`.
   return (
-    <AuthWrapper>
-      <Profile />
-    </AuthWrapper>
+    <main className="max-w-2xl mx-auto my-4 md:my-8 px-4">
+      <ProfileHeader />
+      <ProfileBio />
+      <ProfileGallery />
+    </main>
   );
 }

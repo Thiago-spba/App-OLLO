@@ -1,4 +1,4 @@
-// src/context/AuthContext.jsx
+// ARQUIVO CORRIGIDO: src/context/AuthContext.jsx
 
 import React, {
   createContext,
@@ -12,7 +12,6 @@ import {
   onIdTokenChanged,
   signOut,
   createUserWithEmailAndPassword,
-  // sendEmailVerification, // MUDANÇA: Não vamos mais importar isso diretamente.
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
   updateProfile,
@@ -41,6 +40,11 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
       if (firebaseUser) {
         try {
+          // CORREÇÃO: Força a atualização do token de autenticação.
+          // Esta é a única linha adicionada. Ela resolve o erro 400 Bad Request
+          // que ocorre após o registro, garantindo que o estado do usuário esteja sincronizado.
+          await firebaseUser.getIdToken(true);
+
           const privateDocRef = doc(db, 'users', firebaseUser.uid);
           const publicDocRef = doc(db, 'users_public', firebaseUser.uid);
 
@@ -119,7 +123,6 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  // MUDANÇA CRÍTICA APLICADA
   const registerWithEmail = useCallback(
     async (email, password, additionalData) => {
       try {
@@ -130,21 +133,13 @@ export const AuthProvider = ({ children }) => {
         );
         const user = userCredential.user;
 
-        // Primeiro, atualizamos o perfil no Firebase Auth (isso é rápido)
         await updateProfile(user, { displayName: additionalData.name });
 
-        // Em seguida, criamos os documentos no Firestore
         await createUserProfile(user.uid, {
           email: user.email,
           name: additionalData.name,
           username: additionalData.username,
         });
-
-        // CORREÇÃO: A linha abaixo foi REMOVIDA.
-        // Esta era a linha que enviava o e-mail de verificação PADRÃO do Firebase.
-        // Ao removê-la, nós permitimos que a nossa Cloud Function seja a ÚNICA
-        // responsável por enviar o e-mail PERSONALIZADO da OLLO.
-        // await sendEmailVerification(user);
 
         return { success: true, user };
       } catch (error) {
@@ -156,9 +151,6 @@ export const AuthProvider = ({ children }) => {
   );
 
   const resetPassword = async (email) => {
-    // PRÓXIMO PASSO: Para personalizar este e-mail, teremos que refatorar esta função.
-    // Criaremos uma Cloud Function "Callable" que gera o link de reset e o envia
-    // com nosso template da OLLO, assim como fizemos para o e-mail de boas-vindas.
     try {
       await sendPasswordResetEmail(auth, email);
       return { success: true };
@@ -168,9 +160,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // CORREÇÃO: Otimizando o hook useMemo para incluir todas as suas dependências.
-  // Isso garante que o contexto sempre fornecerá as versões mais recentes das funções,
-  // evitando bugs de "stale closure" e melhorando a estabilidade.
   const value = useMemo(
     () => ({
       currentUser,

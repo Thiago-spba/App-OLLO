@@ -1,14 +1,9 @@
-// ARQUIVO FINAL E COMPLETO: src/components/pages/profile/ProfileGallery.jsx
+// ARQUIVO: src/components/pages/profile/ProfileGallery.jsx
 
 import React, { useState, useEffect } from 'react';
 import { useProfileStore } from '@/hooks/useProfileStore';
-import {
-  EyeIcon,
-  EyeSlashIcon,
-  XMarkIcon,
-  VideoCameraIcon,
-} from '@heroicons/react/24/solid';
-// MUDANÇA: Adicionamos 'where' para a nossa nova busca condicional.
+import { useAuth } from '@/context/AuthContext';
+import { XMarkIcon, PlusCircleIcon } from '@heroicons/react/24/solid';
 import {
   collection,
   query,
@@ -17,6 +12,8 @@ import {
   where,
 } from 'firebase/firestore';
 import { db } from '@/firebase/config';
+import MediaItem from './MediaItem'; // Assumindo que MediaItem.jsx existe
+import { toast } from 'react-hot-toast';
 
 const ProfileGallerySkeleton = () => (
   <section className="p-4 border-t border-gray-200 dark:border-gray-700 animate-pulse">
@@ -31,37 +28,35 @@ const ProfileGallerySkeleton = () => (
 );
 
 export default function ProfileGallery() {
-  const initialProfileData = useProfileStore(
-    (state) => state.initialProfileData
+  // --- Lendo dados do nosso cérebro (Zustand) ---
+  const { initialProfileData, media, editing, loading } = useProfileStore();
+  const { initialize, handleMediaUpload } = useProfileStore(
+    (state) => state.actions
   );
-  const form = useProfileStore((state) => state.form);
-  const isOwner = useProfileStore((state) => state.isOwner);
-  const editing = useProfileStore((state) => state.editing);
-  const isUploading = useProfileStore((state) => state.loading);
-  const { handleMediaUpload, handleMediaDelete, toggleVisibility } =
-    useProfileStore((state) => state.actions);
 
-  const [mediaItems, setMediaItems] = useState([]);
+  // --- Lendo o usuário logado da fonte correta (AuthContext) ---
+  const { currentUser, loading: authLoading } = useAuth();
+  const isOwner =
+    !authLoading && currentUser && currentUser.uid === initialProfileData?.id;
+
+  // --- Estado local apenas para controle da UI deste componente ---
   const [loadingMedia, setLoadingMedia] = useState(true);
   const [selectedMedia, setSelectedMedia] = useState(null);
 
+  // Efeito para buscar e ouvir as mídias do Firestore em tempo real
   useEffect(() => {
-    const profileId = initialProfileData?.id;
-    if (!profileId) {
-      setLoadingMedia(false);
-      return;
-    }
+    if (!initialProfileData?.id) return;
 
-    setLoadingMedia(true);
-    const mediaCollectionRef = collection(db, 'users', profileId, 'media');
-
-    // CORREÇÃO CRÍTICA: A query agora é condicional para respeitar as regras de segurança.
+    const mediaCollectionRef = collection(
+      db,
+      'users',
+      initialProfileData.id,
+      'media'
+    );
     let q;
     if (isOwner) {
-      // Se for o dono, busca todas as mídias, ordenadas por data.
       q = query(mediaCollectionRef, orderBy('createdAt', 'desc'));
     } else {
-      // Se for um visitante, busca APENAS as mídias públicas, ordenadas por data.
       q = query(
         mediaCollectionRef,
         where('privacy', '==', 'public'),
@@ -76,36 +71,36 @@ export default function ProfileGallery() {
           id: doc.id,
           ...doc.data(),
         }));
-        setMediaItems(mediaData);
+        // Sincroniza os dados do Firestore com nosso store
+        initialize(initialProfileData, mediaData);
         setLoadingMedia(false);
       },
       (error) => {
         console.error('OLLO: Erro ao buscar mídias da galeria:', error);
         setLoadingMedia(false);
+        toast.error('Não foi possível carregar a galeria.');
       }
     );
 
     return () => unsubscribe();
-  }, [initialProfileData?.id, isOwner]);
+  }, [initialProfileData, isOwner, initialize]);
+
+  // MUDANÇA: Função para lidar com a seleção de arquivos
+  const handleFileSelect = (event) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      handleMediaUpload(file);
+    }
+    // Limpa o input para permitir selecionar o mesmo arquivo novamente
+    event.target.value = null;
+  };
 
   if (!initialProfileData) {
     return <ProfileGallerySkeleton />;
   }
 
-  const handleFileUpload = (event) => {
-    const files = Array.from(event.target.files);
-    files.forEach((file) => {
-      handleMediaUpload(file);
-    });
-  };
-
-  const closeModal = () => setSelectedMedia(null);
-
-  const photos = mediaItems.filter((item) => item.type === 'image');
-  const videos = mediaItems.filter((item) => item.type === 'video');
-  const isGalleryVisible = editing
-    ? form?.showGallery
-    : initialProfileData.showGallery;
+  const photos = media.filter((item) => item.type?.startsWith('image'));
+  const videos = media.filter((item) => item.type?.startsWith('video'));
 
   return (
     <section className="p-4 border-t border-gray-200 dark:border-gray-700">
@@ -113,119 +108,47 @@ export default function ProfileGallery() {
         <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100">
           Galeria
         </h2>
-        {isOwner && editing && (
-          <div className="flex items-center gap-4">
-            <button
-              type="button"
-              onClick={() => toggleVisibility('showGallery')}
-              title={isGalleryVisible ? 'Ocultar galeria' : 'Mostrar galeria'}
-            >
-              {isGalleryVisible ? (
-                <EyeIcon className="h-5 w-5 text-gray-500" />
-              ) : (
-                <EyeSlashIcon className="h-5 w-5 text-gray-500" />
-              )}
-            </button>
-            <label
-              className={`flex items-center gap-2 px-3 py-1.5 bg-ollo-accent text-white rounded-lg cursor-pointer hover:bg-ollo-accent-light text-sm font-medium transition-all ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-              + Adicionar Mídia
-              <input
-                type="file"
-                accept="image/*,video/*"
-                multiple
-                className="hidden"
-                onChange={handleFileUpload}
-                disabled={isUploading}
-              />
-            </label>
-          </div>
-        )}
       </div>
+
       {loadingMedia ? (
         <ProfileGallerySkeleton />
       ) : (
-        <div className="space-y-6">
-          <div>
-            <h3 className="font-semibold mb-2 text-gray-700 dark:text-gray-300">
-              Fotos ({photos.length})
-            </h3>
-            {photos.length > 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                {photos.map((item) => (
-                  <div
-                    key={item.id}
-                    onClick={() => setSelectedMedia(item)}
-                    className="relative group aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 cursor-pointer"
-                  >
-                    <img
-                      src={item.url}
-                      alt="Foto da galeria"
-                      className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                    />
-                    {isOwner && editing && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleMediaDelete(item);
-                        }}
-                        className="absolute top-1 right-1 bg-red-600/80 text-white w-6 h-6 flex items-center justify-center rounded-full hover:bg-red-700 opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <XMarkIcon className="h-4 w-4" />
-                      </button>
-                    )}
-                  </div>
-                ))}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+          {/* MUDANÇA: Botão para adicionar mídia aparece primeiro, se aplicável */}
+          {isOwner && editing && (
+            <label
+              className={`relative group aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 cursor-pointer flex items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-ollo-accent dark:hover:border-ollo-accent transition-colors ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <div className="text-center text-gray-400 dark:text-gray-500">
+                <PlusCircleIcon className="h-10 w-10 mx-auto" />
+                <span className="mt-2 block text-sm font-medium">
+                  Adicionar
+                </span>
               </div>
-            ) : (
-              <p className="text-gray-400 text-sm italic">
-                Nenhuma foto na galeria.
-              </p>
-            )}
-          </div>
-          <div>
-            <h3 className="font-semibold mb-2 text-gray-700 dark:text-gray-300">
-              Vídeos ({videos.length})
-            </h3>
-            {videos.length > 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                {videos.map((item) => (
-                  <div
-                    key={item.id}
-                    onClick={() => setSelectedMedia(item)}
-                    className="relative group aspect-square rounded-lg overflow-hidden bg-gray-900 cursor-pointer"
-                  >
-                    <video
-                      src={item.url}
-                      muted
-                      playsInline
-                      className="w-full h-full object-cover"
-                    />
-                    <div className="absolute bottom-1 right-1 bg-black/50 p-1 rounded-full">
-                      <VideoCameraIcon className="h-4 w-4 text-white" />
-                    </div>
-                    {isOwner && editing && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleMediaDelete(item);
-                        }}
-                        className="absolute top-1 right-1 bg-red-600/80 text-white w-6 h-6 flex items-center justify-center rounded-full hover:bg-red-700 opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <XMarkIcon className="h-4 w-4" />
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-gray-400 text-sm italic">
-                Nenhum vídeo na galeria.
-              </p>
-            )}
-          </div>
+              <input
+                type="file"
+                accept="image/*,video/*"
+                className="hidden"
+                onChange={handleFileSelect}
+                disabled={loading}
+              />
+            </label>
+          )}
+
+          {/* Renderiza os itens de mídia existentes */}
+          {media.map((item) => (
+            <MediaItem key={item.id} item={item} onSelect={setSelectedMedia} />
+          ))}
         </div>
       )}
+
+      {media.length === 0 && !editing && (
+        <p className="text-gray-400 text-sm italic mt-4">
+          Nenhuma mídia na galeria.
+        </p>
+      )}
+
+      {/* Modal para visualizar mídia em tela cheia */}
       {selectedMedia && (
         <div
           className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
@@ -241,7 +164,7 @@ export default function ProfileGallery() {
             >
               <XMarkIcon className="h-6 w-6" />
             </button>
-            {selectedMedia.type === 'image' ? (
+            {selectedMedia.type?.startsWith('image') ? (
               <img
                 src={selectedMedia.url}
                 alt="Mídia em destaque"

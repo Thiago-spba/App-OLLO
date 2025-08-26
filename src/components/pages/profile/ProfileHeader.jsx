@@ -1,16 +1,12 @@
-// ARQUIVO REATORADO E CORRIGIDO: src/components/pages/profile/ProfileHeader.jsx
+// CÓDIGO FINAL E À PROVA DE FALHAS: src/components/pages/profile/ProfileHeader.jsx
 
 import React from 'react';
-// MUDANÇA ARQUITETÔNICA: Importamos o store com o nome correto.
 import { useProfileStore } from '@/hooks/useProfileStore';
-import {
-  EyeIcon,
-  EyeSlashIcon,
-  ArrowUpTrayIcon,
-} from '@heroicons/react/24/solid';
+import { useAuth } from '@/context/AuthContext';
+import { ArrowUpTrayIcon } from '@heroicons/react/24/solid';
 
 const ProfileHeaderSkeleton = () => (
-  <div className="w-full mb-6 rounded-xl shadow-md bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 animate-pulse">
+  <div className="w-full rounded-xl shadow-md bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 animate-pulse">
     <div className="h-40 sm:h-52 bg-gray-300 dark:bg-gray-700"></div>
     <div className="relative flex justify-center -mt-16">
       <div className="w-32 h-32 rounded-full bg-gray-300 dark:bg-gray-600 border-4 border-white dark:border-gray-800"></div>
@@ -23,31 +19,37 @@ const ProfileHeaderSkeleton = () => (
 );
 
 export default function ProfileHeader() {
-  // MUDANÇA ARQUITETÔNICA: Conectando ao store com seletores.
-  // Selecionamos apenas os pedaços de estado que este componente precisa.
-  const form = useProfileStore((state) => state.form);
   const initialProfileData = useProfileStore(
     (state) => state.initialProfileData
   );
+  const form = useProfileStore((state) => state.form);
   const editing = useProfileStore((state) => state.editing);
-  const isOwner = useProfileStore((state) => state.isOwner); // Supondo que o isOwner também virá do store no futuro
+  const loadingStore = useProfileStore((state) => state.loading);
+  const {
+    handleChange,
+    handleFileChange,
+    handleEdit,
+    handleSave,
+    handleCancel,
+  } = useProfileStore((state) => state.actions);
 
-  // Selecionamos as ações que vamos usar.
-  const { handleChange, handleFileChange, toggleVisibility } = useProfileStore(
-    (state) => state.actions
-  );
+  const { currentUser, loading: authLoading } = useAuth();
 
-  // Sua guarda condicional, mantida pois é uma excelente prática.
+  // ARQUITETURA: Lógica 'isOwner' explícita para máxima clareza
+  const profileId = initialProfileData?.id;
+  const currentUserId = currentUser?.uid;
+  const isOwner =
+    !authLoading && !!currentUser && !!profileId && currentUserId === profileId;
+
   if (!form || !initialProfileData) {
     return <ProfileHeaderSkeleton />;
   }
 
   const coverImage = editing ? form.cover : initialProfileData.cover;
   const avatarImage = editing ? form.avatar : initialProfileData.avatar;
-  const emojis = editing ? form.emojis || [] : initialProfileData.emojis || [];
 
   return (
-    <div className="w-full mb-6 rounded-xl overflow-hidden shadow-md bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+    <div className="w-full rounded-xl overflow-hidden shadow-md bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 pb-6">
       {/* Capa */}
       <div className="relative w-full h-40 sm:h-52 bg-gray-200 dark:bg-gray-700">
         <img
@@ -105,11 +107,10 @@ export default function ProfileHeader() {
               value={form.name || ''}
               onChange={handleChange}
               placeholder="Seu Nome"
-              // MUDANÇA: Estilos de formulário padronizados
               className="text-2xl font-bold text-center block w-full bg-gray-100 dark:bg-gray-700 rounded-md py-1 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:ring-2 focus:ring-ollo-accent-light outline-none"
             />
             <p className="text-base text-gray-500 dark:text-gray-400 mt-1">
-              @{initialProfileData.username} {/* Username não é editável */}
+              @{initialProfileData.username}
             </p>
           </>
         ) : (
@@ -122,64 +123,38 @@ export default function ProfileHeader() {
             </p>
           </>
         )}
+      </div>
 
-        <div className="mt-4 flex justify-center items-center flex-wrap gap-x-4 gap-y-2 text-sm text-gray-600 dark:text-gray-400">
-          {/* Lógica de Localização, Idade, etc. que estava aqui foi movida para o ProfileBio */}
-        </div>
-
-        {/* Emojis */}
-        <div className="mt-4 flex justify-center items-center flex-wrap gap-2">
+      {/* Painel de Controle de Edição */}
+      {isOwner && (
+        <div className="flex justify-center items-center gap-4 px-4">
           {editing ? (
-            // Lógica de edição de emojis
-            <div className="flex flex-col items-center gap-2 w-full">
-              <div className="flex flex-wrap justify-center gap-2">
-                {emojis.map((emoji, i) => (
-                  <span
-                    key={i}
-                    className="text-2xl cursor-pointer"
-                    title="Remover emoji"
-                    onClick={() =>
-                      handleChange({
-                        target: {
-                          name: 'emojis',
-                          value: emojis.filter((_, idx) => i !== idx),
-                        },
-                      })
-                    }
-                  >
-                    {emoji}
-                  </span>
-                ))}
-              </div>
-              <input
-                type="text"
-                onBlur={(e) => {
-                  if (e.target.value) {
-                    handleChange({
-                      target: {
-                        name: 'emojis',
-                        value: [...emojis, e.target.value],
-                      },
-                    });
-                    e.target.value = '';
-                  }
-                }}
-                maxLength={2}
-                placeholder="😊"
-                className="w-16 text-center bg-gray-100 dark:bg-gray-700 rounded-md focus:ring-2 focus:ring-ollo-accent-light outline-none"
-              />
-            </div>
+            <>
+              <button
+                onClick={handleSave}
+                disabled={loadingStore}
+                className="flex-1 sm:flex-none sm:w-32 justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-ollo-accent hover:bg-ollo-accent-light focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ollo-accent-light disabled:opacity-50"
+              >
+                {loadingStore ? 'Salvando...' : 'Salvar'}
+              </button>
+              <button
+                onClick={handleCancel}
+                disabled={loadingStore}
+                className="flex-1 sm:flex-none sm:w-32 justify-center py-2 px-4 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+              >
+                Cancelar
+              </button>
+            </>
           ) : (
-            emojis.length > 0 && (
-              <div className="flex flex-wrap gap-2 text-2xl">
-                {emojis.map((emoji, i) => (
-                  <span key={i}>{emoji}</span>
-                ))}
-              </div>
-            )
+            <button
+              onClick={handleEdit}
+              className="flex-1 sm:flex-none sm:w-48 justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-ollo-accent hover:bg-ollo-accent-light focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ollo-accent-light"
+            >
+              Editar Perfil
+            </button>
           )}
         </div>
-      </div>
+      )}
     </div>
   );
 }

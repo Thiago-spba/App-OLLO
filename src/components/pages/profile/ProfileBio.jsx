@@ -1,11 +1,9 @@
-// ARQUIVO FINALIZADO: src/components/pages/profile/ProfileBio.jsx
+// ARQUIVO: src/components/pages/profile/ProfileBio.jsx
 
 import React from 'react';
-// MUDANÇA ARQUITETÔNICA: Importamos o store com o nome correto para clareza.
 import { useProfileStore } from '@/hooks/useProfileStore';
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/solid';
 
-// Seu componente de Skeleton, mantido 100% pois está perfeito.
 const ProfileBioSkeleton = () => (
   <section className="p-4 border-t border-gray-200 dark:border-gray-700 animate-pulse">
     <div className="h-6 w-32 bg-gray-300 dark:bg-gray-700 rounded mb-3"></div>
@@ -17,20 +15,15 @@ const ProfileBioSkeleton = () => (
 );
 
 export default function ProfileBio() {
-  // MUDANÇA ARQUITETÔNICA: Usando seletores para performance otimizada.
-  // O componente agora só "escuta" as mudanças nessas propriedades específicas.
   const form = useProfileStore((state) => state.form);
   const initialProfileData = useProfileStore(
     (state) => state.initialProfileData
   );
   const editing = useProfileStore((state) => state.editing);
-  const { handleChange, toggleVisibility } = useProfileStore(
-    (state) => state.actions
-  );
+  const { handleChange } = useProfileStore((state) => state.actions);
 
   const MAX_BIO_LENGTH = 180;
 
-  // Sua guarda condicional, mantida pois é uma excelente prática.
   if (!form || !initialProfileData) {
     return <ProfileBioSkeleton />;
   }
@@ -43,22 +36,6 @@ export default function ProfileBio() {
         <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100">
           Sobre Mim
         </h2>
-        {editing && (
-          <button
-            type="button"
-            onClick={() => toggleVisibility('showBio')}
-            className="p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
-            title={
-              form.showBio ? 'Ocultar bio no perfil' : 'Mostrar bio no perfil'
-            }
-          >
-            {form.showBio ? (
-              <EyeIcon className="h-5 w-5" />
-            ) : (
-              <EyeSlashIcon className="h-5 w-5" />
-            )}
-          </button>
-        )}
       </div>
 
       {editing ? (
@@ -69,7 +46,6 @@ export default function ProfileBio() {
             onChange={handleChange}
             maxLength={MAX_BIO_LENGTH}
             rows={4}
-            // MUDANÇA (Estilo): Classes de formulário padronizadas.
             className="block w-full px-3 py-2 bg-gray-100 dark:bg-gray-700 border border-transparent rounded-md shadow-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-ollo-accent-light"
             placeholder="Fale um pouco sobre você..."
           />

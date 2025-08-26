@@ -12,54 +12,51 @@ service cloud.firestore {
       return request.auth.uid == userId;
     }
 
-    // MUDANÇA: Criamos uma função específica para verificar se o usuário é admin.
-    // Isso é mais seguro e legível do que uma regra wildcard.
     function isAdmin() {
       return request.auth != null && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // MUDANÇA: Nova função de validação para o campo 'privacy'.
+    // ARQUITETURA: Centraliza a lógica de quais valores de privacidade são permitidos.
+    // Se no futuro adicionarmos 'followers-only', só precisamos mudar aqui.
+    function isValidPrivacy(privacy) {
+      return privacy in ['public', 'private'];
     }
 
     // --- REGRAS POR COLEÇÃO ---
 
     // 👤 Coleção 'users' (DADOS PRIVADOS E SENSÍVEIS)
     match /users/{userId} {
-      // Apenas o dono ou um admin pode ler/escrever dados privados.
       allow read, write: if isOwner(userId) || isAdmin();
     }
 
     // 📢 Coleção 'users_public' (DADOS PÚBLICOS DE PERFIL)
     match /users_public/{userId} {
-      // Leitura é permitida para todos.
       allow read: if true;
-
-      // Escrita é permitida apenas pelo dono ou por um admin.
       allow write: if isOwner(userId) || isAdmin();
     }
 
     // 🖼️ Subcoleção 'media' de um usuário
     match /users/{userId}/media/{mediaId} {
-      // Leitura é permitida se o item for público, se o usuário for o dono, ou se for um admin.
+      // Leitura continua a mesma: permitida se for público, se for o dono ou admin.
       allow read: if resource.data.privacy == 'public' || isOwner(userId) || isAdmin();
       
-      // CORREÇÃO: Adicionamos 'update' para permitir alterar a privacidade de uma mídia.
-      // Apenas o dono ou um admin pode criar, atualizar ou deletar mídias.
-      allow create, update, delete: if isOwner(userId) || isAdmin();
+      // Criar e deletar continua com a mesma permissão.
+      allow create, delete: if isOwner(userId) || isAdmin();
+
+      // CORREÇÃO: 'update' foi separado para ter sua própria lógica de validação.
+      // ARQUITETURA: Agora verificamos não apenas QUEM pode atualizar, mas O QUE pode ser atualizado.
+      allow update: if (isOwner(userId) || isAdmin())
+                    && isValidPrivacy(request.resource.data.privacy) // O novo valor de 'privacy' deve ser válido.
+                    && request.resource.data.ownerId == resource.data.ownerId // O 'ownerId' não pode ser alterado.
+                    && request.resource.data.createdAt == resource.data.createdAt; // A data de criação é imutável.
     }
     
     // ✍️ Coleção 'posts'
     match /posts/{postId} {
-      // Leitura de posts é pública.
       allow read: if true;
-
-      // Criar posts requer autenticação e que o autor seja o próprio usuário.
-      // Admins também podem criar posts (ex: anúncios).
       allow create: if (request.auth != null && request.resource.data.authorId == request.auth.uid) || isAdmin();
-
-      // Atualizar/deletar posts requer que o usuário seja o autor do post ou um admin.
       allow update, delete: if (request.auth != null && resource.data.authorId == request.auth.uid) || isAdmin();
     }
-
-    // ARQUITETURA DE SEGURANÇA: A regra de admin com wildcard foi REMOVIDA.
-    // A lógica foi distribuída para cada coleção individualmente,
-    // tornando o sistema de permissões mais explícito, seguro e fácil de manter.
   }
 }
