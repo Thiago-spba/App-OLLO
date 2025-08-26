@@ -1,153 +1,262 @@
-// src/components/pages/profile/ProfileHeader.jsx
+// src/components/pages/profile/ProfileHeader.jsx - VERSÃO COMPLETA REFATORADA
 
 import React from 'react';
-// MUDANÇA: Importando PropTypes para validação de props. Uma boa prática para componentes reutilizáveis.
 import PropTypes from 'prop-types';
-import { ArrowUpTrayIcon } from '@heroicons/react/24/solid';
+import { ArrowUpTrayIcon, CameraIcon } from '@heroicons/react/24/solid';
 
+// Skeleton para estado de carregamento
 const ProfileHeaderSkeleton = () => (
   <div className="w-full animate-pulse overflow-hidden rounded-xl border border-gray-200 bg-white pb-6 shadow-md dark:border-gray-700 dark:bg-gray-800">
+    {/* Banner skeleton */}
     <div className="h-40 w-full bg-gray-200 dark:bg-gray-700 sm:h-52"></div>
+
+    {/* Avatar skeleton */}
     <div className="relative -mt-16 flex justify-center">
       <div className="h-32 w-32 rounded-full border-4 border-white bg-gray-200 dark:border-gray-800 dark:bg-gray-700"></div>
     </div>
+
+    {/* Texto skeleton */}
     <div className="p-4 text-center">
       <div className="mx-auto mb-2 h-8 w-48 rounded bg-gray-200 dark:bg-gray-700"></div>
       <div className="mx-auto h-4 w-32 rounded bg-gray-200 dark:bg-gray-700"></div>
+    </div>
+
+    {/* Botão skeleton */}
+    <div className="px-4">
+      <div className="mx-auto h-10 w-48 rounded bg-gray-200 dark:bg-gray-700"></div>
     </div>
   </div>
 );
 
 export default function ProfileHeader({
   profileData,
-  editing,
-  isOwner,
-  loading,
+  editing = false,
+  isOwner = false,
+  loading = false,
   onHandleChange,
   onHandleFileChange,
   onHandleEdit,
   onHandleSave,
   onHandleCancel,
 }) {
+  // Se não há dados do perfil, mostra skeleton
   if (!profileData) {
     return <ProfileHeaderSkeleton />;
   }
 
-  // MUDANÇA: Lógica de pré-visualização (Optimistic UI)
-  // O `useProfileStore` irá nos fornecer uma URL temporária 'coverPreview' ou 'avatarPreview' ao selecionar um arquivo.
-  // Priorizamos essa URL de preview. Se não existir, usamos a URL do banco de dados (`coverURL` ou `avatarURL`).
-  // Se nenhuma existir, usamos a imagem padrão.
-  const coverImage =
-    profileData.coverPreview || profileData.coverURL || '/default-cover.png';
-  const avatarImage =
-    profileData.avatarPreview || profileData.avatarURL || '/default-avatar.png';
+  // Determina qual imagem usar (preview tem prioridade sobre URL salva)
+  const getCoverImage = () => {
+    if (profileData.coverPreview) return profileData.coverPreview;
+    if (profileData.coverURL) return profileData.coverURL;
+    return '/api/placeholder/800/200'; // Placeholder padrão
+  };
+
+  const getAvatarImage = () => {
+    if (profileData.avatarPreview) return profileData.avatarPreview;
+    if (profileData.avatarURL) return profileData.avatarURL;
+    return '/api/placeholder/150/150'; // Placeholder padrão
+  };
+
+  const coverImage = getCoverImage();
+  const avatarImage = getAvatarImage();
 
   return (
-    <div className="w-full overflow-hidden rounded-xl border border-gray-200 bg-white pb-6 shadow-md dark:border-gray-700 dark:bg-gray-800">
-      {/* MUDANÇA: Estrutura do Banner para melhor UX de upload */}
-      <div className="relative h-40 w-full bg-gray-200 dark:bg-gray-700 sm:h-52">
+    <div className="w-full overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
+      {/* SEÇÃO DO BANNER */}
+      <div className="relative h-40 w-full sm:h-52">
+        {/* Imagem do banner */}
         <img
           src={coverImage}
           alt="Banner do perfil"
           className="h-full w-full object-cover"
+          onError={(e) => {
+            console.warn('Erro ao carregar imagem de capa, usando fallback');
+            e.target.src = '/api/placeholder/800/200';
+          }}
         />
+
+        {/* Overlay para upload do banner (apenas para dono em modo edição) */}
         {isOwner && editing && (
-          // MUDANÇA: A label agora envolve toda a área interativa. A classe 'group' do Tailwind é a chave aqui.
           <label
             htmlFor="cover-upload"
-            className="group absolute inset-0 flex cursor-pointer items-center justify-center bg-black bg-opacity-0 transition hover:bg-opacity-40"
+            className="group absolute inset-0 flex cursor-pointer items-center justify-center bg-black bg-opacity-0 transition-all duration-200 hover:bg-opacity-50"
+            title="Clique para alterar o banner"
           >
-            <div className="flex flex-col items-center text-white opacity-0 transition group-hover:opacity-100">
-              <ArrowUpTrayIcon className="h-8 w-8" />
-              <span className="mt-1 text-sm font-semibold">Alterar Banner</span>
+            <div className="flex flex-col items-center text-white opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+              <CameraIcon className="h-10 w-10 mb-2" />
+              <span className="text-sm font-semibold">Alterar Banner</span>
             </div>
             <input
               id="cover-upload"
               type="file"
               accept="image/*"
               className="hidden"
-              onChange={(e) => onHandleFileChange(e, 'cover')}
+              onChange={(e) =>
+                onHandleFileChange && onHandleFileChange(e, 'cover')
+              }
+              disabled={loading}
             />
           </label>
         )}
+
+        {/* Indicador de loading durante upload */}
+        {loading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+          </div>
+        )}
       </div>
 
-      <div className="relative -mt-16 flex justify-center">
+      {/* SEÇÃO DO AVATAR */}
+      <div className="relative -mt-16 flex justify-center pb-4">
         <div className="relative">
+          {/* Imagem do avatar */}
           <img
             src={avatarImage}
-            alt="Avatar"
-            className="h-32 w-32 rounded-full border-4 border-white bg-gray-100 object-cover shadow-lg dark:border-gray-800 dark:bg-gray-700"
+            alt={`Avatar de ${profileData.name || profileData.username || 'Usuário'}`}
+            className="h-32 w-32 rounded-full border-4 border-white bg-gray-100 object-cover shadow-xl dark:border-gray-800 dark:bg-gray-700"
+            onError={(e) => {
+              console.warn('Erro ao carregar avatar, usando fallback');
+              e.target.src = '/api/placeholder/150/150';
+            }}
           />
+
+          {/* Botão para alterar avatar (apenas para dono em modo edição) */}
           {isOwner && editing && (
             <label
               htmlFor="avatar-upload"
-              className="absolute bottom-2 right-1 cursor-pointer rounded-full bg-ollo-accent p-2 text-white shadow-md transition-colors hover:bg-ollo-accent-light"
-              title="Trocar avatar"
+              className="absolute bottom-2 right-2 cursor-pointer rounded-full bg-ollo-accent p-2.5 text-white shadow-lg transition-all duration-200 hover:bg-ollo-accent-light hover:scale-110"
+              title="Clique para alterar o avatar"
             >
+              <CameraIcon className="h-5 w-5" />
               <input
                 id="avatar-upload"
                 type="file"
                 accept="image/*"
-                onChange={(e) => onHandleFileChange(e, 'avatar')}
                 className="hidden"
+                onChange={(e) =>
+                  onHandleFileChange && onHandleFileChange(e, 'avatar')
+                }
+                disabled={loading}
               />
-              <ArrowUpTrayIcon className="h-5 w-5" />
             </label>
           )}
         </div>
       </div>
 
-      <div className="p-4 text-center">
+      {/* SEÇÃO DAS INFORMAÇÕES DO USUÁRIO */}
+      <div className="px-6 pb-4 text-center">
         {editing ? (
-          <>
+          // Modo de edição
+          <div className="space-y-3">
             <input
               type="text"
               name="name"
               value={profileData.name || ''}
               onChange={onHandleChange}
-              placeholder="Seu Nome"
-              className="block w-full rounded-md bg-gray-100 py-1 text-center text-2xl font-bold text-gray-900 outline-none placeholder:text-gray-400 focus:ring-2 focus:ring-ollo-accent-light dark:bg-gray-700 dark:text-gray-100"
+              placeholder="Seu nome completo"
+              className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-center text-2xl font-bold text-gray-900 placeholder-gray-400 focus:border-ollo-accent focus:outline-none focus:ring-2 focus:ring-ollo-accent/20 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-500"
+              disabled={loading}
             />
-            <p className="mt-1 text-base text-gray-500 dark:text-gray-400">
+
+            <input
+              type="text"
+              name="bio"
+              value={profileData.bio || ''}
+              onChange={onHandleChange}
+              placeholder="Conte um pouco sobre você..."
+              className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-center text-gray-600 placeholder-gray-400 focus:border-ollo-accent focus:outline-none focus:ring-2 focus:ring-ollo-accent/20 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:placeholder-gray-500"
+              disabled={loading}
+            />
+
+            <p className="text-sm text-gray-500 dark:text-gray-400">
               @{profileData.username}
             </p>
-          </>
+          </div>
         ) : (
-          <>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-              {profileData.name || 'Nome não preenchido'}
+          // Modo de visualização
+          <div className="space-y-2">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
+              {profileData.name || 'Nome não informado'}
             </h1>
+
+            {profileData.bio && (
+              <p className="text-gray-600 dark:text-gray-300 max-w-md mx-auto">
+                {profileData.bio}
+              </p>
+            )}
+
             <p className="text-base text-gray-500 dark:text-gray-400">
               @{profileData.username}
             </p>
-          </>
+
+            {/* Estatísticas (opcional - você pode adicionar depois) */}
+            {profileData.stats && (
+              <div className="flex justify-center space-x-6 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <div className="text-center">
+                  <div className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                    {profileData.stats.posts || 0}
+                  </div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                    Posts
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                    {profileData.stats.followers || 0}
+                  </div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                    Seguidores
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                    {profileData.stats.following || 0}
+                  </div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                    Seguindo
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         )}
       </div>
 
+      {/* SEÇÃO DOS BOTÕES DE AÇÃO */}
       {isOwner && (
-        <div className="flex items-center justify-center gap-4 px-4">
+        <div className="px-6 pb-6">
           {editing ? (
-            <>
+            // Botões do modo edição
+            <div className="flex gap-3">
               <button
                 onClick={onHandleSave}
                 disabled={loading}
-                className="flex-1 justify-center rounded-md border border-transparent bg-ollo-accent py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-ollo-accent-light focus:outline-none focus:ring-2 focus:ring-ollo-accent-light focus:ring-offset-2 disabled:opacity-50 sm:flex-none sm:w-32"
+                className="flex-1 rounded-lg bg-ollo-accent px-6 py-3 text-white font-semibold shadow-md transition-all duration-200 hover:bg-ollo-accent-light hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-ollo-accent/50 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:focus:ring-offset-gray-800"
               >
-                {loading ? 'Salvando...' : 'Salvar'}
+                {loading ? (
+                  <div className="flex items-center justify-center">
+                    <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                    Salvando...
+                  </div>
+                ) : (
+                  'Salvar Alterações'
+                )}
               </button>
+
               <button
                 onClick={onHandleCancel}
                 disabled={loading}
-                className="flex-1 justify-center rounded-md border border-gray-300 bg-white py-2 px-4 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 sm:flex-none sm:w-32"
+                className="flex-1 rounded-lg border border-gray-300 bg-white px-6 py-3 font-semibold text-gray-700 shadow-md transition-all duration-200 hover:bg-gray-50 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-gray-500/50 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 dark:focus:ring-offset-gray-800"
               >
                 Cancelar
               </button>
-            </>
+            </div>
           ) : (
+            // Botão do modo visualização
             <button
               onClick={onHandleEdit}
-              className="flex-1 justify-center rounded-md border border-transparent bg-ollo-accent py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-ollo-accent-light focus:outline-none focus:ring-2 focus:ring-ollo-accent-light focus:ring-offset-2 sm:flex-none sm:w-48"
+              className="w-full rounded-lg bg-ollo-accent px-6 py-3 text-white font-semibold shadow-md transition-all duration-200 hover:bg-ollo-accent-light hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-ollo-accent/50 focus:ring-offset-2 dark:focus:ring-offset-gray-800"
             >
               Editar Perfil
             </button>
@@ -158,24 +267,28 @@ export default function ProfileHeader({
   );
 }
 
-// MUDANÇA: Adicionando PropTypes para garantir a integridade do componente
+// PropTypes para validação das props
 ProfileHeader.propTypes = {
   profileData: PropTypes.shape({
     name: PropTypes.string,
-    username: PropTypes.string,
-    // As URLs que vem do banco de dados
-    coverURL: PropTypes.string,
+    username: PropTypes.string.isRequired,
+    bio: PropTypes.string,
     avatarURL: PropTypes.string,
-    // As URLs temporárias de preview
-    coverPreview: PropTypes.string,
+    coverURL: PropTypes.string,
     avatarPreview: PropTypes.string,
+    coverPreview: PropTypes.string,
+    stats: PropTypes.shape({
+      posts: PropTypes.number,
+      followers: PropTypes.number,
+      following: PropTypes.number,
+    }),
   }),
-  editing: PropTypes.bool.isRequired,
-  isOwner: PropTypes.bool.isRequired,
-  loading: PropTypes.bool.isRequired,
-  onHandleChange: PropTypes.func.isRequired,
-  onHandleFileChange: PropTypes.func.isRequired,
-  onHandleEdit: PropTypes.func.isRequired,
-  onHandleSave: PropTypes.func.isRequired,
-  onHandleCancel: PropTypes.func.isRequired,
+  editing: PropTypes.bool,
+  isOwner: PropTypes.bool,
+  loading: PropTypes.bool,
+  onHandleChange: PropTypes.func,
+  onHandleFileChange: PropTypes.func,
+  onHandleEdit: PropTypes.func,
+  onHandleSave: PropTypes.func,
+  onHandleCancel: PropTypes.func,
 };
