@@ -1,22 +1,26 @@
-﻿// ARQUIVO NOVO: src/components/pages/profile/PrivacyControl.jsx
+﻿// ARQUIVO FINAL E CORRIGIDO: src/components/pages/profile/PrivacyControl.jsx
 
 import React from 'react';
-import { useProfileStore } from '@/hooks/useProfileStore';
+// Hooks globais removidos.
 import { GlobeAltIcon, LockClosedIcon } from '@heroicons/react/24/solid';
 
-// ARQUITETURA: Componente focado com uma única responsabilidade:
-// exibir e permitir a troca de estado de privacidade de uma mídia.
-export default function PrivacyControl({ mediaId, currentPrivacy }) {
-  const { updateMediaPrivacy } = useProfileStore((state) => state.actions);
-  const loading = useProfileStore((state) => state.loading);
-
+// O componente agora recebe tudo o que precisa via props.
+export default function PrivacyControl({
+  mediaId,
+  currentPrivacy,
+  onUpdatePrivacy,
+  loading,
+}) {
   const handleTogglePrivacy = (e) => {
     // Impede que o clique no controle abra o modal da imagem.
     e.stopPropagation();
     if (loading) return;
 
     const newPrivacy = currentPrivacy === 'public' ? 'private' : 'public';
-    updateMediaPrivacy(mediaId, newPrivacy);
+    // Chama a função passada pelo pai.
+    if (onUpdatePrivacy) {
+      onUpdatePrivacy(mediaId, newPrivacy);
+    }
   };
 
   const isPublic = currentPrivacy === 'public';
