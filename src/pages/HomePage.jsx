@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import HomepageUsersCard from '../components/HomepageUsersCard';
 
 // MUDANÇA (Estilo): Usando o alias de caminho para consistência no projeto.
 import {
@@ -39,7 +40,11 @@ const CreatePostWidget = ({ currentUser, onOpenModal }) => {
   );
 };
 const RightSidebar = ({ navigate }) => {
-  return <aside className="hidden lg:block space-y-6"></aside>;
+  return (
+    <aside className="hidden lg:block space-y-6">
+      <HomepageUsersCard />
+    </aside>
+  );
 };
 const mockStories = [];
 

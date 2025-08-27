@@ -5,6 +5,7 @@ import { Outlet } from 'react-router-dom';
 import SidebarNav from './components/SidebarNav.jsx';
 import CreatePostModal from './components/CreatePostModal.jsx';
 import { Toaster } from 'react-hot-toast';
+import DevModeSelector from './components/DevModeSelector.jsx';
 
 // 1. IMPORTAR o ThemeProvider que criamos
 import { ThemeProvider } from './context/ThemeContext.jsx';
@@ -28,6 +29,7 @@ export default function App() {
         </main>
         {isCreatePostModalOpen && <CreatePostModal onClose={closeModal} />}
         <Toaster position="top-center" />
+        <DevModeSelector />
       </div>
     </ThemeProvider>
   );

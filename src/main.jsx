@@ -28,6 +28,7 @@ import ListingDetailPage from './pages/ListingDetailPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
 // MUDANÇA: Acrescentamos a importação do nosso novo componente de redirecionamento.
 import ProfileRedirectPage from './pages/ProfileRedirectPage.jsx';
+import UsersPage from './pages/UsersPage.jsx';
 import NotificationsPage from './pages/NotificationsPage.jsx';
 import TermsPage from './pages/TermsPage.jsx';
 import PostDetailPage from './pages/PostDetailPage.jsx';
@@ -94,7 +95,7 @@ const router = createBrowserRouter([
           // MUDANÇA: Acrescentamos a rota para /profile, que redireciona o usuário logado.
           // Ela precisa vir ANTES da rota dinâmica para ser encontrada primeiro.
           { path: 'profile', element: <ProfileRedirectPage /> },
-
+          { path: 'users', element: <UsersPage /> },
           { path: 'profile/:username', element: <ProfilePage /> },
           { path: 'notifications', element: <NotificationsPage /> },
           { path: 'verify-email', element: <VerifyEmailPage /> },

@@ -1,6 +1,6 @@
 // src/pages/LoginPage.jsx
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { toast, Toaster } from 'react-hot-toast';
@@ -8,19 +8,29 @@ import {
   EyeIcon,
   EyeSlashIcon,
   ArrowPathIcon,
+  ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
+import { parseAuthError, checkForCorsPotentialIssues } from '../utils/authErrorHandler';
 
 const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [showCorsWarning, setShowCorsWarning] = useState(false);
 
   const { loginWithEmail } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
   const redirectedFrom = location.state?.redirectedFrom || '/';
+
+  // Verifica potenciais problemas de CORS ao carregar a página
+  useEffect(() => {
+    if (import.meta.env.DEV && checkForCorsPotentialIssues()) {
+      setShowCorsWarning(true);
+    }
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -39,19 +49,25 @@ const LoginPage = () => {
         toast.success('Login bem-sucedido! Redirecionando...');
         navigate(redirectedFrom, { replace: true });
       } else {
-        // Erros Firebase amigáveis
-        let errorMessage = 'Falha ao autenticar. Verifique suas credenciais.';
-        if (result.error?.code === 'auth/user-not-found') {
-          errorMessage = 'Usuário não encontrado.';
-        } else if (result.error?.code === 'auth/wrong-password') {
-          errorMessage = 'Senha incorreta.';
-        } else if (result.error?.code === 'auth/invalid-email') {
-          errorMessage = 'E-mail inválido.';
+        // Usa o utilitário para análise de erros de autenticação
+        const errorInfo = parseAuthError(result.error);
+        
+        // Log detalhado do erro para depuração
+        console.error("[OLLO] Detalhes do erro de login:", result.error);
+        
+        // Se for um erro de CORS, exibe a mensagem especial
+        if (errorInfo.code === 'auth/cors-error' || 
+            errorInfo.code === 'auth/requests-from-referer-are-blocked' || 
+            errorInfo.code === 'auth/unauthorized-domain') {
+          setShowCorsWarning(true);
         }
-        toast.error(errorMessage);
+        
+        toast.error(errorInfo.message);
       }
-    } catch {
-      toast.error('Ocorreu um erro inesperado. Tente novamente.');
+    } catch (error) {
+      const errorInfo = parseAuthError(error);
+      toast.error(errorInfo.message);
+      console.error("[OLLO] Erro inesperado durante login:", error);
     } finally {
       setIsLoading(false);
     }
@@ -75,6 +91,21 @@ const LoginPage = () => {
               Entre para continuar no OLLOAPP
             </p>
           </div>
+
+          {showCorsWarning && (
+            <div className="mb-6 p-3 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-lg">
+              <div className="flex items-center">
+                <ExclamationTriangleIcon className="h-5 w-5 text-yellow-500 mr-2" />
+                <span className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                  Ambiente de desenvolvimento detectado
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-yellow-700 dark:text-yellow-300">
+                Este domínio ({window.location.origin}) pode não estar autorizado para autenticação Firebase.
+                {import.meta.env.DEV && " Em produção, este aviso não será exibido."}
+              </p>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>

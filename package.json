@@ -6,6 +6,9 @@
   "scripts": {
     "clean": "rimraf node_modules/.vite",
     "dev": "npm run clean && vite",
+    "dev:emulator": "cross-env VITE_USE_FIREBASE_EMULATORS=true npm run dev",
+    "emulators": "firebase emulators:start",
+    "dev:full": "concurrently \"npm run emulators\" \"npm run dev:emulator\"",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
@@ -41,6 +44,8 @@
     "@types/uuid": "^10.0.0",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.21",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.0.0",
     "eslint-config-prettier": "^10.1.5",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.19",

@@ -47,3 +47,60 @@ Para manter e melhorar a postura de segurança do projeto no futuro, as seguinte
 - Implementar Regras de Segurança granulares no Firestore e Storage.
 - Realizar validação de todos os inputs de usuário no backend (Cloud Functions).
 - Periodicamente executar `npm audit` para monitorar e corrigir vulnerabilidades em dependências de terceiros.
+
+---
+
+## 6. Atualizações de Segurança (27 de Agosto de 2025)
+
+### 6.1 Implementações de CORS e Autenticação
+
+Em resposta a problemas de autenticação relacionados a CORS, foram implementadas as seguintes melhorias de segurança:
+
+#### CORS e Controle de Origens
+
+- **Lista de Domínios Permitidos expandida**: 
+  - Produção: `olloapp.com.br`, `olloapp-egl2025.web.app`, `*.olloapp.com.br`
+  - Desenvolvimento: `localhost` e `127.0.0.1` em várias portas (`5173`, `5174`, `5175`, `5176`, `5177`)
+
+- **Headers Permitidos**: Expandidos para incluir todos os headers necessários para autenticação segura:
+  ```
+  Content-Type, Authorization, Content-Length, User-Agent, X-Requested-With,
+  Access-Control-Allow-Origin, Access-Control-Allow-Methods,
+  Access-Control-Allow-Headers, Access-Control-Allow-Credentials, Accept, Origin
+  ```
+
+- **Métodos Permitidos**: Expandidos para incluir `PATCH` além dos métodos padrão.
+
+#### Tratamento de Erros de Autenticação
+
+- Implementado sistema robusto de tratamento de erros de autenticação que:
+  - Fornece mensagens amigáveis para o usuário
+  - Registra detalhes técnicos apenas em ambiente de desenvolvimento
+  - Identifica e sugere soluções para problemas de CORS
+
+#### Emuladores para Desenvolvimento
+
+- Adicionado suporte para emuladores Firebase locais que:
+  - Permitem desenvolvimento sem problemas de CORS
+  - Protegem o ambiente de produção durante testes
+  - Melhoram a velocidade de desenvolvimento
+
+#### Configuração Web Segura
+
+- Adicionado arquivo `.htaccess` com configurações de segurança:
+  - Headers de segurança (X-Frame-Options, X-XSS-Protection, X-Content-Type-Options)
+  - Política de Segurança de Conteúdo (CSP) básica
+  - Configuração CORS segura para servidor web
+
+### 6.2 Registro de Mudanças
+
+| Data | Versão | Descrição | Autor |
+|------|--------|-----------|-------|
+| 20/08/2025 | 1.0 | Registro de incidente de segurança | Equipe OLLO |
+| 27/08/2025 | 1.1 | Implementação de configurações robustas de CORS | Equipe OLLO |
+| 27/08/2025 | 1.2 | Adição de tratamento robusto de erros de autenticação | Equipe OLLO |
+| 27/08/2025 | 1.3 | Implementação de emuladores para desenvolvimento | Equipe OLLO |
+
+---
+
+*Este documento deve ser atualizado sempre que houver alterações relacionadas à segurança no projeto OLLO.*

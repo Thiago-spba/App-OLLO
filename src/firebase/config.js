@@ -2,6 +2,8 @@ import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
+// Import para contornar problemas de CORS durante desenvolvimento
+import { setupDevEnvironment, applyCorsFix } from "./devConfig";
 
 // Validação segura das variáveis de ambiente
 function validateFirebaseEnv() {
@@ -42,7 +44,15 @@ const firebaseConfig = {
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  // Configurações adicionais para garantir compatibilidade em diferentes ambientes
+  authProviders: ['email', 'google'],
+  // Habilitando CORS explicitamente para todas as origens em ambiente de desenvolvimento
+  // Esta configuração é ignorada em produção pois será substituída pelas regras do Firebase Hosting
+  cors: {
+    origin: true,
+    credentials: true
+  }
 };
 
 // Inicialização segura
@@ -60,6 +70,13 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 
+// Aplica as configurações de desenvolvimento para contornar problemas de CORS
+if (import.meta.env.DEV) {
+  console.log('[OLLO] Firebase configurado com sucesso');
+  setupDevEnvironment();
+  applyCorsFix();
+}
+
 /*
  * OLLO - Configuração otimizada do Firebase
  * Melhorias implementadas:
@@ -68,4 +85,5 @@ export const storage = getStorage(app);
  * 3. Tratamento de erros na inicialização
  * 4. Debug apenas em ambiente de desenvolvimento
  * 5. Mensagens de erro mais informativas
+ * 6. Solução para problemas de CORS em ambiente de desenvolvimento
  */
