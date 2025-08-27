@@ -35,7 +35,7 @@ function validateFirebaseEnv() {
 // Executa a validação imediatamente
 validateFirebaseEnv();
 
-// Configuração do Firebase
+// Configuração do Firebase usando variáveis de ambiente por segurança
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,

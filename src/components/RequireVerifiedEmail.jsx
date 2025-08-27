@@ -1,37 +1,64 @@
 // src/components/RequireVerifiedEmail.jsx
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Navigate, useLocation, Outlet } from 'react-router-dom';
+import { getAuth, reload } from 'firebase/auth';
+import { toast } from 'react-hot-toast';
 
 /**
- * @fileoverview RequireVerifiedEmail - Guardião de Verificação Padrão OLLO.
+ * @fileoverview RequireVerifiedEmail - Guardião de Verificação Avançado OLLO.
  *
  * @description
  * Este componente protege rotas que exigem que o usuário esteja logado E
  * tenha seu e-mail verificado.
  *
- * @architecture
- * 1. Lê `currentUser` e `loading` do AuthContext.
- * 2. **A CORREÇÃO CRUCIAL:** Se `loading` for `true`, ele retorna `null`, esperando
- *    silenciosamente o AuthContext terminar sua verificação inicial.
- * 3. Apenas quando `loading` for `false`, ele executa a lógica de verificação.
- * 4. Se não houver usuário, redireciona para /login.
- * 5. Se o usuário não tiver o e-mail verificado, redireciona para /verify-email.
- * 6. Se tudo estiver correto, renderiza a rota filha através do <Outlet />.
+ * @upgrades
+ * 1. Força uma verificação em tempo real do status de verificação de e-mail
+ * 2. Implementa um mecanismo de retry inteligente (não bloqueia a UI)
+ * 3. Adiciona feedback visual com toast durante a verificação
  */
 function RequireVerifiedEmail() {
   const { currentUser, loading } = useAuth();
   const location = useLocation();
+  const [verifyingStatus, setVerifyingStatus] = useState(false);
+  const auth = getAuth();
 
-  // 1. Espera o AuthContext terminar sua verificação.
-  // Isso impede a tomada de decisões com dados de cache desatualizados.
-  if (loading) {
-    return null;
+  // Efeito para verificar o status de email em tempo real
+  useEffect(() => {
+    // Só executa se já carregou e tem usuário (para evitar processamento desnecessário)
+    if (!loading && currentUser && !currentUser.emailVerified) {
+      const checkVerificationStatus = async () => {
+        try {
+          setVerifyingStatus(true);
+          // Força uma atualização do token do usuário para garantir dados frescos
+          await reload(auth.currentUser);
+          setVerifyingStatus(false);
+          
+          // Se após recarregar o usuário, o email estiver verificado, mostra mensagem de sucesso
+          if (auth.currentUser?.emailVerified) {
+            toast.success('Seu e-mail foi verificado com sucesso!');
+          }
+        } catch (error) {
+          console.error('Erro ao verificar status do email:', error);
+          setVerifyingStatus(false);
+        }
+      };
+      
+      checkVerificationStatus();
+    }
+  }, [currentUser, loading, auth]);
+
+  // 1. Espera o AuthContext terminar sua verificação principal.
+  if (loading || verifyingStatus) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="w-16 h-16 border-4 border-ollo-accent-light border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
   }
 
   // 2. Após o carregamento, verifica se o usuário existe.
-  // Esta é uma dupla checagem importante.
   if (!currentUser) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }

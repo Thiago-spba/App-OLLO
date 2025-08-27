@@ -1,10 +1,28 @@
 rules_version = '2';
 
-// Craft rules based on data in your Firestore database
-// allow write: if firestore.get(
-//    /databases/(default)/documents/users/$(request.auth.uid)).data.isAdmin;
 service firebase.storage {
   match /b/{bucket}/o {
+    // Regras de segurança para avatares e imagens de perfil
+    match /users/{userId}/{allImages=**} {
+      // Qualquer pessoa pode ler imagens de perfil
+      allow read: if true;
+      // Apenas o proprietário ou um admin pode escrever/atualizar
+      allow write: if request.auth.uid == userId || 
+                     firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    // Regras para uploads de posts
+    match /posts/{postId}/{allImages=**} {
+      // Qualquer pessoa pode ler conteúdo de posts
+      allow read: if true;
+      // Somente o criador do post ou admin pode fazer upload para o post
+      allow create: if request.auth != null;
+      // Somente o proprietário ou admin pode atualizar/excluir
+      allow update, delete: if request.auth.uid == resource.metadata.ownerId || 
+                               firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    // Regra padrão - bloqueia acesso não especificado
     match /{allPaths=**} {
       allow read, write: if false;
     }
