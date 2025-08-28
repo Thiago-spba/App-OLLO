@@ -11,13 +11,17 @@ import React, {
 import {
   onIdTokenChanged,
   sendEmailVerification,
+  connectAuthEmulator, // Adicionada a importação que faltava
 } from 'firebase/auth';
 import firebaseAuthenticator from '../firebase/firebaseAuthenticator';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
 import { toast } from 'react-hot-toast';
 import { createUserProfile } from '../services/firestoreService';
-import { parseAuthError, checkForCorsPotentialIssues } from '../utils/authErrorHandler';
+import {
+  parseAuthError,
+  checkForCorsPotentialIssues,
+} from '../utils/authErrorHandler';
 
 // Contexto de autenticação
 const AuthContext = createContext(null);
@@ -38,16 +42,21 @@ export const AuthProvider = ({ children }) => {
 
   // Inicialização do emulador em ambiente de desenvolvimento se necessário
   useEffect(() => {
-    if (import.meta.env.DEV && import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true') {
+    if (
+      import.meta.env.DEV &&
+      import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true'
+    ) {
       try {
         // Conecta ao emulador local de autenticação
-        connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
+        connectAuthEmulator(auth, 'http://localhost:9099', {
+          disableWarnings: true,
+        });
         console.log('[OLLO] Conectado ao emulador de autenticação local');
       } catch (error) {
         console.error('[OLLO] Erro ao conectar ao emulador:', error);
       }
     }
-    
+
     // Verifica e alerta sobre possíveis problemas de CORS
     if (import.meta.env.DEV && checkForCorsPotentialIssues()) {
       console.warn(`
@@ -132,20 +141,20 @@ export const AuthProvider = ({ children }) => {
       console.log('[OLLO] Iniciando processo de login...');
       // Usa o authenticator que lida com problemas de CORS automaticamente
       const result = await firebaseAuthenticator.login(email, password);
-      
+
       if (result.success) {
         console.log('[OLLO] Login bem-sucedido');
       } else {
         console.error('[OLLO] Erro no login:', result.error);
       }
-      
+
       return result;
     } catch (error) {
       console.error('[OLLO] Erro inesperado no login:', error);
-      return { 
-        success: false, 
+      return {
+        success: false,
         error,
-        message: error.message || 'Ocorreu um erro inesperado durante o login.'
+        message: error.message || 'Ocorreu um erro inesperado durante o login.',
       };
     }
   }, []);
@@ -154,7 +163,7 @@ export const AuthProvider = ({ children }) => {
   const logout = useCallback(async (navigate) => {
     try {
       const result = await firebaseAuthenticator.logout();
-      
+
       if (result.success) {
         if (navigate) {
           navigate('/login');
@@ -174,11 +183,15 @@ export const AuthProvider = ({ children }) => {
   const registerWithEmail = useCallback(
     async (email, password, additionalData) => {
       try {
-        const result = await firebaseAuthenticator.register(email, password, additionalData);
-        
+        const result = await firebaseAuthenticator.register(
+          email,
+          password,
+          additionalData
+        );
+
         if (result.success) {
           const user = result.user;
-          
+
           // Cria o perfil do usuário no Firestore
           await createUserProfile(user.uid, {
             email: user.email,
@@ -187,7 +200,7 @@ export const AuthProvider = ({ children }) => {
             createdAt: new Date().toISOString(),
             emailVerified: user.emailVerified || false,
           });
-          
+
           return { success: true, user };
         } else {
           return { success: false, error: result.error };
@@ -204,12 +217,16 @@ export const AuthProvider = ({ children }) => {
   const resetPassword = async (email) => {
     try {
       const result = await firebaseAuthenticator.resetPassword(email);
-      
+
       if (!result.success) {
         const errorInfo = parseAuthError(result.error);
-        return { success: false, error: result.error, message: errorInfo.message };
+        return {
+          success: false,
+          error: result.error,
+          message: errorInfo.message,
+        };
       }
-      
+
       return { success: true };
     } catch (error) {
       console.error('[OLLO] Erro no reset de senha:', error);
@@ -271,3 +288,5 @@ export const AuthProvider = ({ children }) => {
     </AuthContext.Provider>
   );
 };
+
+export default AuthProvider;

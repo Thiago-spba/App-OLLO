@@ -24,26 +24,41 @@ import {
 // ========================================================================
 
 export const createUserProfile = async (uid, profileData) => {
-  const privateProfileRef = doc(db, 'users', uid);
-  const publicProfileRef = doc(db, 'users_public', uid);
-  const batch = writeBatch(db);
+  try {
+    console.log("[OLLO] Criando perfil para usuário:", uid, profileData);
+    
+    const privateProfileRef = doc(db, 'users', uid);
+    const publicProfileRef = doc(db, 'users_public', uid);
+    const batch = writeBatch(db);
 
-  const privateData = {
-    email: profileData.email,
-    isAdmin: false,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  };
-  const publicData = {
-    name: profileData.name || 'Usuário OLLO',
-    username: profileData.username,
-    avatarUrl: '/images/default-avatar.png',
-    bio: '',
-  };
-  batch.set(privateProfileRef, privateData);
-  batch.set(publicProfileRef, publicData);
-  await batch.commit();
-  return { ...privateData, ...publicData };
+    // Se o username não foi fornecido, cria um usando o prefixo "user_" e os primeiros 5 caracteres do UID
+    const username = profileData.username || `user_${uid.substring(0, 5)}`;
+    
+    const privateData = {
+      email: profileData.email,
+      isAdmin: false,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+    
+    const publicData = {
+      name: profileData.name || 'Usuário OLLO',
+      username: username,
+      avatarUrl: '/images/default-avatar.png',
+      bio: '',
+    };
+    
+    batch.set(privateProfileRef, privateData);
+    batch.set(publicProfileRef, publicData);
+    await batch.commit();
+    
+    console.log("[OLLO] Perfil criado com sucesso:", username);
+    
+    return { ...privateData, ...publicData, username };
+  } catch (error) {
+    console.error("[OLLO] Erro ao criar perfil de usuário:", error);
+    throw error;
+  }
 };
 
 export const getUserProfile = async (uid) => {

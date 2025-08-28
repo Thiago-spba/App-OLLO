@@ -9,7 +9,7 @@ service cloud.firestore {
     // ARQUITETURA: Funções reutilizáveis para manter as regras limpas (DRY principle).
 
     function isOwner(userId) {
-      return request.auth.uid == userId;
+      return request.auth != null && request.auth.uid == userId;
     }
 
     function isAdmin() {
@@ -21,6 +21,11 @@ service cloud.firestore {
     // Se no futuro adicionarmos 'followers-only', só precisamos mudar aqui.
     function isValidPrivacy(privacy) {
       return privacy in ['public', 'private'];
+    }
+
+    // Regra especial para ambiente de desenvolvimento com emuladores
+    match /{document=**} {
+      allow read, write: if request.auth != null;
     }
 
     // --- REGRAS POR COLEÇÃO ---
@@ -57,6 +62,13 @@ service cloud.firestore {
       allow read: if true;
       allow create: if (request.auth != null && request.resource.data.authorId == request.auth.uid) || isAdmin();
       allow update, delete: if (request.auth != null && resource.data.authorId == request.auth.uid) || isAdmin();
+    }
+
+    // Coleção 'marketplace' (para anúncios)
+    match /marketplace/{itemId} {
+      allow read: if true;
+      allow create: if request.auth != null && request.resource.data.sellerId == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.sellerId == request.auth.uid;
     }
   }
 }

@@ -1,7 +1,7 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
+import { getAuth, connectAuthEmulator } from "firebase/auth";
+import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
+import { getStorage, connectStorageEmulator } from "firebase/storage";
 // Import para contornar problemas de CORS durante desenvolvimento
 import { setupDevEnvironment, applyCorsFix } from "./devConfig";
 
@@ -70,6 +70,19 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 
+// Conexão com emuladores Firebase em ambiente de desenvolvimento
+if (import.meta.env.DEV && import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true') {
+  try {
+    console.log('[OLLO] Conectando aos emuladores Firebase...');
+    connectFirestoreEmulator(db, 'localhost', 8080);
+    connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
+    connectStorageEmulator(storage, 'localhost', 9199);
+    console.log('[OLLO] Conectado aos emuladores Firebase com sucesso');
+  } catch (error) {
+    console.error('[OLLO] Erro ao conectar aos emuladores Firebase:', error);
+  }
+}
+
 // Aplica as configurações de desenvolvimento para contornar problemas de CORS
 if (import.meta.env.DEV) {
   console.log('[OLLO] Firebase configurado com sucesso');
@@ -86,4 +99,5 @@ if (import.meta.env.DEV) {
  * 4. Debug apenas em ambiente de desenvolvimento
  * 5. Mensagens de erro mais informativas
  * 6. Solução para problemas de CORS em ambiente de desenvolvimento
+ * 7. Conexão automática com emuladores Firebase quando ativados
  */
