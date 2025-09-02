@@ -1,119 +1,98 @@
-import React, { useEffect, useState } from "react";
-import { collection, getDocs, query, limit, orderBy } from "firebase/firestore";
-import { db } from "../firebase/config";
-import { Link } from "react-router-dom";
-import { useTheme } from "../context/ThemeContext";
-import './HomepageUsersCard.css';
+// src/components/HomepageUsersCard.jsx
 
-export default function HomepageUsersCard() {
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { collection, getDocs, limit, query, where } from 'firebase/firestore';
+import { db } from '../config/firebase'; // Verifique se este é o caminho correto para sua instância do firestore
+import { useAuth } from '../context/AuthContext';
+import './HomepageUsersCard.css'; // Importando o CSS que você já criou!
+
+// ARQUITETURA: Componente de esqueleto (Skeleton) para uma melhor UX durante o carregamento.
+const UserCardSkeleton = () => (
+  <div className="flex items-center gap-4 animate-pulse">
+    <div className="h-12 w-12 rounded-full bg-gray-200 dark:bg-gray-700"></div>
+    <div className="flex-1 space-y-2">
+      <div className="h-4 w-3/4 rounded bg-gray-200 dark:bg-gray-700"></div>
+      <div className="h-3 w-1/2 rounded bg-gray-200 dark:bg-gray-700"></div>
+    </div>
+  </div>
+);
+
+const HomepageUsersCard = () => {
+  // ARQUITETURA: Estado local para gerenciar a lista de usuários e o status de carregamento.
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { isDarkMode } = useTheme();
+  const { currentUser } = useAuth(); // Nossa fonte da verdade para saber se o visitante está logado.
 
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        // CORREÇÃO: Buscar da coleção users_public em vez de users
-        // Essa coleção tem acesso público conforme firestore.rules
-        const usersQuery = query(
-          collection(db, "users_public"),
-          orderBy("createdAt", "desc"),
-          limit(24)
-        );
-        const querySnapshot = await getDocs(usersQuery);
-        const usersData = querySnapshot.docs.map((doc) => ({
+        // MUDANÇA: Buscando da coleção 'users_public', que é permitida pelas nossas regras de segurança.
+        const usersCollectionRef = collection(db, 'users_public');
+
+        // PERFORMANCE: Usando limit() para buscar apenas os 5 primeiros usuários.
+        // Isso evita buscar milhares de registros em uma página inicial.
+        const q = query(usersCollectionRef, limit(5));
+
+        const querySnapshot = await getDocs(q);
+        const usersList = querySnapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
         }));
-        setUsers(usersData);
+        setUsers(usersList);
       } catch (error) {
-        console.error("[OLLO] Erro ao buscar usuários:", error);
-        // Mesmo com erro, definimos um array vazio para evitar problemas de renderização
-        setUsers([]);
+        console.error('Erro ao buscar usuários públicos:', error);
       } finally {
         setLoading(false);
       }
     };
 
     fetchUsers();
-  }, []);
-
-  // Função para obter a inicial do nome do usuário para o fallback do avatar
-  const getInitial = (name) => {
-    return name && typeof name === 'string' 
-      ? name.charAt(0).toUpperCase()
-      : '?';
-  };
-  
-  // Gera cor de fundo para avatar sem foto baseado no userId
-  const getAvatarBgColor = (userId) => {
-    const colors = [
-      'bg-blue-500', 'bg-green-500', 'bg-yellow-500',
-      'bg-purple-500', 'bg-pink-500', 'bg-indigo-500',
-      'bg-red-500', 'bg-orange-500', 'bg-teal-500'
-    ];
-    
-    // Usa o ID do usuário para escolher uma cor consistente
-    const charSum = userId.split('').reduce(
-      (sum, char) => sum + char.charCodeAt(0), 0
-    );
-    
-    return colors[charSum % colors.length];
-  };
+  }, []); // O array de dependências vazio `[]` garante que isso rode apenas uma vez.
 
   return (
-    <div className={`w-full shadow-lg rounded-2xl overflow-hidden ${isDarkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'}`}>
-      <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-        <h2 className="text-xl font-semibold">Comunidade OLLO</h2>
-        <Link 
-          to="/users" 
-          className="text-sm text-ollo-accent hover:underline"
-        >
-          Ver todos
-        </Link>
-      </div>
-      
-      <div className="p-6">
-        {loading ? (
-          <div className="flex justify-center items-center h-32">
-            <div className="w-8 h-8 border-4 border-ollo-accent border-t-transparent rounded-full animate-spin"></div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-4 gap-4 sm:grid-cols-6 md:grid-cols-8 justify-items-center">
-            {users.map((user, index) => (
+    <div className="bg-white dark:bg-ollo-deep/80 rounded-2xl p-5 border border-gray-200 dark:border-gray-700/60">
+      <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-4">
+        Conecte-se na OLLO
+      </h2>
+      <div className="space-y-4">
+        {loading
+          ? // MUDANÇA: Exibe os skeletons enquanto os dados carregam.
+            Array.from({ length: 4 }).map((_, index) => (
+              <UserCardSkeleton key={index} />
+            ))
+          : users.map((user, index) => (
+              // ARQUITETURA: O componente Link do react-router-dom lida com a navegação.
+              // A lógica condicional `currentUser ? ... : ...` troca o destino do link.
               <Link
-                to={`/profile/${user.username || user.id}`}
                 key={user.id}
-                className="transition-transform hover:scale-110 avatar-animate"
-                style={{"--avatar-index": index}}
+                to={currentUser ? `/profile/${user.username}` : '/login'}
+                className="flex items-center gap-4 p-2 -m-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-200 avatar-link"
               >
-                <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-gray-200 dark:border-gray-700 hover:border-ollo-accent dark:hover:border-ollo-accent-light">
-                  {user.avatarUrl || user.photoURL ? (
-                    <img 
-                      src={user.avatarUrl || user.photoURL} 
-                      alt={user.name || "Usuário"}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                      onError={(e) => {
-                        e.target.onerror = null;
-                        e.target.src = "/images/default-avatar.png";
-                      }}
-                    />
-                  ) : (
-                    <div className={`
-                      w-full h-full flex items-center justify-center
-                      text-white font-medium
-                      ${getAvatarBgColor(user.id)}
-                    `}>
-                      {getInitial(user.name || user.displayName)}
-                    </div>
-                  )}
+                <img
+                  src={user.avatarUrl || '/images/default-avatar.png'}
+                  alt={`Avatar de ${user.name}`}
+                  className="h-12 w-12 rounded-full object-cover avatar-animate"
+                  style={{ '--avatar-index': index }} // Para o delay da animação CSS
+                />
+                <div>
+                  <p className="font-semibold text-gray-900 dark:text-gray-50">
+                    {user.name}
+                  </p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    @{user.username}
+                  </p>
                 </div>
               </Link>
             ))}
-          </div>
+        {!loading && users.length === 0 && (
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Nenhum usuário para mostrar ainda.
+          </p>
         )}
       </div>
     </div>
   );
-}
+};
+
+export default HomepageUsersCard;

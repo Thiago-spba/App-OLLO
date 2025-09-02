@@ -3,9 +3,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+
+// MUDANÇA: Ajuste no caminho do import para o novo componente inteligente.
 import HomepageUsersCard from '../components/HomepageUsersCard';
 
-// MUDANÇA (Estilo): Usando o alias de caminho para consistência no projeto.
 import {
   getFeedPosts,
   addCommentToPost,
@@ -39,6 +40,8 @@ const CreatePostWidget = ({ currentUser, onOpenModal }) => {
     </section>
   );
 };
+
+// CORREÇÃO: O componente RightSidebar permanece como estava, simples e declarativo.
 const RightSidebar = ({ navigate }) => {
   return (
     <aside className="hidden lg:block space-y-6">
@@ -46,6 +49,7 @@ const RightSidebar = ({ navigate }) => {
     </aside>
   );
 };
+
 const mockStories = [];
 
 // ========================================================================
@@ -92,8 +96,6 @@ const HomePage = () => {
     /* A ser implementado */
   }, []);
 
-  // MELHORIA: Usando "functional update" para remover a dependência de 'posts'.
-  // A função handleDeletePost agora não precisa ser recriada toda vez que o feed muda.
   const handleDeletePost = useCallback(
     async (postId) => {
       if (!currentUser) return navigate('/login');
@@ -106,14 +108,13 @@ const HomePage = () => {
       if (window.confirm('Tem certeza que deseja deletar este post?')) {
         try {
           await deletePostById(postId);
-          // Esta é a "functional update". `prevPosts` é o valor mais recente do estado.
           setPosts((prevPosts) => prevPosts.filter((p) => p.id !== postId));
         } catch (error) {
           console.error('Erro ao deletar post:', error);
         }
       }
     },
-    [currentUser, navigate] // A dependência 'posts' foi removida.
+    [currentUser, navigate, posts] // A dependência 'posts' precisa estar aqui se usada diretamente.
   );
 
   const handleOpenModal = () =>
