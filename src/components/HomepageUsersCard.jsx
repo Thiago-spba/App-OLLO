@@ -2,9 +2,15 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { collection, getDocs, limit, query, where } from 'firebase/firestore';
-import { db } from '../config/firebase'; // Verifique se este é o caminho correto para sua instância do firestore
-import { useAuth } from '../context/AuthContext';
+import { collection, getDocs, limit, query } from 'firebase/firestore';
+
+// CORREÇÃO: O caminho relativo foi trocado pelo alias do projeto ('@/').
+// Isso garante que o sistema de build da Vercel consiga localizar o arquivo.
+import { db } from '@/config/firebase';
+
+// CORREÇÃO: O caminho do AuthContext também foi padronizado para manter a consistência.
+import { useAuth } from '@/context/AuthContext';
+
 import './HomepageUsersCard.css'; // Importando o CSS que você já criou!
 
 // ARQUITETURA: Componente de esqueleto (Skeleton) para uma melhor UX durante o carregamento.
