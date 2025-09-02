@@ -1,17 +1,16 @@
-// ARQUIVO FINAL E CORRIGIDO: src/components/HomepageUsersCard.jsx
+// ARQUIVO FINAL E DEFINITIVO: src/components/HomepageUsersCard.jsx
 
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { collection, getDocs, limit, query } from 'firebase/firestore';
 
-// CORREÇÃO DEFINITIVA: Este é o caminho mais provável para sua configuração.
-// O alias `@/` aponta para `src`, e o arquivo `firebase.js` deve estar lá.
-// Se seu arquivo se chamar `firebaseConfig.js`, apenas altere para: '@/firebaseConfig'
-import { db } from '@/firebase';
+// CORREÇÃO FINAL E DEFINITIVA: O erro 'EISDIR' provou que 'firebase' é uma pasta.
+// O caminho correto deve apontar para o arquivo DENTRO dela (provavelmente 'config.js' ou 'index.js').
+// Se não funcionar, o nome do arquivo dentro da pasta firebase é diferente.
+// Exemplo: se for firebase/core.js, o caminho seria '@/firebase/core'.
+import { db } from '@/firebase/config';
 
-// PADRONIZAÇÃO: Usando o alias para o AuthContext também.
 import { useAuth } from '@/context/AuthContext';
-
 import './HomepageUsersCard.css';
 
 const UserCardSkeleton = () => (
