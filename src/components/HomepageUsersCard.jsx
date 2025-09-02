@@ -1,19 +1,19 @@
-// src/components/HomepageUsersCard.jsx
+// ARQUIVO FINAL E CORRIGIDO: src/components/HomepageUsersCard.jsx
 
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { collection, getDocs, limit, query } from 'firebase/firestore';
 
-// CORREÇÃO: O caminho relativo foi trocado pelo alias do projeto ('@/').
-// Isso garante que o sistema de build da Vercel consiga localizar o arquivo.
-import { db } from '@/config/firebase';
+// CORREÇÃO DEFINITIVA: Este é o caminho mais provável para sua configuração.
+// O alias `@/` aponta para `src`, e o arquivo `firebase.js` deve estar lá.
+// Se seu arquivo se chamar `firebaseConfig.js`, apenas altere para: '@/firebaseConfig'
+import { db } from '@/firebase';
 
-// CORREÇÃO: O caminho do AuthContext também foi padronizado para manter a consistência.
+// PADRONIZAÇÃO: Usando o alias para o AuthContext também.
 import { useAuth } from '@/context/AuthContext';
 
-import './HomepageUsersCard.css'; // Importando o CSS que você já criou!
+import './HomepageUsersCard.css';
 
-// ARQUITETURA: Componente de esqueleto (Skeleton) para uma melhor UX durante o carregamento.
 const UserCardSkeleton = () => (
   <div className="flex items-center gap-4 animate-pulse">
     <div className="h-12 w-12 rounded-full bg-gray-200 dark:bg-gray-700"></div>
@@ -25,21 +25,15 @@ const UserCardSkeleton = () => (
 );
 
 const HomepageUsersCard = () => {
-  // ARQUITETURA: Estado local para gerenciar a lista de usuários e o status de carregamento.
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { currentUser } = useAuth(); // Nossa fonte da verdade para saber se o visitante está logado.
+  const { currentUser } = useAuth();
 
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        // MUDANÇA: Buscando da coleção 'users_public', que é permitida pelas nossas regras de segurança.
         const usersCollectionRef = collection(db, 'users_public');
-
-        // PERFORMANCE: Usando limit() para buscar apenas os 5 primeiros usuários.
-        // Isso evita buscar milhares de registros em uma página inicial.
         const q = query(usersCollectionRef, limit(5));
-
         const querySnapshot = await getDocs(q);
         const usersList = querySnapshot.docs.map((doc) => ({
           id: doc.id,
@@ -54,7 +48,7 @@ const HomepageUsersCard = () => {
     };
 
     fetchUsers();
-  }, []); // O array de dependências vazio `[]` garante que isso rode apenas uma vez.
+  }, []);
 
   return (
     <div className="bg-white dark:bg-ollo-deep/80 rounded-2xl p-5 border border-gray-200 dark:border-gray-700/60">
@@ -63,13 +57,10 @@ const HomepageUsersCard = () => {
       </h2>
       <div className="space-y-4">
         {loading
-          ? // MUDANÇA: Exibe os skeletons enquanto os dados carregam.
-            Array.from({ length: 4 }).map((_, index) => (
+          ? Array.from({ length: 4 }).map((_, index) => (
               <UserCardSkeleton key={index} />
             ))
           : users.map((user, index) => (
-              // ARQUITETURA: O componente Link do react-router-dom lida com a navegação.
-              // A lógica condicional `currentUser ? ... : ...` troca o destino do link.
               <Link
                 key={user.id}
                 to={currentUser ? `/profile/${user.username}` : '/login'}
@@ -79,7 +70,7 @@ const HomepageUsersCard = () => {
                   src={user.avatarUrl || '/images/default-avatar.png'}
                   alt={`Avatar de ${user.name}`}
                   className="h-12 w-12 rounded-full object-cover avatar-animate"
-                  style={{ '--avatar-index': index }} // Para o delay da animação CSS
+                  style={{ '--avatar-index': index }}
                 />
                 <div>
                   <p className="font-semibold text-gray-900 dark:text-gray-50">
