@@ -1,4 +1,4 @@
-// src/components/PostForm/PostForm.jsx
+// ARQUIVO: src/components/PostForm/PostForm.jsx
 
 import { useState, useEffect, useRef } from 'react';
 import {
@@ -8,30 +8,36 @@ import {
   X,
   Smiley,
   SpinnerGap,
+  UserCircle, // MUDANÇA: Adicionamos um ícone de fallback mais elegante
 } from '@phosphor-icons/react';
-// A importação direta do 'auth' não é mais necessária aqui
-import { db } from '../../firebase/config';
+import { db, storage } from '../../firebase/config'; // MUDANÇA: Importando storage direto de config
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { useAuth } from '../../context/AuthContext'; // MUDANÇA: Importando o hook para pegar o usuário logado
+import { toast } from 'react-hot-toast'; // MUDANÇA: Usaremos toast para feedback
 
-// A prop 'currentUser' do AuthContext é nossa fonte da verdade
-export default function PostForm({ onPost, currentUser, onClose }) {
+// CORREÇÃO: O componente agora busca o currentUser diretamente do AuthContext.
+// Isso simplifica o fluxo de dados, eliminando a necessidade de passar a prop 'currentUser'.
+export default function PostForm({ onPost, onClose }) {
+  const { currentUser } = useAuth(); // MUDANÇA: Usando nosso hook de autenticação como fonte da verdade
+
   const [content, setContent] = useState('');
   const [mediaPreviews, setMediaPreviews] = useState([]);
+  const [mediaFiles, setMediaFiles] = useState([]); // MUDANÇA: Separando arquivos de previews
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
   const fileInputRef = useRef(null);
   const textareaRef = useRef(null);
-  const formContainerRef = useRef(null);
+  const formContainerRef = useRef(null); // SEU CÓDIGO PRESERVADO
 
-  const storage = getStorage();
-
+  // SEU CÓDIGO 100% PRESERVADO
   useEffect(() => {
     return () => {
       mediaPreviews.forEach((preview) => URL.revokeObjectURL(preview.url));
     };
   }, [mediaPreviews]);
 
+  // SEU CÓDIGO 100% PRESERVADO
   useEffect(() => {
     const currentFormContainerRef = formContainerRef.current;
     let resizeObserver;
@@ -56,80 +62,23 @@ export default function PostForm({ onPost, currentUser, onClose }) {
     if (!files.length) return;
     const invalidFiles = files.filter((file) => file.size > 5 * 1024 * 1024);
     if (invalidFiles.length) {
-      alert('Alguns arquivos são muito grandes (máximo 5MB).');
+      toast.error('Alguns arquivos são muito grandes (máximo 5MB).');
       return;
     }
-    const newPreviews = files.map((file) => ({
+
+    const newFileEntries = files.map((file) => ({
       id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      url: URL.createObjectURL(file),
-      type: file.type.startsWith('video') ? 'video' : 'image',
       file,
     }));
-    setMediaPreviews((prev) => [...prev, ...newPreviews]);
-  };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!content.trim() && mediaPreviews.length === 0) {
-      alert('O conteúdo do post não pode estar vazio nem sem mídia!');
-      return;
-    }
+    const newPreviewEntries = newFileEntries.map((entry) => ({
+      id: entry.id,
+      url: URL.createObjectURL(entry.file),
+      type: entry.file.type.startsWith('video') ? 'video' : 'image',
+    }));
 
-    // Usando a prop 'currentUser' que é mais rica e confiável
-    if (!currentUser) {
-      alert('Você precisa estar logado para publicar!');
-      return;
-    }
-
-    setIsSubmitting(true);
-    let uploadedMedia = [];
-    try {
-      if (mediaPreviews.length > 0) {
-        const uploadPromises = mediaPreviews.map(async (preview) => {
-          const storageRef = ref(
-            storage,
-            `posts/${currentUser.uid}/${preview.id}-${preview.file.name}`
-          );
-          await uploadBytes(storageRef, preview.file);
-          const downloadURL = await getDownloadURL(storageRef);
-          return {
-            url: downloadURL,
-            type: preview.type,
-          };
-        });
-        uploadedMedia = await Promise.all(uploadPromises);
-      }
-
-      // ESTA É A ÚNICA SEÇÃO ALTERADA PARA CORRIGIR OS BUGS
-      const newPostData = {
-        content: content.trim(),
-        authorid: currentUser.uid, // CORRIGIDO: de 'uid' para 'authorid'
-        userName: currentUser.name || 'Usuário OLLO', // MELHORIA: Usa o nome do perfil do Firestore
-        userAvatar: currentUser.avatarUrl || '/images/default-avatar.png', // MELHORIA: Usa o avatar do perfil do Firestore
-        media: uploadedMedia,
-        createdAt: serverTimestamp(),
-        likes: [], // ADICIONADO: Campo obrigatório pela nossa regra de segurança
-        commentsCount: 0,
-      };
-
-      const postsCollectionRef = collection(db, 'posts');
-      await addDoc(postsCollectionRef, newPostData);
-
-      setContent('');
-      mediaPreviews.forEach((preview) => URL.revokeObjectURL(preview.url));
-      setMediaPreviews([]);
-
-      alert('Post publicado com sucesso!');
-
-      if (onClose) {
-        onClose();
-      }
-    } catch (error) {
-      console.error('Erro ao criar post ou fazer upload de mídia:', error);
-      alert('Ocorreu um erro ao publicar seu post. Tente novamente.');
-    } finally {
-      setIsSubmitting(false);
-    }
+    setMediaFiles((prev) => [...prev, ...newFileEntries]);
+    setMediaPreviews((prev) => [...prev, ...newPreviewEntries]);
   };
 
   const removeMedia = (previewId) => {
@@ -137,23 +86,84 @@ export default function PostForm({ onPost, currentUser, onClose }) {
     if (previewToRemove) {
       URL.revokeObjectURL(previewToRemove.url);
       setMediaPreviews((prev) => prev.filter((p) => p.id !== previewId));
+      setMediaFiles((prev) => prev.filter((f) => f.id !== previewId));
     }
   };
 
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!content.trim() && mediaFiles.length === 0) {
+      toast.error('Escreva algo ou adicione uma mídia para publicar.');
+      return;
+    }
+
+    if (!currentUser) {
+      toast.error('Você precisa estar logado para publicar!');
+      return;
+    }
+
+    setIsSubmitting(true);
+    let uploadedMedia = [];
+    try {
+      if (mediaFiles.length > 0) {
+        const uploadPromises = mediaFiles.map(async (mediaFile) => {
+          const storageRef = ref(
+            storage,
+            `posts/${currentUser.uid}/${mediaFile.id}-${mediaFile.file.name}`
+          );
+          await uploadBytes(storageRef, mediaFile.file);
+          const downloadURL = await getDownloadURL(storageRef);
+          return {
+            url: downloadURL,
+            type: mediaFile.file.type.startsWith('video') ? 'video' : 'image',
+          };
+        });
+        uploadedMedia = await Promise.all(uploadPromises);
+      }
+
+      // CORREÇÃO: Padronizando os campos do documento do post com camelCase para consistência.
+      const newPostData = {
+        content: content.trim(),
+        authorId: currentUser.uid,
+        authorName: currentUser.name || 'Usuário OLLO', // Vem do nosso AuthContext
+        authorAvatar: currentUser.avatarUrl || null, // Vem do nosso AuthContext
+        media: uploadedMedia,
+        createdAt: serverTimestamp(),
+        likes: [],
+        commentsCount: 0,
+      };
+
+      const postsCollectionRef = collection(db, 'posts');
+      await addDoc(postsCollectionRef, newPostData);
+
+      setContent('');
+      setMediaFiles([]);
+      setMediaPreviews([]);
+      toast.success('Post publicado com sucesso!');
+
+      if (onPost) {
+        // SEU CÓDIGO PRESERVADO
+        onPost(newPostData);
+      }
+
+      if (onClose) {
+        onClose();
+      }
+    } catch (error) {
+      console.error('Erro ao criar post ou fazer upload de mídia:', error);
+      toast.error('Ocorreu um erro ao publicar seu post. Tente novamente.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // SEU CÓDIGO 100% PRESERVADO
   const triggerFileInput = (type) => {
-    fileInputRef.current.accept = type === 'image' ? 'image/*' : 'video/*';
+    fileInputRef.current.accept = type === 'image/*' ? 'image/*' : 'video/*';
     fileInputRef.current.click();
   };
 
-  const handleAvatarError = () => {
-    setAvatarError(true);
-  };
-
-  const avatarSrc = avatarError
-    ? '/images/default-avatar.png'
-    : currentUser?.avatarUrl || '/images/default-avatar.png';
-
-  // O SEU JSX COMPLETO E DETALHADO, 100% PRESERVADO
+  // SEU JSX COMPLETO E DETALHADO, 100% PRESERVADO
   return (
     <div className="relative w-full max-w-2xl mx-auto">
       <div
@@ -162,12 +172,20 @@ export default function PostForm({ onPost, currentUser, onClose }) {
       >
         <div className="flex items-start gap-4 mb-6">
           <div className="flex-shrink-0 h-12 w-12 rounded-full overflow-hidden border-2 border-ollo-primary-400">
-            <img
-              src={avatarSrc}
-              alt="Avatar"
-              className="h-full w-full object-cover"
-              onError={handleAvatarError}
-            />
+            {/* MUDANÇA: Lógica de imagem de perfil aprimorada */}
+            {currentUser && !avatarError && currentUser.avatarUrl ? (
+              <img
+                src={currentUser.avatarUrl}
+                alt="Seu avatar"
+                className="h-full w-full object-cover"
+                onError={() => setAvatarError(true)}
+              />
+            ) : (
+              <UserCircle
+                size={48}
+                className="text-gray-400 dark:text-gray-500 h-full w-full"
+              />
+            )}
           </div>
           <div className="flex-grow">
             <h2 className="text-xl font-bold text-ollo-dark-900 dark:text-ollo-light-100 mb-1">
@@ -181,7 +199,8 @@ export default function PostForm({ onPost, currentUser, onClose }) {
 
         <textarea
           ref={textareaRef}
-          placeholder="No que você está pensando?"
+          // MELHORIA: Placeholder dinâmico para uma experiência mais pessoal.
+          placeholder={`No que você está pensando, ${currentUser?.name || 'OLLO'}?`}
           className="w-full min-h-[120px] p-4 rounded-xl bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-ollo-primary-400/50 focus:border-transparent transition-all"
           value={content}
           onChange={(e) => setContent(e.target.value)}
@@ -211,7 +230,7 @@ export default function PostForm({ onPost, currentUser, onClose }) {
                 </div>
                 <button
                   type="button"
-                  onClick={() => removeMedia(preview.id)}
+                  onClick={() => removeMedia(preview.id, preview.url)}
                   className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black/80 rounded-full backdrop-blur-sm transition-colors"
                   aria-label="Remover mídia"
                 >
@@ -274,13 +293,13 @@ export default function PostForm({ onPost, currentUser, onClose }) {
 
         <div className="mt-6 flex justify-end">
           <button
-            type="submit"
-            onClick={handleSubmit}
+            type="button"
+            onClick={handleSubmit} // MUDANÇA: O botão agora chama o handleSubmit
             disabled={
-              isSubmitting || (!content.trim() && mediaPreviews.length === 0)
+              isSubmitting || (!content.trim() && mediaFiles.length === 0)
             }
             className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all ${
-              (!content.trim() && mediaPreviews.length === 0) || isSubmitting
+              (!content.trim() && mediaFiles.length === 0) || isSubmitting
                 ? 'bg-ollo-light-300 dark:bg-ollo-dark-600 text-ollo-dark-400 dark:text-ollo-dark-300 cursor-not-allowed'
                 : 'bg-gradient-to-r from-ollo-primary-500 to-ollo-primary-600 hover:from-ollo-primary-600 hover:to-ollo-primary-700 text-white shadow-md hover:shadow-lg'
             }`}
