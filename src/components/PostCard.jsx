@@ -1,7 +1,7 @@
 // ARQUIVO: src/components/PostCard.jsx
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate, Link } from 'react-router-dom'; // MUDANÇA: Importando Link para navegação
+import { useNavigate, Link } from 'react-router-dom';
 import {
   HeartIcon,
   ChatBubbleOvalLeftEllipsisIcon,
@@ -11,7 +11,7 @@ import {
 import { HeartIcon as HeartIconSolid } from '@heroicons/react/24/solid';
 import clsx from 'clsx';
 import Avatar from './Avatar';
-import { useAuth } from '../context/AuthContext'; // MUDANÇA: useAuth para verificações
+import { useAuth } from '../context/AuthContext';
 
 // --- Sub-componente: Cabeçalho do Post ---
 const PostHeader = React.memo(
@@ -30,12 +30,24 @@ const PostHeader = React.memo(
       return `${days}d`;
     };
 
+    // DEPURAÇÃO: Vamos ver que dados estão chegando
+    console.log('PostHeader - userAvatar recebido:', userAvatar);
+
     return (
       <div className="flex justify-between items-start">
         <div className="flex items-center gap-4">
           <Link to={`/profile/${userName}`}>
+            {/* CORREÇÃO CRÍTICA: Filtrando URLs do logo OLLO */}
             <Avatar
-              src={userAvatar}
+              src={
+                userAvatar &&
+                !userAvatar.includes('logo') &&
+                !userAvatar.includes('ollo') &&
+                userAvatar !== '/images/logo-ollo.png' &&
+                userAvatar !== 'https://your-domain.com/images/logo-ollo.png'
+                  ? userAvatar
+                  : null
+              }
               alt={`${userName}'s avatar`}
               className="h-14 w-14 rounded-full object-cover text-gray-400 dark:text-gray-600"
             />
@@ -66,7 +78,6 @@ const PostHeader = React.memo(
 
 // --- Sub-componente: Corpo do Post ---
 const PostBody = React.memo(({ content }) => {
-  // CORREÇÃO: Removido handleProtectedClick daqui. A navegação será no PostCard.
   const [isExpanded, setIsExpanded] = useState(false);
   const needsClamping = content.length > 350;
 
@@ -83,7 +94,7 @@ const PostBody = React.memo(({ content }) => {
       {needsClamping && (
         <button
           onClick={() => setIsExpanded((prev) => !prev)}
-          className="text-ollo-accent-light font-semibold hover:underline mt-2 text-sm"
+          className="text-blue-600 font-semibold hover:underline mt-2 text-sm dark:text-blue-400"
         >
           {isExpanded ? 'Mostrar menos' : '...continuar lendo'}
         </button>
@@ -97,17 +108,17 @@ const PostCard = ({ postData, onAddComment, onDeletePost, isLast }) => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
 
-  // MELHORIA: O estado de 'curtido' agora vem diretamente dos dados do post.
+  // DEPURAÇÃO: Vamos ver todos os dados do post
+  console.log('PostCard - Dados completos do post:', postData);
+
   const [isLiked, setIsLiked] = useState(() =>
     postData.likes?.includes(currentUser?.uid)
   );
 
-  // Recalcula o estado se o post ou o usuário mudar.
   useEffect(() => {
     setIsLiked(postData.likes?.includes(currentUser?.uid));
   }, [postData.likes, currentUser]);
 
-  // Ação protegida: só executa a função se o usuário estiver logado.
   const protectedAction = (action) => () => {
     if (!currentUser) {
       navigate('/login');
@@ -117,8 +128,6 @@ const PostCard = ({ postData, onAddComment, onDeletePost, isLast }) => {
   };
 
   const handleToggleLike = () => {
-    // Aqui virá a chamada para o firestoreService.togglePostLike(postId, currentUser.uid)
-    // Por enquanto, apenas atualizamos a UI de forma otimista.
     setIsLiked((prev) => !prev);
   };
 
@@ -135,8 +144,8 @@ const PostCard = ({ postData, onAddComment, onDeletePost, isLast }) => {
     >
       <PostHeader
         authorId={postData.authorId}
-        userName={postData.authorName} // CORREÇÃO: Usando os campos padronizados
-        userAvatar={postData.authorAvatar} // CORREÇÃO: Usando os campos padronizados
+        userName={postData.authorName || postData.userName} // CORREÇÃO: Tentando ambos os campos
+        userAvatar={postData.authorAvatar || postData.userAvatar} // CORREÇÃO: Tentando ambos os campos
         timestamp={postData.createdAt}
         onDelete={protectedAction(() => onDeletePost(postData.id))}
         isOwner={isOwner}
@@ -156,7 +165,6 @@ const PostCard = ({ postData, onAddComment, onDeletePost, isLast }) => {
         </div>
       )}
 
-      {/* PostActions e CommentsSection podem ser integrados aqui no futuro */}
       <div className="mt-4 flex justify-between items-center">
         <div className="flex space-x-6">
           <button
@@ -182,7 +190,7 @@ const PostCard = ({ postData, onAddComment, onDeletePost, isLast }) => {
             </span>
           </Link>
         </div>
-        <button className="text-gray-500 dark:text-gray-400 hover:text-ollo-accent-light transition-colors">
+        <button className="text-gray-500 dark:text-gray-400 hover:text-blue-600 transition-colors">
           <ShareIcon className="h-6 w-6" />
         </button>
       </div>

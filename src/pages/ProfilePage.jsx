@@ -1,13 +1,11 @@
-// ARQUIVO FINAL, COMPLETO E CORRIGIDO: src/pages/ProfilePage.jsx
+// ARQUIVO: src/pages/ProfilePage.jsx
 
 import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase/config';
-
 import { useAuth } from '../context/AuthContext';
 import { useProfileStore } from '../hooks/useProfileStore';
-
 import ProfileHeader from '../components/pages/profile/ProfileHeader';
 import ProfileBio from '../components/pages/profile/ProfileBio';
 import ProfileGallery from '../components/pages/profile/ProfileGallery';
@@ -29,9 +27,14 @@ const ErrorDisplay = ({ message, onRetry }) => (
 
 export default function ProfilePage() {
   const { username } = useParams();
-  // MUDANÇA 1: Obtemos a função 'reloadCurrentUser' do AuthContext.
   const { currentUser, loading: authLoading, reloadCurrentUser } = useAuth();
 
+  // Estados locais simplificados para debug
+  const [pageLoading, setPageLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [profileData, setProfileData] = useState(null);
+
+  // Estados do store
   const initialize = useProfileStore((state) => state.initialize);
   const setCurrentUser = useProfileStore((state) => state.setCurrentUser);
   const form = useProfileStore((state) => state.form);
@@ -43,75 +46,145 @@ export default function ProfilePage() {
   const handleSave = useProfileStore((state) => state.handleSave);
   const handleCancel = useProfileStore((state) => state.handleCancel);
   const handleMediaUpload = useProfileStore((state) => state.handleMediaUpload);
-  // MUDANÇA 2: Obtemos a função para "injetar" nosso reloader no store.
   const setReloadAuthUser = useProfileStore((state) => state.setReloadAuthUser);
 
-  const [pageLoading, setPageLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  // MUDANÇA 3: Usamos useEffect para conectar o Context ao Store assim que a página carrega.
+  // Conectar o Context ao Store
   useEffect(() => {
-    // Esta é a "ponte". Entregamos a função de recarga do Auth para o ProfileStore.
     if (reloadCurrentUser) {
       setReloadAuthUser(reloadCurrentUser);
     }
   }, [reloadCurrentUser, setReloadAuthUser]);
 
   const fetchUserProfile = useCallback(async () => {
-    // ...Sua lógica de fetchUserProfile continua exatamente a mesma...
     if (!username) {
-      /* ... */ return;
+      console.log('[ProfilePage] Username não encontrado:', username);
+      setError({ type: 'not-found' });
+      setPageLoading(false);
+      return;
     }
+
+    console.log('[ProfilePage] Buscando perfil para:', username);
     setPageLoading(true);
     setError(null);
-    if (form && form.username === username.toLowerCase()) {
-      /* ... */ return;
+
+    // CORREÇÃO: Verificação mais robusta do cache
+    if (
+      form &&
+      form.username &&
+      form.username.toLowerCase() === username.toLowerCase()
+    ) {
+      console.log('[ProfilePage] Perfil já carregado no cache');
+      setPageLoading(false);
+      return;
     }
+
     try {
+      console.log('[ProfilePage] Fazendo consulta ao Firestore...');
       const usersRef = collection(db, 'users_public');
       const q = query(
         usersRef,
         where('username', '==', username.toLowerCase())
       );
+
       const querySnapshot = await getDocs(q);
+
       if (querySnapshot.empty) {
+        console.log('[ProfilePage] Usuário não encontrado no Firestore');
         setError({ type: 'not-found' });
       } else {
         const userDoc = querySnapshot.docs[0];
-        const profileData = { id: userDoc.id, ...userDoc.data() };
-        initialize(profileData);
+        const userData = { id: userDoc.id, ...userDoc.data() };
+
+        console.log('[ProfilePage] Perfil encontrado:', userData);
+
+        // Definir os dados localmente também para debug
+        setProfileData(userData);
+
+        // Inicializar o store
+        initialize(userData);
+
         if (currentUser) {
           setCurrentUser(currentUser);
         }
       }
     } catch (err) {
-      console.error('[OLLO] Erro ao buscar perfil do usuário:', err);
+      console.error('[ProfilePage] Erro ao buscar perfil:', err);
       setError({
         type: 'network-error',
-        message: 'Não foi possível carregar o perfil.',
+        message: `Erro de rede: ${err.message}`,
       });
     } finally {
+      console.log('[ProfilePage] Finalizando carregamento');
       setPageLoading(false);
     }
   }, [username, currentUser, initialize, setCurrentUser, form]);
 
   useEffect(() => {
+    console.log('[ProfilePage] useEffect disparado, username:', username);
     fetchUserProfile();
   }, [fetchUserProfile]);
+
+  // Log do estado atual para debug
+  useEffect(() => {
+    console.log('[ProfilePage] Estado atual:', {
+      pageLoading,
+      error,
+      authLoading,
+      username,
+      currentUser: currentUser?.uid,
+      form: form?.username,
+      profileData: profileData?.username,
+    });
+  }, [
+    pageLoading,
+    error,
+    authLoading,
+    username,
+    currentUser,
+    form,
+    profileData,
+  ]);
 
   const isOwner =
     !authLoading && !!currentUser && form && currentUser.uid === form.id;
 
-  if (pageLoading) return <LoadingSpinner text="Carregando perfil..." />;
+  // Renderização condicional com logs
+  if (authLoading) {
+    console.log('[ProfilePage] Aguardando autenticação...');
+    return <LoadingSpinner text="Verificando autenticação..." />;
+  }
+
+  if (pageLoading) {
+    console.log('[ProfilePage] Carregando perfil...');
+    return <LoadingSpinner text="Carregando perfil..." />;
+  }
+
   if (error) {
+    console.log('[ProfilePage] Erro detectado:', error);
     if (error.type === 'not-found') return <NotFoundPage />;
-    if (error.type === 'network-error')
+    if (error.type === 'network-error') {
       return (
         <ErrorDisplay message={error.message} onRetry={fetchUserProfile} />
       );
+    }
   }
-  if (!form || form.username !== username.toLowerCase())
+
+  if (!form) {
+    console.log('[ProfilePage] Form não encontrado');
+    return <LoadingSpinner text="Preparando dados do perfil..." />;
+  }
+
+  if (form.username !== username.toLowerCase()) {
+    console.log(
+      '[ProfilePage] Username mismatch:',
+      form.username,
+      'vs',
+      username.toLowerCase()
+    );
     return <NotFoundPage />;
+  }
+
+  console.log('[ProfilePage] Renderizando perfil para:', form.username);
 
   return (
     <main className="max-w-2xl mx-auto my-4 md:my-8 px-4">

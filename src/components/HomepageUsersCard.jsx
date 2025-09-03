@@ -3,10 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { collection, getDocs, limit, query } from 'firebase/firestore';
-import { db } from '@/firebase/config';
-import { useAuth } from '@/context/AuthContext';
-import Avatar from './Avatar'; // MUDANÇA: Importando nosso novo componente Avatar
-import './HomepageUsersCard.css';
+import { db } from '../firebase/config'; // CORREÇÃO: Ajustado o caminho
+import { useAuth } from '../context/AuthContext'; // CORREÇÃO: Ajustado o caminho
+import Avatar from './Avatar'; // Usando nosso componente Avatar inteligente
 
 const UserCardSkeleton = () => (
   <div className="flex items-center gap-4 animate-pulse">
@@ -18,28 +17,33 @@ const UserCardSkeleton = () => (
   </div>
 );
 
-// MELHORIA: Simplificamos o UserRow para usar o componente Avatar.
 const UserRow = ({ user, index }) => {
   const { currentUser } = useAuth();
 
   return (
     <Link
       to={currentUser ? `/profile/${user.username}` : '/login'}
-      className="flex items-center gap-4 p-2 -m-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-200 avatar-link"
+      className="flex items-center gap-4 p-2 -m-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-200"
     >
-      {/* CORREÇÃO: A lógica complexa foi substituída pelo nosso componente centralizado <Avatar /> */}
+      {/* CORREÇÃO PRINCIPAL: Garantindo que NUNCA passe uma URL do logo OLLO */}
       <Avatar
-        src={user.avatarUrl}
-        alt={`Avatar de ${user.name}`}
-        className="h-12 w-12 rounded-full object-cover avatar-animate text-gray-300 dark:text-gray-600"
-        style={{ '--avatar-index': index }}
+        src={
+          user.avatarUrl &&
+          !user.avatarUrl.includes('logo') &&
+          !user.avatarUrl.includes('ollo') &&
+          user.avatarUrl !== '/images/logo-ollo.png'
+            ? user.avatarUrl
+            : null
+        }
+        alt={`Avatar de ${user.name || user.username || 'Usuário'}`}
+        className="h-12 w-12 rounded-full object-cover text-gray-400 dark:text-gray-600"
       />
       <div>
         <p className="font-semibold text-gray-900 dark:text-gray-50">
-          {user.name}
+          {user.name || user.displayName || user.username || 'Usuário'}
         </p>
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          @{user.username}
+          @{user.username || 'usuario'}
         </p>
       </div>
     </Link>
@@ -79,7 +83,7 @@ const HomepageUsersCard = () => {
   }, [currentUser]);
 
   return (
-    <div className="bg-white dark:bg-ollo-deep/80 rounded-2xl p-5 border border-gray-200 dark:border-gray-700/60">
+    <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-200 dark:border-gray-700/60 shadow-sm">
       <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-4">
         Conecte-se na OLLO
       </h2>
