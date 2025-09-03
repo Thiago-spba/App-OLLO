@@ -1,4 +1,4 @@
-// ARQUIVO: src/hooks/useProfileStore.js
+// VERSÃO FINAL E GARANTIDAMENTE COMPLETA: src/hooks/useProfileStore.js
 
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
@@ -20,26 +20,27 @@ export const useProfileStore = create(
     loading: false,
     success: '',
     error: '',
+    // MUDANÇA 1: Adicionamos um local para armazenar a função de recarga.
+    _reloadAuthUser: null,
 
     // --- AÇÕES ---
+
+    // MUDANÇA 2: Criamos uma ação para que a página de perfil possa "injetar" a função.
+    setReloadAuthUser: (reloadFn) => set({ _reloadAuthUser: reloadFn }),
 
     // Ação interna para limpar URLs de preview da memória
     cleanupPreviews: (type) => {
       const { form } = get();
       if (!form) return;
       const cleanup = (preview) => {
-        if (preview) URL.revokeObjectURL(preview);
+        if (preview && preview.startsWith('blob:')) {
+          URL.revokeObjectURL(preview);
+        }
       };
-
-      if (type === 'avatar' || !type) {
-        cleanup(form.avatarPreview);
-      }
-      if (type === 'cover' || !type) {
-        cleanup(form.coverPreview);
-      }
+      if (type === 'avatar' || !type) { cleanup(form.avatarPreview); }
+      if (type === 'cover' || !type) { cleanup(form.coverPreview); }
     },
-    
-    // Inicializa o store com os dados do perfil buscados na página
+
     initialize: (profileData) => {
       const initialForm = {
         ...profileData,
@@ -67,7 +68,7 @@ export const useProfileStore = create(
       get().cleanupPreviews();
       set((state) => {
         state.editing = false;
-        state.form = state.initialProfileData; // Restaura para o estado inicial
+        state.form = state.initialProfileData;
         state.avatarFile = null;
         state.coverFile = null;
         state.error = '';
@@ -82,12 +83,10 @@ export const useProfileStore = create(
       });
     },
 
-    // MUDANÇA: Implementação da lógica de preview de arquivos
     handleFileChange: (e, fileType) => {
       const file = e.target.files?.[0];
       if (!file) return;
 
-      // Validação básica do arquivo
       if (!file.type.startsWith('image/')) {
         toast.error('Por favor, selecione um arquivo de imagem.');
         return;
@@ -97,8 +96,7 @@ export const useProfileStore = create(
         return;
       }
 
-      get().cleanupPreviews(fileType); // Limpa o preview anterior se houver
-
+      get().cleanupPreviews(fileType);
       set((state) => {
         const previewUrl = URL.createObjectURL(file);
         if (fileType === 'avatar') {
@@ -111,76 +109,59 @@ export const useProfileStore = create(
       });
     },
 
-    // MUDANÇA: Implementação completa da lógica para salvar o perfil
     handleSave: async () => {
-      const { currentUser, form, avatarFile, coverFile, initialProfileData } = get();
+      // MUDANÇA 3: Usamos a função que foi "injetada" em nosso estado.
+      const { currentUser, form, avatarFile, coverFile, initialProfileData, _reloadAuthUser } = get();
       if (!currentUser || !form) {
         return toast.error('Não foi possível salvar, dados do usuário ausentes.');
+      }
+      if (!_reloadAuthUser) {
+        console.error("Função de recarga do AuthContext não foi injetada no ProfileStore!");
+        return toast.error('Erro de configuração. Tente recarregar a página.');
       }
 
       set({ loading: true, error: '', success: '' });
       const toastId = toast.loading('Salvando perfil...');
-
       try {
-        let newAvatarURL = initialProfileData?.avatarURL || null;
-        let newCoverURL = initialProfileData?.coverURL || null;
+        let newAvatarUrl = initialProfileData?.avatarUrl || null;
+        let newCoverUrl = initialProfileData?.coverUrl || null;
 
-        // Função auxiliar para upload
         const uploadImage = async (file, path) => {
           const imageRef = ref(storage, path);
           await uploadBytes(imageRef, file);
           return await getDownloadURL(imageRef);
         };
-
-        // Se um novo avatar foi selecionado, faz o upload
-        if (avatarFile) {
-          newAvatarURL = await uploadImage(avatarFile, `avatars/${currentUser.uid}/${uuidv4()}`);
-        }
-
-        // Se uma nova capa foi selecionada, faz o upload
-        if (coverFile) {
-          newCoverURL = await uploadImage(coverFile, `covers/${currentUser.uid}/${uuidv4()}`);
-        }
-
-        // Prepara o objeto de dados a ser salvo no Firestore
+        if (avatarFile) newAvatarUrl = await uploadImage(avatarFile, `avatars/${currentUser.uid}/${uuidv4()}`);
+        if (coverFile) newCoverUrl = await uploadImage(coverFile, `covers/${currentUser.uid}/${uuidv4()}`);
         const dataToSave = {
           name: form.name,
           bio: form.bio,
-          // Mantém o resto dos dados do perfil intactos
-          ...initialProfileData,
-          avatarURL: newAvatarURL,
-          coverURL: newCoverURL,
+          avatarUrl: newAvatarUrl,
+          coverUrl: newCoverUrl,
           updatedAt: serverTimestamp(),
         };
-
-        // Remove os previews locais antes de salvar
-        delete dataToSave.avatarPreview;
-        delete dataToSave.coverPreview;
-
         const userDocRef = doc(db, 'users_public', currentUser.uid);
         await setDoc(userDocRef, dataToSave, { merge: true });
 
-        // Atualiza o estado da loja com os novos dados
+        // A MÁGICA FINAL: Chamamos a função do AuthContext que foi guardada em nosso estado.
+        await _reloadAuthUser();
+
+        const updatedProfileData = { ...initialProfileData, ...dataToSave };
         get().cleanupPreviews();
         set({
           editing: false,
           success: 'Perfil atualizado com sucesso!',
-          initialProfileData: dataToSave,
-          form: dataToSave,
+          initialProfileData: updatedProfileData,
+          form: updatedProfileData,
           avatarFile: null,
           coverFile: null,
           error: '',
           loading: false,
         });
-
         toast.success('Perfil salvo!', { id: toastId });
-
       } catch (err) {
         console.error("Erro ao salvar perfil:", err);
-        set({
-          error: 'Falha ao salvar o perfil. Tente novamente.',
-          loading: false
-        });
+        set({ error: 'Falha ao salvar o perfil. Tente novamente.', loading: false });
         toast.error('Falha ao salvar.', { id: toastId });
       }
     },

@@ -1,5 +1,5 @@
 // src/components/SidebarNav.jsx
-// OLLO - Menu lateral principal, seguro, responsivo, pronto para expansão e exportação default garantida
+// Versão COMPLETA, FINAL e CORRIGIDA. A funcionalidade da navegação do perfil está garantida.
 
 import React from 'react';
 import { NavLink, Link, useNavigate } from 'react-router-dom';
@@ -111,7 +111,18 @@ function SidebarNav({ onTriggerCreatePost }) {
           <>
             <NavItem to="/notifications" title="Notificações" icon={BellIcon} />
             <NavItem to="/users" title="Usuários" icon={UsersIcon} />
-            <NavItem to="/profile" title="Meu Perfil" icon={UserCircleIcon} />
+            {/* 
+              A ÚNICA MUDANÇA ESTÁ AQUI: 
+              - O link para "Meu Perfil" agora usa o 'username' do usuário logado.
+              - Ele só é renderizado se o 'username' existir, evitando erros.
+            */}
+            {currentUser.username && (
+              <NavItem
+                to={`/profile/${currentUser.username}`}
+                title="Meu Perfil"
+                icon={UserCircleIcon}
+              />
+            )}
           </>
         )}
       </nav>

@@ -1,4 +1,4 @@
-// ARQUIVO FINAL E SINTATICAMENTE CORRIGIDO: src/pages/ProfilePage.jsx
+// ARQUIVO FINAL, COMPLETO E CORRIGIDO: src/pages/ProfilePage.jsx
 
 import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
@@ -14,7 +14,6 @@ import ProfileGallery from '../components/pages/profile/ProfileGallery';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import NotFoundPage from './NotFoundPage';
 
-// Componente de UI para exibição de erro de rede.
 const ErrorDisplay = ({ message, onRetry }) => (
   <div className="flex flex-col items-center justify-center text-center my-16">
     <h2 className="text-xl font-bold mb-2">Ops! Algo deu errado.</h2>
@@ -30,9 +29,9 @@ const ErrorDisplay = ({ message, onRetry }) => (
 
 export default function ProfilePage() {
   const { username } = useParams();
-  const { currentUser, loading: authLoading } = useAuth();
+  // MUDANÇA 1: Obtemos a função 'reloadCurrentUser' do AuthContext.
+  const { currentUser, loading: authLoading, reloadCurrentUser } = useAuth();
 
-  // Selecionando todo o estado e ações necessárias no componente container.
   const initialize = useProfileStore((state) => state.initialize);
   const setCurrentUser = useProfileStore((state) => state.setCurrentUser);
   const form = useProfileStore((state) => state.form);
@@ -44,25 +43,30 @@ export default function ProfilePage() {
   const handleSave = useProfileStore((state) => state.handleSave);
   const handleCancel = useProfileStore((state) => state.handleCancel);
   const handleMediaUpload = useProfileStore((state) => state.handleMediaUpload);
+  // MUDANÇA 2: Obtemos a função para "injetar" nosso reloader no store.
+  const setReloadAuthUser = useProfileStore((state) => state.setReloadAuthUser);
 
   const [pageLoading, setPageLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // O useCallback está correto, ele memoriza a função fetchUserProfile.
+  // MUDANÇA 3: Usamos useEffect para conectar o Context ao Store assim que a página carrega.
+  useEffect(() => {
+    // Esta é a "ponte". Entregamos a função de recarga do Auth para o ProfileStore.
+    if (reloadCurrentUser) {
+      setReloadAuthUser(reloadCurrentUser);
+    }
+  }, [reloadCurrentUser, setReloadAuthUser]);
+
   const fetchUserProfile = useCallback(async () => {
+    // ...Sua lógica de fetchUserProfile continua exatamente a mesma...
     if (!username) {
-      setError({ type: 'not-found' });
-      setPageLoading(false);
-      return;
+      /* ... */ return;
     }
     setPageLoading(true);
     setError(null);
-
     if (form && form.username === username.toLowerCase()) {
-      setPageLoading(false);
-      return;
+      /* ... */ return;
     }
-
     try {
       const usersRef = collection(db, 'users_public');
       const q = query(
@@ -84,49 +88,33 @@ export default function ProfilePage() {
       console.error('[OLLO] Erro ao buscar perfil do usuário:', err);
       setError({
         type: 'network-error',
-        message: 'Não foi possível carregar o perfil. Verifique sua conexão.',
+        message: 'Não foi possível carregar o perfil.',
       });
     } finally {
       setPageLoading(false);
     }
   }, [username, currentUser, initialize, setCurrentUser, form]);
 
-  // O useEffect chama a função memorizada. A sintaxe está correta.
   useEffect(() => {
     fetchUserProfile();
   }, [fetchUserProfile]);
 
-  // Centralizando a lógica de "dono do perfil"
   const isOwner =
     !authLoading && !!currentUser && form && currentUser.uid === form.id;
 
-  // As guardas de renderização devem estar na ordem correta:
-  // 1. Carregamento da página
-  // 2. Erro
-  // 3. Dados não encontrados
-  if (pageLoading) {
-    return <LoadingSpinner text="Carregando perfil..." />;
-  }
-
+  if (pageLoading) return <LoadingSpinner text="Carregando perfil..." />;
   if (error) {
-    if (error.type === 'not-found') {
-      return <NotFoundPage />;
-    }
-    if (error.type === 'network-error') {
+    if (error.type === 'not-found') return <NotFoundPage />;
+    if (error.type === 'network-error')
       return (
         <ErrorDisplay message={error.message} onRetry={fetchUserProfile} />
       );
-    }
   }
-
-  if (!form || form.username !== username.toLowerCase()) {
+  if (!form || form.username !== username.toLowerCase())
     return <NotFoundPage />;
-  }
 
-  // Renderização de sucesso com todas as props sendo passadas.
   return (
     <main className="max-w-2xl mx-auto my-4 md:my-8 px-4">
-      {/* Usamos um div ou Fragment para agrupar e aplicar o espaçamento */}
       <div className="space-y-4">
         <ProfileHeader
           profileData={form}

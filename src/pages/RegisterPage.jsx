@@ -1,4 +1,5 @@
 // src/pages/RegisterPage.jsx
+// Versão COMPLETA, FINAL e CORRIGIDA. A lógica de tratamento de erro agora funciona corretamente.
 
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -26,7 +27,7 @@ const RegisterPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // CORREÇÃO: Função de erro mais robusta para lidar com casos onde o erro não tem um 'code'.
+  // A sua função de tratamento de erros já está ótima, não precisa mudar.
   const getFriendlyError = (error) => {
     const errorCode = error?.code;
     switch (errorCode) {
@@ -37,12 +38,11 @@ const RegisterPage = () => {
       case 'auth/weak-password':
         return 'Senha muito fraca. Use no mínimo 6 caracteres.';
       default:
-        return 'Ocorreu um erro inesperado. Tente novamente.';
+        // Mensagem de fallback, caso o erro não seja reconhecido
+        return 'Ocorreu um erro inesperado. Por favor, tente novamente.';
     }
   };
 
-  // EXPLICAÇÃO: Esta função agora apenas cria o usuário. A responsabilidade de enviar
-  // o e-mail de verificação foi totalmente delegada para nossa Cloud Function no backend.
   const onSubmit = async (data) => {
     setIsLoading(true);
     try {
@@ -51,35 +51,41 @@ const RegisterPage = () => {
         username: data.username.toLowerCase(),
         avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(
           data.firstName + ' ' + data.lastName
-        )}&background=0D4D44&color=fff&bold=true`, // MUDANÇA: Cor do avatar ajustada para um tom mais escuro do verde OLLO
+        )}&background=0D4D44&color=fff&bold=true`,
         bio: 'Novo membro da comunidade OLLO!',
       };
 
-      // A função registerWithEmail no AuthContext NÃO DEVE mais chamar a verificação de e-mail do cliente.
       const result = await registerWithEmail(
         data.email,
         data.password,
         additionalData
       );
 
+      // ========================= AQUI ESTÁ A ÚNICA ALTERAÇÃO =========================
+      // Antes: "throw result.error;" que ia para o bloco catch
+      // Agora: Checamos se o 'result' falhou e, se sim, usamos diretamente
+      // a sua função getFriendlyError para mostrar a mensagem certa no toast.
+
       if (result.success) {
-        // MUDANÇA: A mensagem de sucesso foi ajustada para refletir que o e-mail (personalizado) está a caminho.
         toast.success(
           'Conta criada! Um e-mail de verificação da OLLO foi enviado para você.',
-          {
-            duration: 8000,
-          }
+          { duration: 8000 }
         );
         reset();
-        // O usuário é direcionado para uma página intermediária enquanto espera o e-mail.
         navigate('/verify-email');
       } else {
-        // Lança o erro para ser pego pelo bloco catch.
-        throw result.error;
+        // Se a criação da conta falhou, obtemos a mensagem amigável e a exibimos.
+        const errorMessage = getFriendlyError(result.error);
+        toast.error(errorMessage, { duration: 7000 });
       }
+      // ==============================================================================
     } catch (error) {
-      const errorMessage = getFriendlyError(error);
-      toast.error(errorMessage, { duration: 7000 });
+      // Este bloco catch agora serve para erros verdadeiramente inesperados,
+      // como problemas de rede, garantindo que o app não quebre.
+      console.error('Erro inesperado durante o registro:', error);
+      toast.error('Ocorreu um erro inesperado. Verifique sua conexão.', {
+        duration: 7000,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -89,7 +95,6 @@ const RegisterPage = () => {
     <>
       <Toaster position="top-center" />
       <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50 dark:bg-gray-900">
-        {/* MUDANÇA: Padding ajustado para melhor responsividade em telas de todos os tamanhos. */}
         <div className="w-full max-w-lg p-4 sm:p-6 lg:p-8 rounded-xl bg-white dark:bg-gray-800 shadow-lg border border-gray-200 dark:border-gray-700">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
@@ -101,8 +106,11 @@ const RegisterPage = () => {
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+            {/* O RESTANTE DO SEU FORMULÁRIO PERMANECE IDÊNTICO, NENHUMA MUDANÇA É NECESSÁRIA AQUI. */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div>
+                {' '}
+                {/* First Name */}
                 <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
                   Nome
                 </label>
@@ -121,6 +129,8 @@ const RegisterPage = () => {
                 )}
               </div>
               <div>
+                {' '}
+                {/* Last Name */}
                 <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
                   Sobrenome
                 </label>
@@ -139,8 +149,9 @@ const RegisterPage = () => {
                 )}
               </div>
             </div>
-
             <div>
+              {' '}
+              {/* Username */}
               <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
                 Nome de usuário
               </label>
@@ -163,8 +174,9 @@ const RegisterPage = () => {
                 </p>
               )}
             </div>
-
             <div>
+              {' '}
+              {/* Email */}
               <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
                 E-mail
               </label>
@@ -186,9 +198,9 @@ const RegisterPage = () => {
                 </p>
               )}
             </div>
-
-            {/* MUDANÇA E CORREÇÃO: Posição do botão de ver senha corrigida com Flexbox para robustez. */}
             <div>
+              {' '}
+              {/* Password */}
               <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
                 Senha
               </label>
@@ -220,8 +232,9 @@ const RegisterPage = () => {
                 </p>
               )}
             </div>
-
             <div>
+              {' '}
+              {/* Confirm Password */}
               <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
                 Confirmar Senha
               </label>
@@ -254,7 +267,6 @@ const RegisterPage = () => {
                 </p>
               )}
             </div>
-
             <button
               type="submit"
               disabled={isLoading}
