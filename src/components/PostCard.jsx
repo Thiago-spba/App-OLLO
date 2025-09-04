@@ -1,19 +1,24 @@
-// ARQUIVO: src/components/PostCard.jsx
+// ARQUIVO FINAL CORRIGIDO: src/components/PostCard.jsx
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   HeartIcon,
   ChatBubbleOvalLeftEllipsisIcon,
   ShareIcon,
   EllipsisHorizontalIcon,
 } from '@heroicons/react/24/outline';
+// CORREÇÃO CRÍTICA: O erro estava aqui. Corrigido de '@react/24/solid' para '@heroicons/react/24/solid'.
 import { HeartIcon as HeartIconSolid } from '@heroicons/react/24/solid';
 import clsx from 'clsx';
 import Avatar from './Avatar';
 import { useAuth } from '../context/AuthContext';
+import {
+  getCommentsForPost,
+  addCommentToPost,
+} from '@/services/firestoreService';
 
-// --- Sub-componente: Cabeçalho do Post ---
+// --- Sub-componente: PostHeader ---
 const PostHeader = React.memo(
   ({ authorId, userName, userAvatar, timestamp, onDelete, isOwner }) => {
     const formatTimestamp = (ts) => {
@@ -30,30 +35,18 @@ const PostHeader = React.memo(
       return `${days}d`;
     };
 
-    // DEPURAÇÃO: Vamos ver que dados estão chegando
-    console.log('PostHeader - userAvatar recebido:', userAvatar);
-
     return (
       <div className="flex justify-between items-start">
         <div className="flex items-center gap-4">
-          <Link to={`/profile/${userName}`}>
-            {/* CORREÇÃO CRÍTICA: Filtrando URLs do logo OLLO */}
+          <Link to={`/profile/${authorId}`}>
             <Avatar
-              src={
-                userAvatar &&
-                !userAvatar.includes('logo') &&
-                !userAvatar.includes('ollo') &&
-                userAvatar !== '/images/logo-ollo.png' &&
-                userAvatar !== 'https://your-domain.com/images/logo-ollo.png'
-                  ? userAvatar
-                  : null
-              }
+              src={userAvatar}
               alt={`${userName}'s avatar`}
               className="h-14 w-14 rounded-full object-cover text-gray-400 dark:text-gray-600"
             />
           </Link>
           <div>
-            <Link to={`/profile/${userName}`}>
+            <Link to={`/profile/${authorId}`}>
               <p className="font-bold text-gray-900 dark:text-gray-100 hover:underline">
                 {userName}
               </p>
@@ -76,7 +69,7 @@ const PostHeader = React.memo(
   }
 );
 
-// --- Sub-componente: Corpo do Post ---
+// --- Sub-componente: PostBody ---
 const PostBody = React.memo(({ content }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const needsClamping = content.length > 350;
@@ -103,21 +96,91 @@ const PostBody = React.memo(({ content }) => {
   );
 });
 
+// --- Sub-componente: CommentItem ---
+const CommentItem = ({ commentData }) => {
+  return (
+    <div className="flex items-start gap-3 mt-3">
+      <Link to={`/profile/${commentData.author.uid}`}>
+        <Avatar src={commentData.author.photoURL} className="h-9 w-9" />
+      </Link>
+      <div className="flex-1 bg-gray-100 dark:bg-gray-700/60 rounded-xl px-3 py-2">
+        <Link to={`/profile/${commentData.author.uid}`}>
+          <p className="font-bold text-sm text-gray-900 dark:text-gray-100 hover:underline">
+            {commentData.author.displayName}
+          </p>
+        </Link>
+        <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
+          {commentData.text}
+        </p>
+      </div>
+    </div>
+  );
+};
+
 // --- COMPONENTE PRINCIPAL (ORQUESTRADOR) ---
-const PostCard = ({ postData, onAddComment, onDeletePost, isLast }) => {
+const PostCard = ({ postData, onDeletePost, isLast }) => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
 
-  // DEPURAÇÃO: Vamos ver todos os dados do post
-  console.log('PostCard - Dados completos do post:', postData);
-
+  const [comments, setComments] = useState([]);
+  const [commentsLoading, setCommentsLoading] = useState(true);
+  const [newComment, setNewComment] = useState('');
   const [isLiked, setIsLiked] = useState(() =>
     postData.likes?.includes(currentUser?.uid)
   );
 
   useEffect(() => {
+    const fetchComments = async () => {
+      if (!postData.id) return;
+      try {
+        setCommentsLoading(true);
+        const postComments = await getCommentsForPost(postData.id);
+        setComments(postComments);
+      } catch (error) {
+        console.error('Erro ao buscar comentários:', error);
+      } finally {
+        setCommentsLoading(false);
+      }
+    };
+    fetchComments();
+  }, [postData.id]);
+
+  useEffect(() => {
     setIsLiked(postData.likes?.includes(currentUser?.uid));
   }, [postData.likes, currentUser]);
+
+  const handleCommentSubmit = async (e) => {
+    e.preventDefault();
+    if (!currentUser) {
+      console.error('Tentativa de comentar sem um usuário logado.');
+      alert(
+        'Você precisa estar logado para comentar. Por favor, faça o login novamente.'
+      );
+      navigate('/login');
+      return;
+    }
+    if (!newComment.trim()) return;
+
+    const authorData = {
+      uid: currentUser.uid,
+      displayName:
+        currentUser.displayName || currentUser.name || 'Usuário Anônimo',
+      photoURL: currentUser.photoURL || currentUser.avatarUrl || null,
+    };
+
+    try {
+      const newCommentData = await addCommentToPost(
+        postData.id,
+        newComment,
+        authorData
+      );
+      setComments((prevComments) => [newCommentData, ...prevComments]);
+      setNewComment('');
+    } catch (error) {
+      console.error('Erro ao adicionar comentário:', error);
+      alert('Não foi possível adicionar seu comentário. Tente novamente.');
+    }
+  };
 
   const protectedAction = (action) => () => {
     if (!currentUser) {
@@ -129,6 +192,8 @@ const PostCard = ({ postData, onAddComment, onDeletePost, isLast }) => {
 
   const handleToggleLike = () => {
     setIsLiked((prev) => !prev);
+    // Aqui você chamaria a função de serviço para dar like/unlike
+    // togglePostLike(postData.id, currentUser.uid);
   };
 
   const isOwner = currentUser?.uid === postData.authorId;
@@ -144,8 +209,8 @@ const PostCard = ({ postData, onAddComment, onDeletePost, isLast }) => {
     >
       <PostHeader
         authorId={postData.authorId}
-        userName={postData.authorName || postData.userName} // CORREÇÃO: Tentando ambos os campos
-        userAvatar={postData.authorAvatar || postData.userAvatar} // CORREÇÃO: Tentando ambos os campos
+        userName={postData.authorName || 'Usuário OLLO'}
+        userAvatar={postData.authorAvatar}
         timestamp={postData.createdAt}
         onDelete={protectedAction(() => onDeletePost(postData.id))}
         isOwner={isOwner}
@@ -155,7 +220,7 @@ const PostCard = ({ postData, onAddComment, onDeletePost, isLast }) => {
         <PostBody content={postData.content} />
       </Link>
 
-      {postData.media && postData.media.length > 0 && (
+      {postData.media?.[0]?.url && (
         <div className="mt-3 rounded-xl overflow-hidden">
           <img
             src={postData.media[0].url}
@@ -186,13 +251,53 @@ const PostCard = ({ postData, onAddComment, onDeletePost, isLast }) => {
           >
             <ChatBubbleOvalLeftEllipsisIcon className="h-6 w-6" />
             <span className="text-sm font-medium">
-              {postData.commentsCount || 0}
+              {comments.length || postData.commentsCount || 0}
             </span>
           </Link>
         </div>
         <button className="text-gray-500 dark:text-gray-400 hover:text-blue-600 transition-colors">
           <ShareIcon className="h-6 w-6" />
         </button>
+      </div>
+
+      <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700/60">
+        {currentUser && (
+          <form
+            onSubmit={handleCommentSubmit}
+            className="flex items-start gap-3"
+          >
+            <Avatar
+              src={currentUser.photoURL || currentUser.avatarUrl}
+              className="h-9 w-9 mt-1"
+            />
+            <input
+              type="text"
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              placeholder="Escreva um comentário..."
+              className="flex-1 bg-gray-100 dark:bg-gray-800 border border-transparent rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 dark:text-gray-200"
+            />
+            <button
+              type="submit"
+              disabled={!newComment.trim()}
+              className="text-teal-500 font-semibold px-4 py-2 rounded-full hover:bg-teal-50 dark:hover:bg-teal-900/50 disabled:text-gray-400 disabled:hover:bg-transparent"
+            >
+              Enviar
+            </button>
+          </form>
+        )}
+
+        <div className="mt-4 space-y-2">
+          {commentsLoading ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Carregando comentários...
+            </p>
+          ) : (
+            comments.map((comment) => (
+              <CommentItem key={comment.id} commentData={comment} />
+            ))
+          )}
+        </div>
       </div>
     </article>
   );

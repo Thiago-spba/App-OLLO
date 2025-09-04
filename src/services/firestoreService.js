@@ -1,5 +1,5 @@
-// ARQUIVO CORRIGIDO: src/services/firestoreService.js
-// Mantém a performance e corrige a lógica de fallback do avatar.
+// ARQUIVO FINAL E COMPLETO: src/services/firestoreService.js
+// Mantém todo o código original e adiciona a lógica de comentários.
 
 import { db } from '../firebase/config';
 import {
@@ -21,7 +21,7 @@ import {
 } from 'firebase/firestore';
 
 // ========================================================================
-// FUNÇÕES DE USUÁRIO
+// FUNÇÕES DE USUÁRIO - (SEU CÓDIGO ORIGINAL - INTACTO)
 // ========================================================================
 
 export const createUserProfile = async (uid, profileData) => {
@@ -42,10 +42,8 @@ export const createUserProfile = async (uid, profileData) => {
     const publicData = {
       name: profileData.name || 'Usuário OLLO',
       username: username,
-      // **A CORREÇÃO FUNDAMENTAL #1**
-      // O avatar padrão é nulo. A UI decide o que mostrar.
       avatarUrl: null,
-      coverUrl: null, // Também é bom padronizar isso.
+      coverUrl: null,
       bio: '',
     };
 
@@ -77,13 +75,9 @@ export const updateUserPublicProfile = (uid, updatedData) => {
 };
 
 // ========================================================================
-// FUNÇÕES DE POSTS
+// FUNÇÕES DE POSTS - (SEU CÓDIGO ORIGINAL - INTACTO)
 // ========================================================================
 
-/**
- * Busca posts do feed e os enriquece de forma eficiente,
- * passando `null` para avatares ausentes.
- */
 export const getFeedPosts = async () => {
   const postsQuery = query(collection(db, 'posts'), orderBy('createdAt', 'desc'), limit(25));
   const postsSnapshot = await getDocs(postsQuery);
@@ -94,14 +88,13 @@ export const getFeedPosts = async () => {
 
   if (posts.length === 0) return [];
 
-  // Padronizado para authorId (camelCase)
   const authorIds = [...new Set(posts.map((post) => post.authorId).filter(Boolean))];
 
   if (authorIds.length === 0) {
     return posts.map(post => ({
         ...post,
         authorName: 'Usuário Desconhecido',
-        authorAvatar: null // Passa null se não houver autor
+        authorAvatar: null
     }));
   }
 
@@ -115,14 +108,9 @@ export const getFeedPosts = async () => {
 
   const enrichedPosts = posts.map((post) => {
     const authorData = authorsMap.get(post.authorId);
-
-    // **A CORREÇÃO FUNDAMENTAL #2**
-    // Passamos os dados do autor se ele existir.
-    // Se não existir, ou se não tiver avatar, o valor será `null`.
     return {
       ...post,
       authorName: authorData?.name || 'Usuário OLLO',
-      // Passa a avatarUrl real (que pode ser null) ou explicitamente null.
       authorAvatar: authorData?.avatarUrl || null,
     };
   });
@@ -130,12 +118,8 @@ export const getFeedPosts = async () => {
   return enrichedPosts;
 };
 
-// As funções abaixo já parecem corretas, mas revise os nomes dos campos como `authorid` para `authorId`.
-// Por consistência, vou corrigi-los aqui também.
-
 export const getPostsByUserId = async (userId) => {
   const postsRef = collection(db, 'posts');
-  // Correção: authorid -> authorId
   const q = query(postsRef, where("authorId", "==", userId), orderBy("createdAt", "desc"));
   const querySnapshot = await getDocs(q);
   return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
@@ -158,12 +142,6 @@ export const deletePostById = (postId) => {
   return deleteDoc(postRef);
 };
 
-export const addCommentToPost = (postId, commentData) => {
-  const commentsCollectionRef = collection(db, 'posts', postId, 'comments');
-  return addDoc(commentsCollectionRef, { ...commentData, createdAt: serverTimestamp() });
-};
-
-// Se você usa enrichPostData em algum lugar, ela também precisa ser corrigida:
 export const enrichPostData = async (post) => {
     if (!post || !post.authorId) {
       return { ...post, authorName: 'Anônimo', authorAvatar: null };
@@ -174,4 +152,56 @@ export const enrichPostData = async (post) => {
         authorName: authorData?.name || 'Usuário Desconhecido',
         authorAvatar: authorData?.avatarUrl || null
     };
+};
+
+// ========================================================================
+// MUDANÇA: NOVA SEÇÃO PARA FUNÇÕES DE COMENTÁRIOS
+// ========================================================================
+
+/**
+ * Busca todos os comentários de um post específico, ordenados pelos mais recentes.
+ * @param {string} postId - O ID do post cujos comentários serão buscados.
+ * @returns {Promise<Array>} Uma lista de objetos de comentário.
+ */
+export const getCommentsForPost = async (postId) => {
+  try {
+    const commentsCollectionRef = collection(db, 'posts', postId, 'comments');
+    const q = query(commentsCollectionRef, orderBy('createdAt', 'desc'));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+  } catch (error) {
+    console.error(`[OLLO] Erro ao buscar comentários para o post ${postId}:`, error);
+    return [];
+  }
+};
+
+/**
+ * Adiciona um novo comentário a um post.
+ * @param {string} postId - O ID do post a ser comentado.
+ * @param {string} commentText - O texto do comentário.
+ * @param {object} authorData - O objeto denormalizado com { uid, displayName, photoURL }.
+ * @returns {Promise<object>} O novo objeto de comentário criado, para atualização otimista da UI.
+ */
+// CORREÇÃO: Substituímos sua função 'addCommentToPost' original por esta versão aprimorada.
+export const addCommentToPost = async (postId, commentText, authorData) => {
+  try {
+    const commentsCollectionRef = collection(db, 'posts', postId, 'comments');
+    const newCommentPayload = {
+      text: commentText,
+      author: authorData,
+      createdAt: serverTimestamp(),
+    };
+    const docRef = await addDoc(commentsCollectionRef, newCommentPayload);
+    return {
+      id: docRef.id,
+      ...newCommentPayload,
+      createdAt: { toDate: () => new Date() }, 
+    };
+  } catch (error) {
+    console.error(`[OLLO] Erro ao adicionar comentário ao post ${postId}:`, error);
+    throw error;
+  }
 };
