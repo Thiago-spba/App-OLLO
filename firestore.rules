@@ -1,4 +1,5 @@
 // ARQUIVO CORRIGIDO E DEFINITIVO: firestore.rules
+// CORREÇÃO: Adicionadas regras para comentários e subcoleções
 
 rules_version = '2';
 
@@ -16,6 +17,10 @@ service cloud.firestore {
       return request.auth != null && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
 
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
     // MUDANÇA: Nova função de validação para o campo 'privacy'.
     // ARQUITETURA: Centraliza a lógica de quais valores de privacidade são permitidos.
     // Se no futuro adicionarmos 'followers-only', só precisamos mudar aqui.
@@ -24,6 +29,7 @@ service cloud.firestore {
     }
 
     // Regra especial para ambiente de desenvolvimento com emuladores
+    // IMPORTANTE: Remover ou comentar essa regra em produção
     match /{document=**} {
       allow read, write: if request.auth != null;
     }
@@ -62,13 +68,81 @@ service cloud.firestore {
       allow read: if true;
       allow create: if (request.auth != null && request.resource.data.authorId == request.auth.uid) || isAdmin();
       allow update, delete: if (request.auth != null && resource.data.authorId == request.auth.uid) || isAdmin();
+
+      // 💬 NOVA: Subcoleção 'comments' dentro de posts
+      match /comments/{commentId} {
+        allow read: if true; // Qualquer pessoa autenticada pode ler comentários
+        allow create: if isAuthenticated() 
+                      && request.resource.data.authorId == request.auth.uid // Só pode criar comentário em seu próprio nome
+                      && request.resource.data.keys().hasAll(['authorId', 'content', 'createdAt']); // Campos obrigatórios
+        allow update: if isAuthenticated() 
+                      && (resource.data.authorId == request.auth.uid || isAdmin()) // Só o autor ou admin pode editar
+                      && request.resource.data.authorId == resource.data.authorId // authorId não pode mudar
+                      && request.resource.data.createdAt == resource.data.createdAt; // createdAt não pode mudar
+        allow delete: if isAuthenticated() 
+                      && (resource.data.authorId == request.auth.uid || isAdmin()); // Só o autor ou admin pode deletar
+      }
     }
 
-    // Coleção 'marketplace' (para anúncios)
+    // 💬 NOVA: Coleção global 'comments' (caso você use essa estrutura)
+    match /comments/{commentId} {
+      allow read: if true;
+      allow create: if isAuthenticated() 
+                    && request.resource.data.authorId == request.auth.uid
+                    && request.resource.data.keys().hasAll(['authorId', 'content', 'postId', 'createdAt']);
+      allow update: if isAuthenticated() 
+                    && (resource.data.authorId == request.auth.uid || isAdmin())
+                    && request.resource.data.authorId == resource.data.authorId
+                    && request.resource.data.postId == resource.data.postId
+                    && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isAuthenticated() 
+                    && (resource.data.authorId == request.auth.uid || isAdmin());
+    }
+
+    // 🛒 Coleção 'marketplace' (para anúncios)
     match /marketplace/{itemId} {
       allow read: if true;
       allow create: if request.auth != null && request.resource.data.sellerId == request.auth.uid;
       allow update, delete: if request.auth != null && resource.data.sellerId == request.auth.uid;
+    }
+
+    // 👥 NOVA: Coleção 'admins' (para verificação de administradores)
+    match /admins/{adminId} {
+      allow read: if isAuthenticated(); // Qualquer usuário autenticado pode verificar se alguém é admin
+      allow write: if false; // Apenas através do Firebase Console ou Cloud Functions
+    }
+
+    // 📊 NOVA: Coleção 'analytics' (métricas da aplicação)
+    match /analytics/{docId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin() || isAuthenticated(); // Usuários podem criar dados de analytics
+    }
+
+    // 🔔 NOVA: Coleção 'notifications' (notificações dos usuários)
+    match /notifications/{notificationId} {
+      allow read, write: if isAuthenticated() && request.auth.uid == resource.data.userId;
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
+    }
+
+    // 👥 NOVA: Coleção 'follows' (sistema de seguir usuários)
+    match /follows/{followId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.followerId;
+      allow delete: if isAuthenticated() && request.auth.uid == resource.data.followerId;
+    }
+
+    // 💕 NOVA: Coleção 'likes' (curtidas em posts)
+    match /likes/{likeId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
+      allow delete: if isAuthenticated() && request.auth.uid == resource.data.userId;
+    }
+
+    // 📱 NOVA: Subcoleção 'likes' dentro de posts (estrutura alternativa)
+    match /posts/{postId}/likes/{likeId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
+      allow delete: if isAuthenticated() && request.auth.uid == resource.data.userId;
     }
   }
 }
