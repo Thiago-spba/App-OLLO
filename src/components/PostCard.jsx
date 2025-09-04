@@ -1,4 +1,5 @@
 // ARQUIVO FINAL CORRIGIDO: src/components/PostCard.jsx
+// CORREÇÃO: Avatar dos comentários agora busca dados reais do usuário
 
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -8,7 +9,6 @@ import {
   ShareIcon,
   EllipsisHorizontalIcon,
 } from '@heroicons/react/24/outline';
-// CORREÇÃO CRÍTICA: O erro estava aqui. Corrigido de '@react/24/solid' para '@heroicons/react/24/solid'.
 import { HeartIcon as HeartIconSolid } from '@heroicons/react/24/solid';
 import clsx from 'clsx';
 import Avatar from './Avatar';
@@ -16,6 +16,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   getCommentsForPost,
   addCommentToPost,
+  getUserProfile, // NOVA IMPORTAÇÃO
 } from '@/services/firestoreService';
 
 // --- Sub-componente: PostHeader ---
@@ -96,22 +97,90 @@ const PostBody = React.memo(({ content }) => {
   );
 });
 
-// --- Sub-componente: CommentItem ---
+// --- Sub-componente: CommentItem CORRIGIDO ---
 const CommentItem = ({ commentData }) => {
+  const [authorProfile, setAuthorProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchAuthorProfile = async () => {
+      if (!commentData?.authorId && !commentData?.author?.uid) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        // Tenta usar o authorId do comentário, ou o uid do author
+        const userId = commentData.authorId || commentData.author?.uid;
+
+        if (userId) {
+          const profile = await getUserProfile(userId);
+          setAuthorProfile(profile);
+        }
+      } catch (error) {
+        console.error('Erro ao buscar perfil do autor do comentário:', error);
+        // Se falhar, usa os dados que já temos
+        setAuthorProfile({
+          name: commentData.author?.displayName || 'Usuário Anônimo',
+          avatarURL: commentData.author?.photoURL || null,
+          username: commentData.author?.username || 'user',
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAuthorProfile();
+  }, [commentData]);
+
+  if (loading) {
+    return (
+      <div className="flex items-start gap-3 mt-3 animate-pulse">
+        <div className="h-9 w-9 bg-gray-300 dark:bg-gray-600 rounded-full"></div>
+        <div className="flex-1 bg-gray-100 dark:bg-gray-700/60 rounded-xl px-3 py-2">
+          <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded mb-1"></div>
+          <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded"></div>
+        </div>
+      </div>
+    );
+  }
+
+  // Determina os dados do autor (prioriza perfil buscado, depois dados do comentário)
+  const authorData = {
+    uid: commentData.authorId || commentData.author?.uid,
+    name:
+      authorProfile?.name ||
+      commentData.author?.displayName ||
+      'Usuário Anônimo',
+    avatar: authorProfile?.avatarURL || commentData.author?.photoURL || null,
+    username: authorProfile?.username || commentData.author?.username || null,
+  };
+
   return (
     <div className="flex items-start gap-3 mt-3">
-      <Link to={`/profile/${commentData.author.uid}`}>
-        <Avatar src={commentData.author.photoURL} className="h-9 w-9" />
+      <Link to={`/profile/${authorData.uid}`}>
+        <Avatar
+          src={authorData.avatar}
+          alt={`${authorData.name}'s avatar`}
+          className="h-9 w-9"
+        />
       </Link>
       <div className="flex-1 bg-gray-100 dark:bg-gray-700/60 rounded-xl px-3 py-2">
-        <Link to={`/profile/${commentData.author.uid}`}>
+        <Link to={`/profile/${authorData.uid}`}>
           <p className="font-bold text-sm text-gray-900 dark:text-gray-100 hover:underline">
-            {commentData.author.displayName}
+            {authorData.name}
           </p>
         </Link>
         <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
-          {commentData.text}
+          {commentData.text || commentData.content}
         </p>
+        {commentData.createdAt && (
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            {new Date(
+              commentData.createdAt.toDate?.() || commentData.createdAt
+            ).toLocaleString()}
+          </p>
+        )}
       </div>
     </div>
   );
@@ -134,10 +203,12 @@ const PostCard = ({ postData, onDeletePost, isLast }) => {
       if (!postData.id) return;
       try {
         setCommentsLoading(true);
+        console.log('[PostCard] Buscando comentários para post:', postData.id);
         const postComments = await getCommentsForPost(postData.id);
+        console.log('[PostCard] Comentários carregados:', postComments);
         setComments(postComments);
       } catch (error) {
-        console.error('Erro ao buscar comentários:', error);
+        console.error('[PostCard] Erro ao buscar comentários:', error);
       } finally {
         setCommentsLoading(false);
       }
@@ -161,23 +232,35 @@ const PostCard = ({ postData, onDeletePost, isLast }) => {
     }
     if (!newComment.trim()) return;
 
+    // CORREÇÃO: Melhora os dados do autor do comentário
     const authorData = {
       uid: currentUser.uid,
       displayName:
         currentUser.displayName || currentUser.name || 'Usuário Anônimo',
-      photoURL: currentUser.photoURL || currentUser.avatarUrl || null,
+      photoURL:
+        currentUser.photoURL ||
+        currentUser.avatarURL ||
+        currentUser.avatarUrl ||
+        null,
+      username: currentUser.username || null,
     };
 
     try {
+      console.log('[PostCard] Adicionando comentário com dados:', {
+        postId: postData.id,
+        comment: newComment,
+        author: authorData,
+      });
       const newCommentData = await addCommentToPost(
         postData.id,
         newComment,
         authorData
       );
+      console.log('[PostCard] Comentário adicionado:', newCommentData);
       setComments((prevComments) => [newCommentData, ...prevComments]);
       setNewComment('');
     } catch (error) {
-      console.error('Erro ao adicionar comentário:', error);
+      console.error('[PostCard] Erro ao adicionar comentário:', error);
       alert('Não foi possível adicionar seu comentário. Tente novamente.');
     }
   };
@@ -267,7 +350,12 @@ const PostCard = ({ postData, onDeletePost, isLast }) => {
             className="flex items-start gap-3"
           >
             <Avatar
-              src={currentUser.photoURL || currentUser.avatarUrl}
+              src={
+                currentUser.photoURL ||
+                currentUser.avatarURL ||
+                currentUser.avatarUrl
+              }
+              alt={`${currentUser.displayName || currentUser.name}'s avatar`}
               className="h-9 w-9 mt-1"
             />
             <input
@@ -292,10 +380,14 @@ const PostCard = ({ postData, onDeletePost, isLast }) => {
             <p className="text-sm text-gray-500 dark:text-gray-400">
               Carregando comentários...
             </p>
-          ) : (
+          ) : comments.length > 0 ? (
             comments.map((comment) => (
               <CommentItem key={comment.id} commentData={comment} />
             ))
+          ) : (
+            <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+              Seja o primeiro a comentar!
+            </p>
           )}
         </div>
       </div>
