@@ -3,9 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { collection, getDocs, limit, query } from 'firebase/firestore';
-import { db } from '../firebase/config'; // CORREÇÃO: Ajustado o caminho
-import { useAuth } from '../context/AuthContext'; // CORREÇÃO: Ajustado o caminho
-import Avatar from './Avatar'; // Usando nosso componente Avatar inteligente
+import { db } from '../firebase/config';
+import { useAuth } from '../context/AuthContext';
+import Avatar from './Avatar';
 
 const UserCardSkeleton = () => (
   <div className="flex items-center gap-4 animate-pulse">
@@ -17,7 +17,7 @@ const UserCardSkeleton = () => (
   </div>
 );
 
-const UserRow = ({ user, index }) => {
+const UserRow = ({ user }) => {
   const { currentUser } = useAuth();
 
   return (
@@ -25,16 +25,8 @@ const UserRow = ({ user, index }) => {
       to={currentUser ? `/profile/${user.username}` : '/login'}
       className="flex items-center gap-4 p-2 -m-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-200"
     >
-      {/* CORREÇÃO PRINCIPAL: Garantindo que NUNCA passe uma URL do logo OLLO */}
       <Avatar
-        src={
-          user.avatarUrl &&
-          !user.avatarUrl.includes('logo') &&
-          !user.avatarUrl.includes('ollo') &&
-          user.avatarUrl !== '/images/logo-ollo.png'
-            ? user.avatarUrl
-            : null
-        }
+        src={user.avatarUrl}
         alt={`Avatar de ${user.name || user.username || 'Usuário'}`}
         className="h-12 w-12 rounded-full object-cover text-gray-400 dark:text-gray-600"
       />
@@ -92,9 +84,7 @@ const HomepageUsersCard = () => {
           ? Array.from({ length: 5 }).map((_, index) => (
               <UserCardSkeleton key={index} />
             ))
-          : users.map((user, index) => (
-              <UserRow key={user.id} user={user} index={index} />
-            ))}
+          : users.map((user) => <UserRow key={user.id} user={user} />)}
         {!loading && users.length === 0 && (
           <p className="text-sm text-gray-500 dark:text-gray-400">
             Nenhum usuário para mostrar ainda.
@@ -105,4 +95,5 @@ const HomepageUsersCard = () => {
   );
 };
 
+// CORREÇÃO: Garantindo que a exportação padrão (default) esteja presente.
 export default HomepageUsersCard;

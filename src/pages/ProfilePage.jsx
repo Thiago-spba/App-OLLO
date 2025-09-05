@@ -48,7 +48,10 @@ export default function ProfilePage() {
   const handleMediaUpload = useProfileStore((state) => state.handleMediaUpload);
   const setReloadAuthUser = useProfileStore((state) => state.setReloadAuthUser);
 
-  // Conectar o Context ao Store
+  // CORREÇÃO: Conecta o AuthContext ao ProfileStore.
+  // Este useEffect injeta a função de recarregar o usuário (do AuthContext)
+  // dentro do nosso store. Isso completa a "ponte" que permite ao store
+  // forçar uma atualização do estado de autenticação global após salvar o perfil.
   useEffect(() => {
     if (reloadCurrentUser) {
       setReloadAuthUser(reloadCurrentUser);
@@ -67,7 +70,7 @@ export default function ProfilePage() {
     setPageLoading(true);
     setError(null);
 
-    // CORREÇÃO: Verificação mais robusta do cache
+    // Verificação mais robusta do cache
     if (
       form &&
       form.username &&

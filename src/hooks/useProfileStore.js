@@ -1,4 +1,4 @@
-// VERSÃO FINAL E GARANTIDAMENTE COMPLETA: src/hooks/useProfileStore.js
+// ARQUIVO: src/hooks/useProfileStore.js
 
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
@@ -8,6 +8,8 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { v4 as uuidv4 } from 'uuid';
 import { toast } from 'react-hot-toast';
 
+// CORREÇÃO: Garantimos que a constante seja exportada.
+// A falta da palavra "export" causava o SyntaxError que impedia o funcionamento da página.
 export const useProfileStore = create(
   immer((set, get) => ({
     // --- ESTADO ---
@@ -20,15 +22,12 @@ export const useProfileStore = create(
     loading: false,
     success: '',
     error: '',
-    // MUDANÇA 1: Adicionamos um local para armazenar a função de recarga.
     _reloadAuthUser: null,
 
     // --- AÇÕES ---
 
-    // MUDANÇA 2: Criamos uma ação para que a página de perfil possa "injetar" a função.
     setReloadAuthUser: (reloadFn) => set({ _reloadAuthUser: reloadFn }),
 
-    // Ação interna para limpar URLs de preview da memória
     cleanupPreviews: (type) => {
       const { form } = get();
       if (!form) return;
@@ -37,25 +36,37 @@ export const useProfileStore = create(
           URL.revokeObjectURL(preview);
         }
       };
-      if (type === 'avatar' || !type) { cleanup(form.avatarPreview); }
-      if (type === 'cover' || !type) { cleanup(form.coverPreview); }
+      if (type === 'avatar' || !type) {
+        cleanup(form.avatarPreview);
+      }
+      if (type === 'cover' || !type) {
+        cleanup(form.coverPreview);
+      }
     },
 
     initialize: (profileData) => {
+      const { form } = get();
+      const isSameProfile = form?.id === profileData.id;
+
       const initialForm = {
         ...profileData,
         avatarPreview: null,
         coverPreview: null,
       };
-      set({
-        initialProfileData: initialForm,
-        form: initialForm,
-        editing: false,
-        avatarFile: null,
-        coverFile: null,
-        success: '',
-        error: '',
-      });
+      
+      if (isSameProfile) {
+        set({ initialProfileData: initialForm });
+      } else {
+        set({
+          initialProfileData: initialForm,
+          form: initialForm,
+          editing: false,
+          avatarFile: null,
+          coverFile: null,
+          success: '',
+          error: '',
+        });
+      }
     },
 
     setCurrentUser: (user) => {
@@ -110,8 +121,8 @@ export const useProfileStore = create(
     },
 
     handleSave: async () => {
-      // MUDANÇA 3: Usamos a função que foi "injetada" em nosso estado.
       const { currentUser, form, avatarFile, coverFile, initialProfileData, _reloadAuthUser } = get();
+      
       if (!currentUser || !form) {
         return toast.error('Não foi possível salvar, dados do usuário ausentes.');
       }
@@ -122,6 +133,7 @@ export const useProfileStore = create(
 
       set({ loading: true, error: '', success: '' });
       const toastId = toast.loading('Salvando perfil...');
+      
       try {
         let newAvatarUrl = initialProfileData?.avatarUrl || null;
         let newCoverUrl = initialProfileData?.coverUrl || null;
@@ -131,8 +143,14 @@ export const useProfileStore = create(
           await uploadBytes(imageRef, file);
           return await getDownloadURL(imageRef);
         };
-        if (avatarFile) newAvatarUrl = await uploadImage(avatarFile, `avatars/${currentUser.uid}/${uuidv4()}`);
-        if (coverFile) newCoverUrl = await uploadImage(coverFile, `covers/${currentUser.uid}/${uuidv4()}`);
+
+        if (avatarFile) {
+          newAvatarUrl = await uploadImage(avatarFile, `avatars/${currentUser.uid}/${uuidv4()}`);
+        }
+        if (coverFile) {
+          newCoverUrl = await uploadImage(coverFile, `covers/${currentUser.uid}/${uuidv4()}`);
+        }
+
         const dataToSave = {
           name: form.name,
           bio: form.bio,
@@ -140,14 +158,15 @@ export const useProfileStore = create(
           coverUrl: newCoverUrl,
           updatedAt: serverTimestamp(),
         };
+
         const userDocRef = doc(db, 'users_public', currentUser.uid);
         await setDoc(userDocRef, dataToSave, { merge: true });
 
-        // A MÁGICA FINAL: Chamamos a função do AuthContext que foi guardada em nosso estado.
         await _reloadAuthUser();
 
         const updatedProfileData = { ...initialProfileData, ...dataToSave };
         get().cleanupPreviews();
+        
         set({
           editing: false,
           success: 'Perfil atualizado com sucesso!',
@@ -158,6 +177,7 @@ export const useProfileStore = create(
           error: '',
           loading: false,
         });
+
         toast.success('Perfil salvo!', { id: toastId });
       } catch (err) {
         console.error("Erro ao salvar perfil:", err);

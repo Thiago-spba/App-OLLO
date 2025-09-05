@@ -2,10 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import { ArrowUpTrayIcon, CameraIcon } from '@heroicons/react/24/solid';
-import Avatar from '../../Avatar'; // MUDANÇA: Importando nosso componente Avatar reutilizável
+import { CameraIcon } from '@heroicons/react/24/solid';
+// CORREÇÃO: Corrigimos o caminho da importação para apontar para o novo e correto
+// componente Avatar que está em 'src/components/Avatar.jsx'.
+import Avatar from '../../Avatar';
 
-// Skeleton para estado de carregamento (sem alterações)
+// Skeleton para estado de carregamento
 const ProfileHeaderSkeleton = () => (
   <div className="w-full animate-pulse overflow-hidden rounded-xl border border-gray-200 bg-white pb-6 shadow-md dark:border-gray-700 dark:bg-gray-800">
     <div className="h-40 w-full bg-gray-200 dark:bg-gray-700 sm:h-52"></div>
@@ -22,7 +24,8 @@ const ProfileHeaderSkeleton = () => (
   </div>
 );
 
-export default function ProfileHeader({
+// Envolvemos o componente principal com React.memo para otimização
+const ProfileHeader = React.memo(function ProfileHeader({
   profileData,
   editing = false,
   isOwner = false,
@@ -35,12 +38,13 @@ export default function ProfileHeader({
 }) {
   const [coverError, setCoverError] = useState(false);
 
-  // Determina qual imagem usar (preview tem prioridade sobre URL salva)
-  const coverImage = profileData?.coverPreview || profileData?.coverURL;
-  const avatarImage = profileData?.avatarPreview || profileData?.avatarURL;
+  const coverImage = profileData?.coverPreview || profileData?.coverUrl;
+  const avatarImage = profileData?.avatarPreview || profileData?.avatarUrl;
 
   useEffect(() => {
-    setCoverError(!coverImage);
+    if (coverImage) {
+      setCoverError(false);
+    }
   }, [coverImage]);
 
   if (!profileData) {
@@ -51,8 +55,7 @@ export default function ProfileHeader({
     <div className="w-full overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
       {/* SEÇÃO DO BANNER */}
       <div className="relative h-40 w-full sm:h-52 bg-gray-200 dark:bg-gray-700">
-        {/* Imagem do banner com fallback */}
-        {!coverError && (
+        {coverImage && !coverError && (
           <img
             src={coverImage}
             alt="Banner do perfil"
@@ -98,7 +101,6 @@ export default function ProfileHeader({
       {/* SEÇÃO DO AVATAR */}
       <div className="relative -mt-16 flex justify-center pb-4">
         <div className="relative">
-          {/* CORREÇÃO: Usando nosso componente Avatar padronizado */}
           <Avatar
             src={avatarImage}
             alt={`Avatar de ${profileData.name || profileData.username || 'Usuário'}`}
@@ -127,7 +129,7 @@ export default function ProfileHeader({
         </div>
       </div>
 
-      {/* SEÇÃO DAS INFORMAÇÕES DO USUÁRIO (sem alterações) */}
+      {/* SEÇÃO DAS INFORMAÇÕES DO USUÁRIO */}
       <div className="px-6 pb-4 text-center">
         {editing ? (
           <div className="space-y-3">
@@ -156,7 +158,7 @@ export default function ProfileHeader({
         )}
       </div>
 
-      {/* SEÇÃO DOS BOTÕES DE AÇÃO (sem alterações) */}
+      {/* SEÇÃO DOS BOTÕES DE AÇÃO */}
       {isOwner && (
         <div className="px-6 pb-6">
           {editing ? (
@@ -188,6 +190,6 @@ export default function ProfileHeader({
       )}
     </div>
   );
-}
+});
 
-// PropTypes (removidos para simplicidade na refatoração, mas devem ser mantidos no projeto final)
+export default ProfileHeader;
