@@ -1,40 +1,31 @@
 // ARQUIVO COMPLETO E DEFINITIVO: src/hooks/useAuth.jsx
+
 import { useState, useEffect, useCallback } from 'react';
 import {
   onIdTokenChanged,
   sendEmailVerification,
-  connectAuthEmulator,
   reload,
+  signOut,
 } from 'firebase/auth';
-import firebaseAuthenticator from '../firebase/firebaseAuthenticator';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
 import { toast } from 'react-hot-toast';
 import { createUserProfile } from '../services/firestoreService';
 import { parseAuthError } from '../utils/authErrorHandler';
+import firebaseAuthenticator from '../firebase/firebaseAuthenticator'; // Re-adicionado para compatibilidade, mas sua abordagem de import direto é válida também.
 
-const useAuthLogic = () => {
+// Constantes para mensagens de erro - Excelente prática!
+const ERROR_MESSAGES = {
+  PROFILE_LOAD: 'Houve um erro ao carregar os detalhes do seu perfil.',
+  RELOAD_USER: 'Não foi possível atualizar seus dados. Tente novamente.',
+  LOGOUT: 'Erro ao tentar sair da conta.',
+  NETWORK: 'Erro de conexão de rede.',
+};
+
+const useAuth = () => {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState(null);
-
-  // A conexão com emuladores (se ativada) continua a mesma
-  useEffect(() => {
-    if (
-      import.meta.env.DEV &&
-      import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true'
-    ) {
-      try {
-        // A conexão já é feita no firebase/config.js, aqui apenas logamos
-        console.log('[OLLO] useAuthLogic hook inicializado em modo emulador.');
-      } catch (error) {
-        console.error(
-          '[OLLO] Erro no hook useAuthLogic ao tentar conectar ao emulador:',
-          error
-        );
-      }
-    }
-  }, []);
 
   const fetchAndSetUser = useCallback(async (firebaseUser) => {
     if (!firebaseUser) {
@@ -42,110 +33,105 @@ const useAuthLogic = () => {
       setAuthError(null);
       return;
     }
+
     try {
-      // CORREÇÃO DEFINITIVA: Forçamos a recarga dos dados do usuário do servidor Firebase.
-      // Isso garante que, após clicar no link de verificação e fazer login,
-      // obteremos o status `emailVerified: true` mais recente, quebrando o loop de redirecionamento.
-      await reload(firebaseUser);
-
-      // Após o reload, é crucial pegar a instância mais recente do auth.currentUser
-      const refreshedUser = auth.currentUser;
-      if (!refreshedUser) {
-        // Se por algum motivo o usuário sumir após o reload, limpamos o estado.
-        setCurrentUser(null);
-        return;
-      }
-
-      await refreshedUser.getIdToken(true);
-      const privateDocRef = doc(db, 'users', refreshedUser.uid);
-      const publicDocRef = doc(db, 'users_public', refreshedUser.uid);
-      const [privateDocSnap, publicDocSnap] = await Promise.all([
-        getDoc(privateDocRef),
-        getDoc(publicDocRef),
+      const [privateDoc, publicDoc] = await Promise.all([
+        getDoc(doc(db, 'users', firebaseUser.uid)),
+        getDoc(doc(db, 'users_public', firebaseUser.uid)),
       ]);
 
       let firestoreData;
-      if (publicDocSnap.exists()) {
-        firestoreData = { ...privateDocSnap.data(), ...publicDocSnap.data() };
+      if (publicDoc.exists()) {
+        firestoreData = { ...privateDoc.data(), ...publicDoc.data() };
       } else {
-        const defaultProfileData = {
-          email: refreshedUser.email,
-          name: refreshedUser.displayName || refreshedUser.email.split('@')[0],
-          username: `user_${refreshedUser.uid.substring(0, 5)}`,
-        };
-        firestoreData = await createUserProfile(
-          refreshedUser.uid,
-          defaultProfileData
-        );
+        // Lógica para criar um perfil caso não exista
+        firestoreData = await createUserProfile(firebaseUser.uid, {
+          email: firebaseUser.email,
+          name: firebaseUser.displayName || firebaseUser.email.split('@')[0],
+          username: `user_${firebaseUser.uid.substring(0, 5)}`,
+          createdAt: new Date().toISOString(),
+          emailVerified: firebaseUser.emailVerified,
+        });
       }
 
-      // Combinamos o objeto de usuário atualizado do Auth com os dados do Firestore
-      const finalUserObject = { ...refreshedUser, ...firestoreData };
-      setCurrentUser(finalUserObject);
+      const userWithData = {
+        // Pegamos as propriedades essenciais e seguras do auth
+        uid: firebaseUser.uid,
+        email: firebaseUser.email,
+        emailVerified: firebaseUser.emailVerified,
+        displayName: firebaseUser.displayName,
+        // E combinamos com os dados do Firestore
+        ...firestoreData,
+      };
+
+      setCurrentUser(userWithData);
       setAuthError(null);
     } catch (error) {
       console.error(
-        '[OLLO] Erro CRÍTICO ao buscar/definir dados do usuário:',
+        '[OLLO] Erro ao buscar dados do usuário do Firestore:',
         error
       );
-      setCurrentUser(firebaseUser);
       setAuthError(error);
-      toast.error('Houve um erro ao carregar os detalhes do seu perfil.');
+      // Mesmo com erro de Firestore, setamos o usuário base do Firebase Auth para que a UI não quebre.
+      setCurrentUser(firebaseUser);
+      toast.error(ERROR_MESSAGES.PROFILE_LOAD);
     }
   }, []);
 
+  // Listener de estado de autenticação - estável e limpo
   useEffect(() => {
-    const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
-      setLoading(true);
-      await fetchAndSetUser(firebaseUser);
-      setLoading(false);
+    const unsubscribe = onIdTokenChanged(auth, async (user) => {
+      await fetchAndSetUser(user);
+      setLoading(false); // Fim do carregamento inicial
     });
+
+    // Função de limpeza do useEffect, a forma correta de evitar leaks
     return () => unsubscribe();
   }, [fetchAndSetUser]);
 
-  // Nenhuma mudança necessária nas outras funções
+  // Função robusta para recarregar dados sob demanda
   const reloadCurrentUser = useCallback(async () => {
-    // Esta função já estava correta, forçando o reload sob demanda.
-    const firebaseUser = auth.currentUser;
-    if (firebaseUser) {
-      setLoading(true);
-      await fetchAndSetUser(firebaseUser);
-      setLoading(false);
-    }
-  }, [fetchAndSetUser]);
+    const user = auth.currentUser;
+    if (!user) return;
 
-  const loginWithEmail = useCallback(
-    /* ...código existente sem alterações... */ async (email, password) => {
-      try {
-        return await firebaseAuthenticator.login(email, password);
-      } catch (error) {
-        return {
-          success: false,
-          error,
-          message: error.message,
-        };
-      }
-    },
-    []
-  );
-  const logout = useCallback(
-    /* ...código existente sem alterações... */ async (navigate) => {
-      try {
-        const result = await firebaseAuthenticator.logout();
-        setCurrentUser(null);
-        if (result.success && navigate) {
-          navigate('/login');
-        } else if (!result.success) {
-          toast.error('Não foi possível sair.');
-        }
-      } catch (error) {
-        toast.error('Erro no logout.');
-      }
-    },
-    []
-  );
+    setLoading(true);
+    try {
+      await reload(user);
+      // O listener `onIdTokenChanged` irá pegar a mudança e atualizar o estado.
+      // O `setLoading(false)` será chamado pelo listener.
+    } catch (error) {
+      console.error('[OLLO] Falha no reload:', error);
+      toast.error(ERROR_MESSAGES.RELOAD_USER);
+      setLoading(false); // Garante que pare de carregar em caso de erro.
+    }
+  }, []);
+
+  // Sua ótima versão do logout
+  const logout = useCallback(async () => {
+    try {
+      await signOut(auth);
+      // O listener `onIdTokenChanged` vai detectar o logout e setar currentUser para null.
+      return { success: true };
+    } catch (error) {
+      console.error('[OLLO] Erro no logout:', error);
+      toast.error(ERROR_MESSAGES.LOGOUT);
+      return { success: false, error };
+    }
+  }, []);
+
+  // --- Demais funções baseadas no seu primeiro arquivo para manter a compatibilidade ---
+  // A sua refatoração com import dinâmico também é válida, esta é só uma alternativa.
+  const loginWithEmail = useCallback(async (email, password) => {
+    try {
+      return await firebaseAuthenticator.login(email, password);
+    } catch (error) {
+      const parsedError = parseAuthError(error);
+      toast.error(parsedError.message);
+      return { success: false, error: parsedError };
+    }
+  }, []);
+
   const registerWithEmail = useCallback(
-    /* ...código existente sem alterações... */
     async (email, password, additionalData) => {
       try {
         const result = await firebaseAuthenticator.register(
@@ -163,60 +149,39 @@ const useAuthLogic = () => {
             createdAt: new Date().toISOString(),
             emailVerified: user.emailVerified || false,
           });
-          return {
-            success: true,
-            user,
-          };
+          return { success: true, user };
         } else {
           throw result.error;
         }
       } catch (error) {
         const parsedError = parseAuthError(error);
         toast.error(parsedError.message);
-        console.error('[AuthContext] ERRO DETALHADO NO REGISTRO:', error);
-        return {
-          success: false,
-          error: parsedError,
-        };
+        return { success: false, error: parsedError };
       }
     },
     []
   );
-  const resetPassword = useCallback(
-    /* ...código existente sem alterações... */ async (email) => {
-      try {
-        return await firebaseAuthenticator.resetPassword(email);
-      } catch (error) {
-        return {
-          success: false,
-          error,
-          message: error.message,
-        };
-      }
-    },
-    []
-  );
-  const resendVerificationEmail = useCallback(
-    /* ...código existente sem alterações... */ async () => {
-      try {
-        if (!auth.currentUser) throw new Error('Usuário não autenticado');
-        await sendEmailVerification(auth.currentUser);
-        toast.success('Link de verificação reenviado com sucesso!');
-        return {
-          success: true,
-        };
-      } catch (error) {
-        const parsedError = parseAuthError(error);
-        toast.error(parsedError.message);
-        return {
-          success: false,
-          error,
-          message: parsedError.message,
-        };
-      }
-    },
-    []
-  );
+
+  const resetPassword = useCallback(async (email) => {
+    try {
+      return await firebaseAuthenticator.resetPassword(email);
+    } catch (error) {
+      return { success: false, error, message: error.message };
+    }
+  }, []);
+
+  const resendVerificationEmail = useCallback(async () => {
+    try {
+      if (!auth.currentUser) throw new Error('Usuário não autenticado');
+      await sendEmailVerification(auth.currentUser);
+      toast.success('Link de verificação reenviado!');
+      return { success: true };
+    } catch (error) {
+      const parsedError = parseAuthError(error);
+      toast.error(parsedError.message);
+      return { success: false, error, message: parsedError.message };
+    }
+  }, []);
 
   return {
     currentUser,
@@ -231,4 +196,4 @@ const useAuthLogic = () => {
   };
 };
 
-export default useAuthLogic;
+export default useAuth;
