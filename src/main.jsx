@@ -1,9 +1,8 @@
-// ARQUIVO FINALIZADO: src/main.jsx
+// ARQUIVO COMPLETO E CORRIGIDO: src/main.jsx
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
-
 
 // --- PROVEDORES DE CONTEXTO ---
 import { AuthProvider } from './context/AuthContext.jsx';
@@ -26,7 +25,6 @@ import MarketplacePage from './pages/MarketplacePage.jsx';
 import CreateListingPage from './pages/CreateListingPage.jsx';
 import ListingDetailPage from './pages/ListingDetailPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
-// MUDANÇA: Acrescentamos a importação do nosso novo componente de redirecionamento.
 import ProfileRedirectPage from './pages/ProfileRedirectPage.jsx';
 import UsersPage from './pages/UsersPage.jsx';
 import NotificationsPage from './pages/NotificationsPage.jsx';
@@ -68,6 +66,13 @@ const router = createBrowserRouter([
     element: <ActionHandlerPage />,
     errorElement: <PublicErrorPage />,
   },
+  // CORREÇÃO: Movendo a rota 'verify-email' para cá.
+  // Ela é uma página pública do fluxo de autenticação e não deve ser protegida.
+  {
+    path: '/verify-email',
+    element: <VerifyEmailPage />,
+    errorElement: <PublicErrorPage />,
+  },
 
   // --- Rotas Principais com Layout (Sidebar, etc.) ---
   {
@@ -85,20 +90,17 @@ const router = createBrowserRouter([
         element: <ListingDetailPage />,
       },
 
-      // -- Rotas Privadas (exigem login, mas não e-mail verificado) --
+      // -- Rotas Privadas (exigem login E e-mail verificado) --
       {
         element: <ProtectedRoute />,
         children: [
           { path: 'marketplace', element: <MarketplacePage /> },
           { path: 'marketplace/criar', element: <CreateListingPage /> },
-
-          // MUDANÇA: Acrescentamos a rota para /profile, que redireciona o usuário logado.
-          // Ela precisa vir ANTES da rota dinâmica para ser encontrada primeiro.
           { path: 'profile', element: <ProfileRedirectPage /> },
           { path: 'users', element: <UsersPage /> },
           { path: 'profile/:username', element: <ProfilePage /> },
           { path: 'notifications', element: <NotificationsPage /> },
-          { path: 'verify-email', element: <VerifyEmailPage /> },
+          // CORREÇÃO: Removendo a rota 'verify-email' daqui para quebrar o loop.
         ],
       },
 
@@ -119,7 +121,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   </React.StrictMode>
 );
 
-// --- Service Worker ---
+// --- Service Worker (sem alterações) ---
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker
