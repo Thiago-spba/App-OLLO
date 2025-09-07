@@ -1,25 +1,23 @@
-// ARQUIVO COMPLETO E DEFINITIVO: src/hooks/useAuth.jsx
-
+// ARQUIVO COMPLETO E FINAL, À PROVA DE CONDIÇÃO DE CORRIDA: src/hooks/useAuth.jsx
 import { useState, useEffect, useCallback } from 'react';
 import {
   onIdTokenChanged,
   sendEmailVerification,
   reload,
   signOut,
-} from 'firebase/auth';
+} from 'firebase/auth'; // 'getIdToken' é um método do objeto user, não precisa ser importado.
 import { doc, getDoc } from 'firebase/firestore';
-import { auth, db } from '../firebase/config';
 import { toast } from 'react-hot-toast';
+import { auth, db } from '../firebase/config';
 import { createUserProfile } from '../services/firestoreService';
 import { parseAuthError } from '../utils/authErrorHandler';
-import firebaseAuthenticator from '../firebase/firebaseAuthenticator'; // Re-adicionado para compatibilidade, mas sua abordagem de import direto é válida também.
+import firebaseAuthenticator from '../firebase/firebaseAuthenticator';
 
-// Constantes para mensagens de erro - Excelente prática!
 const ERROR_MESSAGES = {
   PROFILE_LOAD: 'Houve um erro ao carregar os detalhes do seu perfil.',
   RELOAD_USER: 'Não foi possível atualizar seus dados. Tente novamente.',
   LOGOUT: 'Erro ao tentar sair da conta.',
-  NETWORK: 'Erro de conexão de rede.',
+  SESSION_EXPIRED: 'Sua sessão expirou. Por favor, faça login novamente.',
 };
 
 const useAuth = () => {
@@ -27,90 +25,9 @@ const useAuth = () => {
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState(null);
 
-  const fetchAndSetUser = useCallback(async (firebaseUser) => {
-    if (!firebaseUser) {
-      setCurrentUser(null);
-      setAuthError(null);
-      return;
-    }
-
-    try {
-      const [privateDoc, publicDoc] = await Promise.all([
-        getDoc(doc(db, 'users', firebaseUser.uid)),
-        getDoc(doc(db, 'users_public', firebaseUser.uid)),
-      ]);
-
-      let firestoreData;
-      if (publicDoc.exists()) {
-        firestoreData = { ...privateDoc.data(), ...publicDoc.data() };
-      } else {
-        // Lógica para criar um perfil caso não exista
-        firestoreData = await createUserProfile(firebaseUser.uid, {
-          email: firebaseUser.email,
-          name: firebaseUser.displayName || firebaseUser.email.split('@')[0],
-          username: `user_${firebaseUser.uid.substring(0, 5)}`,
-          createdAt: new Date().toISOString(),
-          emailVerified: firebaseUser.emailVerified,
-        });
-      }
-
-      const userWithData = {
-        // Pegamos as propriedades essenciais e seguras do auth
-        uid: firebaseUser.uid,
-        email: firebaseUser.email,
-        emailVerified: firebaseUser.emailVerified,
-        displayName: firebaseUser.displayName,
-        // E combinamos com os dados do Firestore
-        ...firestoreData,
-      };
-
-      setCurrentUser(userWithData);
-      setAuthError(null);
-    } catch (error) {
-      console.error(
-        '[OLLO] Erro ao buscar dados do usuário do Firestore:',
-        error
-      );
-      setAuthError(error);
-      // Mesmo com erro de Firestore, setamos o usuário base do Firebase Auth para que a UI não quebre.
-      setCurrentUser(firebaseUser);
-      toast.error(ERROR_MESSAGES.PROFILE_LOAD);
-    }
-  }, []);
-
-  // Listener de estado de autenticação - estável e limpo
-  useEffect(() => {
-    const unsubscribe = onIdTokenChanged(auth, async (user) => {
-      await fetchAndSetUser(user);
-      setLoading(false); // Fim do carregamento inicial
-    });
-
-    // Função de limpeza do useEffect, a forma correta de evitar leaks
-    return () => unsubscribe();
-  }, [fetchAndSetUser]);
-
-  // Função robusta para recarregar dados sob demanda
-  const reloadCurrentUser = useCallback(async () => {
-    const user = auth.currentUser;
-    if (!user) return;
-
-    setLoading(true);
-    try {
-      await reload(user);
-      // O listener `onIdTokenChanged` irá pegar a mudança e atualizar o estado.
-      // O `setLoading(false)` será chamado pelo listener.
-    } catch (error) {
-      console.error('[OLLO] Falha no reload:', error);
-      toast.error(ERROR_MESSAGES.RELOAD_USER);
-      setLoading(false); // Garante que pare de carregar em caso de erro.
-    }
-  }, []);
-
-  // Sua ótima versão do logout
   const logout = useCallback(async () => {
     try {
       await signOut(auth);
-      // O listener `onIdTokenChanged` vai detectar o logout e setar currentUser para null.
       return { success: true };
     } catch (error) {
       console.error('[OLLO] Erro no logout:', error);
@@ -119,8 +36,77 @@ const useAuth = () => {
     }
   }, []);
 
-  // --- Demais funções baseadas no seu primeiro arquivo para manter a compatibilidade ---
-  // A sua refatoração com import dinâmico também é válida, esta é só uma alternativa.
+  const fetchAndSetUser = useCallback(async (firebaseUser) => {
+    if (!firebaseUser) {
+      setCurrentUser(null);
+      setAuthError(null);
+      return;
+    }
+    try {
+      const [privateDoc, publicDoc] = await Promise.all([
+        getDoc(doc(db, 'users', firebaseUser.uid)),
+        getDoc(doc(db, 'users_public', firebaseUser.uid)),
+      ]);
+      let firestoreData;
+      if (publicDoc.exists()) {
+        firestoreData = { ...privateDoc.data(), ...publicDoc.data() };
+      } else {
+        firestoreData = await createUserProfile(firebaseUser.uid, {
+          email: firebaseUser.email,
+          name: firebaseUser.displayName || firebaseUser.email.split('@')[0],
+          username: `user_${firebaseUser.uid.substring(0, 5)}`,
+          createdAt: new Date().toISOString(),
+          emailVerified: firebaseUser.emailVerified,
+        });
+      }
+      setCurrentUser({ ...firebaseUser, ...firestoreData });
+      setAuthError(null);
+    } catch (error) {
+      console.error('[OLLO] Erro ao buscar dados do Firestore:', error);
+      setAuthError(error);
+      setCurrentUser(firebaseUser);
+      toast.error(ERROR_MESSAGES.PROFILE_LOAD);
+    }
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = onIdTokenChanged(auth, async (user) => {
+      await fetchAndSetUser(user);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, [fetchAndSetUser]);
+
+  // <<< VERSÃO DEFINITIVA COM ESTABILIZAÇÃO DE SESSÃO >>>
+  const reloadCurrentUser = useCallback(async () => {
+    const user = auth.currentUser;
+    if (!user) return null;
+
+    try {
+      // *** ESTA É A LINHA QUE RESOLVE TUDO ***
+      // Força a atualização do token de sessão antes da operação de reload,
+      // eliminando a condição de corrida em novas sessões.
+      await user.getIdToken(true);
+
+      await reload(user);
+      const refreshedUser = auth.currentUser;
+      await fetchAndSetUser(refreshedUser);
+      return refreshedUser;
+    } catch (error) {
+      console.error('[OLLO] Falha na sincronização do usuário:', error);
+      if (
+        error.code === 'auth/user-token-expired' ||
+        error.code === 'auth/invalid-user-token'
+      ) {
+        toast.error(ERROR_MESSAGES.SESSION_EXPIRED);
+        await logout();
+      } else {
+        toast.error(ERROR_MESSAGES.RELOAD_USER);
+      }
+      return null;
+    }
+  }, [logout, fetchAndSetUser]);
+
   const loginWithEmail = useCallback(async (email, password) => {
     try {
       return await firebaseAuthenticator.login(email, password);
@@ -179,7 +165,7 @@ const useAuth = () => {
     } catch (error) {
       const parsedError = parseAuthError(error);
       toast.error(parsedError.message);
-      return { success: false, error, message: parsedError.message };
+      return { success: false, error: parsedError };
     }
   }, []);
 
