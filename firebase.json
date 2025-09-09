@@ -1,7 +1,13 @@
-
-  {
-    "functions": {
+{
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json",
+    "database": "(default)",
+    "location": "nam5"
+  },
+  "functions": {
     "source": "functions",
+    "runtime": "nodejs18",
     "predeploy": [
       "npm --prefix \"$RESOURCE_DIR\" run build"
     ]
@@ -18,13 +24,18 @@
         "source": "**",
         "destination": "/index.html"
       }
+    ],
+    "headers": [
+      {
+        "source": "/assets/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=31536000, immutable"
+          }
+        ]
+      }
     ]
-  },
-  "firestore": {
-    "database": "(default)",
-    "location": "nam5",
-    "rules": "firestore.rules",
-    "indexes": "firestore.indexes.json"
   },
   "storage": {
     "rules": "storage.rules"
@@ -32,6 +43,9 @@
   "emulators": {
     "auth": {
       "port": 9099
+    },
+    "functions": {
+      "port": 5001
     },
     "firestore": {
       "port": 8080
@@ -42,6 +56,7 @@
     "ui": {
       "enabled": true,
       "port": 4000
-      }
-    }
+    },
+    "singleProjectMode": true
   }
+}

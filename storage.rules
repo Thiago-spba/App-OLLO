@@ -1,50 +1,69 @@
-// ARQUIVO COMPLETO E CORRIGIDO: storage.rules
-
 rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
 
-    // Regra para avatares (Mantida)
-    match /avatars/{userId}/{imageId} {
-      allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId
+    // --- FUNÇÕES HELPER ---
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    // Regra Padrão: Nega todo o acesso por padrão.
+    // O acesso só é concedido pelas regras mais específicas abaixo.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    // --- REGRAS ESPECÍFICAS POR PASTA ---
+
+    // 👤 Avatares de Perfil: /avatars/{userId}/{fileName}
+    match /avatars/{userId}/{fileName} {
+      // Qualquer pessoa autenticada pode ler os avatares (são públicos).
+      allow read: if request.auth != null;
+      // Apenas o dono do perfil pode escrever seu próprio avatar.
+      allow write: if isOwner(userId)
                    && request.resource.size < 5 * 1024 * 1024 // Limite de 5MB
                    && request.resource.contentType.matches('image/.*');
     }
 
-    // Regra para imagens de capa (Mantida)
-    match /covers/{userId}/{imageId} {
-      allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId
-                   && request.resource.size < 5 * 1024 * 1024
+    // 🖼️ Imagens de Capa de Perfil: /covers/{userId}/{fileName}
+    match /covers/{userId}/{fileName} {
+      allow read: if request.auth != null;
+      // Regras idênticas às dos avatares.
+      allow write: if isOwner(userId)
+                   && request.resource.size < 5 * 1024 * 1024 // 5MB
                    && request.resource.contentType.matches('image/.*');
     }
     
-    // <<< NOVA REGRA ADICIONADA AQUI >>>
-    // Regra específica para a pasta da galeria do usuário
+    // 갤러리 Mídia da Galeria do Usuário: /gallery/{userId}/{mediaId}
+    // Esta regra parece combinar as mídias de post e de perfil. É uma boa centralização.
     match /gallery/{userId}/{mediaId} {
-      // Qualquer um pode ler mídias (se a privacidade for pública no Firestore)
-      allow read: if true; 
-
+      allow read: if request.auth != null;
       // Apenas o dono do perfil pode fazer upload, atualizar ou deletar suas próprias mídias.
-      // Adicionamos um limite de tamanho maior para vídeos (50MB).
-      allow write: if request.auth != null && request.auth.uid == userId
-                   && request.resource.size < 50 * 1024 * 1024 // Limite de 50MB
+      allow write: if isOwner(userId)
+                   && request.resource.size < 50 * 1024 * 1024 // Limite de 50MB (para vídeos)
                    && request.resource.contentType.matches('image/.*|video/.*');
     }
 
-    // Regra para posts (Mantida)
-    match /posts/{postId}/{allImages=**} {
-      allow read: if true;
-      allow create: if request.auth != null;
-      allow update, delete: if request.auth != null;
+    // ✍️ Mídia de Posts: /posts/{userId}/{fileName} - AJUSTE CRÍTICO DE SEGURANÇA
+    // Esta estrutura é comum se você separa mídias de posts da galeria geral.
+    match /posts/{userId}/{fileName} {
+      allow read: if request.auth != null;
+      // CORREÇÃO: Apenas o dono do post (identificado pelo {userId}) pode criar/escrever.
+      // A regra antiga permitia que qualquer um escrevesse em qualquer lugar.
+      allow write: if isOwner(userId)
+                   && request.resource.size < 50 * 1024 * 1024 // 50 MB
+                   && (request.resource.contentType.matches('image/.*') ||
+                       request.resource.contentType.matches('video/.*'));
     }
 
-    // Regra de bloqueio padrão (Mantida)
-    // ESSENCIAL: Garante que nenhum outro caminho seja acessível.
-    match /{allPaths=**} {
-      allow read, write: if false;
+    // 🛒 Mídia de Listagens (Marketplace): /listagens/{userId}/{fileName}
+    match /listagens/{userId}/{fileName} {
+      allow read: if request.auth != null;
+      // Apenas o vendedor pode enviar imagens do produto.
+      allow write: if isOwner(userId)
+                   && request.resource.size < 10 * 1024 * 1024 // 10 MB
+                   && request.resource.contentType.matches('image/.*');
     }
   }
 }
