@@ -1,8 +1,8 @@
-// COMPONENTE PARA GERENCIAR VERIFICAÇÃO DE EMAIL - VERSÃO SIMPLIFICADA
+// COMPONENTE MINIMAL PARA VERIFICAÇÃO DE EMAIL - SEM LOOPS
 
 import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { sendEmailVerification, reload } from 'firebase/auth';
+import { sendEmailVerification } from 'firebase/auth';
 
 export default function EmailVerificationBanner() {
   const { currentUser } = useAuth();
@@ -15,49 +15,29 @@ export default function EmailVerificationBanner() {
     return null;
   }
 
-  // Função para enviar email usando método padrão do Firebase
-  const sendCustomVerification = async () => {
+  // Função SIMPLIFICADA para enviar email
+  const sendVerificationEmail = async () => {
     if (sending) return;
 
     setSending(true);
     setMessage('');
 
     try {
-      console.log('[EmailVerification] Enviando email de verificação...');
+      console.log('[EmailVerification] Enviando email...');
       await sendEmailVerification(currentUser);
-      setMessage(
-        'Email de verificação enviado! Verifique sua caixa de entrada.'
-      );
+      setMessage('Email enviado! Verifique sua caixa de entrada.');
       setLastSent(Date.now());
     } catch (error) {
-      console.error('[EmailVerification] Erro ao enviar email:', error);
-      setMessage('Erro ao enviar email. Tente novamente em alguns minutos.');
+      console.error('[EmailVerification] Erro:', error);
+      setMessage('Erro ao enviar. Tente novamente.');
     } finally {
       setSending(false);
     }
   };
 
-  // Função para verificar se o email foi verificado
-  const checkEmailVerification = async () => {
-    try {
-      console.log('[EmailVerification] Verificando status do email...');
-      await reload(currentUser);
+  // REMOVIDA a função checkEmailVerification que causava loops
 
-      if (currentUser.emailVerified) {
-        setMessage('Email verificado com sucesso! Recarregando página...');
-        setTimeout(() => window.location.reload(), 2000);
-      } else {
-        setMessage(
-          'Email ainda não verificado. Verifique sua caixa de entrada e clique no link de verificação.'
-        );
-      }
-    } catch (error) {
-      console.error('[EmailVerification] Erro ao verificar status:', error);
-      setMessage('Erro ao verificar status. Tente recarregar a página.');
-    }
-  };
-
-  // Verificar se pode reenviar (cooldown de 1 minuto)
+  // Verificar cooldown de 1 minuto
   const canResend = !lastSent || Date.now() - lastSent > 60000;
 
   return (
@@ -79,26 +59,28 @@ export default function EmailVerificationBanner() {
           </div>
           <div className="ml-3">
             <h3 className="text-sm font-medium text-yellow-800">
-              Verifique seu e-mail
+              Verifique seu email
             </h3>
             <div className="mt-1 text-sm text-yellow-700">
               <p>
-                Seu e-mail ainda não foi verificado. Por favor, verifique sua
-                caixa de entrada ou{' '}
+                Seu email ainda não foi verificado. Verifique sua caixa de
+                entrada ou{' '}
                 <button
-                  onClick={sendCustomVerification}
+                  onClick={sendVerificationEmail}
                   disabled={sending || !canResend}
                   className="font-medium text-yellow-800 underline hover:text-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {sending ? 'Enviando...' : 'clique aqui para reenviar o link'}
+                  {sending ? 'Enviando...' : 'clique para reenviar'}
                 </button>
                 .
               </p>
+
               {!canResend && (
                 <p className="text-xs mt-1">
-                  Aguarde 1 minuto antes de reenviar novamente.
+                  Aguarde 1 minuto antes de reenviar.
                 </p>
               )}
+
               {message && (
                 <p
                   className={`text-xs mt-2 font-medium ${
@@ -111,12 +93,13 @@ export default function EmailVerificationBanner() {
             </div>
           </div>
         </div>
+
         <div className="flex space-x-2">
           <button
-            onClick={checkEmailVerification}
+            onClick={() => window.location.reload()}
             className="bg-yellow-100 hover:bg-yellow-200 text-yellow-800 text-xs font-medium py-1 px-3 rounded transition-colors"
           >
-            Já verifiquei
+            Recarregar página
           </button>
         </div>
       </div>

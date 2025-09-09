@@ -1,9 +1,12 @@
-// ARQUIVO COMPLETO E CORRETO PARA: src/context/AuthContext.jsx
+// ARQUIVO CORRIGIDO: src/context/AuthContext.jsx
+// Versão sem conflitos de importação
+
 import React, { createContext, useContext, useMemo } from 'react';
-import useAuthLogic from '../hooks/useAuth'; // MUDANÇA: Importando o nosso novo hook de lógica
+import useAuthLogic from '../hooks/useAuth'; // Hook com a lógica
 
 const AuthContext = createContext(null);
 
+// Exportar o hook do contexto com nome diferente para evitar conflito
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -13,31 +16,34 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }) => {
-  // CORREÇÃO: Usando o novo hook que criamos para obter toda a lógica
+  // Usar o hook de lógica
   const authLogic = useAuthLogic();
 
-  // CORREÇÃO: Usamos useMemo para garantir que o objeto 'value' só seja recriado se os valores mudarem
+  // Memorizar o valor do contexto para evitar re-renders desnecessários
   const value = useMemo(
     () => ({
-      ...authLogic, // Espalha todos os valores retornados pelo hook
+      ...authLogic,
+      // Adicionar propriedades computadas úteis
       isAuthenticated: !!authLogic.currentUser,
       isEmailVerified: authLogic.currentUser?.emailVerified || false,
+      hasUsername: !!authLogic.currentUser?.username,
+      needsProfileSetup:
+        authLogic.currentUser && !authLogic.currentUser?.username,
     }),
-    [authLogic]
+    [authLogic, authLogic.currentUser]
   );
 
-  return (
-    <AuthContext.Provider value={value}>
-      {' '}
-      {!authLogic.loading ? (
-        children
-      ) : (
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="w-16 h-16 border-4 border-ollo-accent-light border-t-transparent rounded-full animate-spin" />
-        </div>
-      )}{' '}
-    </AuthContext.Provider>
-  );
+  // Renderizar loading enquanto verifica autenticação
+  if (authLogic.loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="w-16 h-16 border-4 border-ollo-accent-light border-t-transparent rounded-full animate-spin" />
+        <span className="sr-only">Carregando...</span>
+      </div>
+    );
+  }
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export default AuthProvider;

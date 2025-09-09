@@ -16,6 +16,22 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid != null;
     }
     
+    // CORREÇÃO CRÍTICA: Cloud Functions do Firebase Admin SDK não têm token
+    // Elas fazem requests sem auth token quando usando Admin SDK
+    function isCloudFunction() {
+      // Cloud Functions com Admin SDK não têm request.auth
+      // OU têm um token especial com admin claim
+      return request.auth == null || 
+             (request.auth.token != null && request.auth.token.admin == true);
+    }
+    
+    // Função alternativa mais flexível para operações do sistema
+    function isSystemOperation() {
+      return request.auth == null || // Admin SDK
+             (request.auth.token != null && request.auth.token.admin == true) || // Admin claim
+             (request.auth.token != null && request.auth.token.system == true); // System claim
+    }
+    
     function isValidString(field, minLength, maxLength) {
       return field is string && field.size() >= minLength && field.size() <= maxLength;
     }
@@ -34,86 +50,87 @@ service cloud.firestore {
 
     // 👤 USUÁRIOS PRIVADOS (Dados sensíveis)
     match /users/{userId} {
-      allow read, write: if isOwner(userId) || isAdmin();
+      allow read: if isOwner(userId) || isAdmin();
       
-      // Validação extra para escrita
-      allow update: if (isOwner(userId) || isAdmin())
-                   && request.resource.data.keys().hasOnly(['email', 'displayName', 'photoURL', 'bio', 'settings', 'lastActive'])
-                   && (!request.resource.data.keys().hasAny(['email']) || isValidEmail(request.resource.data.email));
+      // CORREÇÃO: Permitir Cloud Functions e sistema criarem/atualizarem perfis
+      allow create: if isSystemOperation() || isOwner(userId);
+      allow write: if isSystemOperation() || isOwner(userId) || isAdmin();
+      
+      // Validação para updates do próprio usuário (não se aplica a system operations)
+      allow update: if isSystemOperation() ||
+                   ((isOwner(userId) || isAdmin()) &&
+                   request.resource.data.keys().hasOnly(['email', 'displayName', 'photoURL', 'bio', 'settings', 'lastActive', 'emailVerified', 'updatedAt', 'username', 'createdAt']) &&
+                   (!request.resource.data.keys().hasAny(['email']) || isValidEmail(request.resource.data.email)));
     }
 
-    // 📢 PERFIS PÚBLICOS (CORREÇÃO PRINCIPAL - PERMITE QUERIES)
+    // 📢 PERFIS PÚBLICOS - CORREÇÃO CRÍTICA
     match /users_public/{userId} {
-      // ✅ CORREÇÃO: Permite leitura individual E queries de coleção
-      allow read: if isAuthenticated();
-      allow list: if isAuthenticated(); // 🔥 ADICIONADO: Permite buscar múltiplos usuários
-      allow write: if isOwner(userId) || isAdmin();
+      allow read: if true; // Perfis públicos devem ser... públicos!
+      allow list: if isAuthenticated();
       
-      // Validação de schema para perfis públicos
-      allow create: if isOwner(userId)
-                   && isValidString(request.resource.data.displayName, 2, 50)
-                   && request.resource.data.createdAt == request.time
-                   && request.resource.data.postsCount == 0
-                   && request.resource.data.followersCount == 0
-                   && request.resource.data.followingCount == 0;
+      // CORREÇÃO CRÍTICA: Permitir criação mais flexível
+      allow create: if isSystemOperation() || 
+                   isOwner(userId) ||
+                   (isOwner(userId) &&
+                   // Apenas campos mínimos obrigatórios
+                   request.resource.data.keys().hasAll(['userId', 'createdAt']) &&
+                   request.resource.data.userId == userId);
                    
-      allow update: if isOwner(userId)
-                   && request.resource.data.userId == resource.data.userId
-                   && request.resource.data.createdAt == resource.data.createdAt
-                   && (!request.resource.data.keys().hasAny(['displayName']) || isValidString(request.resource.data.displayName, 2, 50))
-                   && (!request.resource.data.keys().hasAny(['bio']) || isValidString(request.resource.data.bio, 0, 300));
+      allow write: if isSystemOperation() || isOwner(userId) || isAdmin();
+                   
+      // Update mais flexível para o próprio usuário
+      allow update: if isSystemOperation() ||
+                   isAdmin() ||
+                   (isOwner(userId) &&
+                   // Mantém userId e createdAt imutáveis
+                   (!request.resource.data.keys().hasAny(['userId']) || request.resource.data.userId == resource.data.userId) &&
+                   (!request.resource.data.keys().hasAny(['createdAt']) || request.resource.data.createdAt == resource.data.createdAt));
 
       // 🖼️ MÍDIA DE USUÁRIO
       match /media/{mediaId} {
         allow read: if resource.data.privacy == 'public' || isOwner(userId) || isAdmin();
-        allow list: if isAuthenticated(); // 🔥 ADICIONADO: Para queries de mídia
+        allow list: if isAuthenticated();
         
-        allow create: if isOwner(userId)
-                     && request.resource.data.userId == userId
-                     && request.resource.data.createdAt == request.time
-                     && isValidString(request.resource.data.url, 10, 2000)
-                     && request.resource.data.type in ['image', 'video']
-                     && request.resource.data.privacy in ['public', 'private']
-                     && request.resource.data.size < 50000000; // 50MB max
+        allow create: if isOwner(userId) &&
+                     request.resource.data.userId == userId &&
+                     request.resource.data.createdAt == request.time &&
+                     isValidString(request.resource.data.url, 10, 2000) &&
+                     request.resource.data.type in ['image', 'video'] &&
+                     request.resource.data.privacy in ['public', 'private'] &&
+                     request.resource.data.size < 50000000;
                      
-        allow update: if isOwner(userId)
-                     && request.resource.data.userId == resource.data.userId
-                     && request.resource.data.createdAt == resource.data.createdAt
-                     && request.resource.data.url == resource.data.url
-                     && request.resource.data.type == resource.data.type
-                     && request.resource.data.privacy in ['public', 'private']
-                     && request.resource.data.keys().hasOnly(['userId', 'createdAt', 'url', 'type', 'privacy', 'caption', 'size']);
+        allow update: if isOwner(userId) &&
+                     request.resource.data.userId == resource.data.userId &&
+                     request.resource.data.createdAt == resource.data.createdAt &&
+                     request.resource.data.url == resource.data.url &&
+                     request.resource.data.type == resource.data.type &&
+                     request.resource.data.privacy in ['public', 'private'];
                      
         allow delete: if isOwner(userId) || isAdmin();
       }
     }
     
-    // ✍️ POSTS (CORREÇÃO DA SINTAXE)
+    // ✍️ POSTS
     match /posts/{postId} {
       allow read: if isAuthenticated();
-      allow list: if isAuthenticated(); // 🔥 ADICIONADO: Para feed de posts
+      allow list: if isAuthenticated();
       
-      // ✅ CORREÇÃO: Sintaxe corrigida para validação de mídia
-      allow create: if isAuthenticated()
-                   && isOwner(request.resource.data.authorId)
-                   && isValidString(request.resource.data.content, 1, 2000)
-                   && request.resource.data.createdAt == request.time
-                   && request.resource.data.likes == 0
-                   && request.resource.data.commentsCount == 0
-                   // CAMPOS OBRIGATÓRIOS
-                   && request.resource.data.keys().hasAll(['authorId', 'content', 'createdAt', 'likes', 'commentsCount'])
-                   // CAMPOS PERMITIDOS (media é opcional)
-                   && request.resource.data.keys().hasOnly(['authorId', 'content', 'createdAt', 'likes', 'commentsCount', 'media', 'location', 'tags'])
-                   // ✅ CORREÇÃO: Validação de mídia corrigida
-                   && (!('media' in request.resource.data) || request.resource.data.media is list)
-                   // ✅ CORREÇÃO: Validação de tags corrigida  
-                   && (!('tags' in request.resource.data) || (request.resource.data.tags is list && request.resource.data.tags.size() <= 10));
+      allow create: if isAuthenticated() &&
+                   isOwner(request.resource.data.authorId) &&
+                   isValidString(request.resource.data.content, 1, 2000) &&
+                   request.resource.data.createdAt == request.time &&
+                   request.resource.data.likes == 0 &&
+                   request.resource.data.commentsCount == 0 &&
+                   request.resource.data.keys().hasAll(['authorId', 'content', 'createdAt', 'likes', 'commentsCount']) &&
+                   request.resource.data.keys().hasOnly(['authorId', 'content', 'createdAt', 'likes', 'commentsCount', 'media', 'location', 'tags']) &&
+                   (!('media' in request.resource.data) || request.resource.data.media is list) &&
+                   (!('tags' in request.resource.data) || (request.resource.data.tags is list && request.resource.data.tags.size() <= 10));
       
-      allow update: if isOwner(resource.data.authorId) || isAdmin()
-                   && isValidString(request.resource.data.content, 1, 2000)
-                   && request.resource.data.authorId == resource.data.authorId
-                   && request.resource.data.createdAt == resource.data.createdAt
-                   && request.resource.data.keys().hasOnly(['content', 'tags', 'location']);
+      allow update: if isOwner(resource.data.authorId) || isAdmin() &&
+                   isValidString(request.resource.data.content, 1, 2000) &&
+                   request.resource.data.authorId == resource.data.authorId &&
+                   request.resource.data.createdAt == resource.data.createdAt &&
+                   request.resource.data.keys().hasOnly(['content', 'tags', 'location']);
                    
       allow delete: if isOwner(resource.data.authorId) || isAdmin();
 
@@ -124,21 +141,21 @@ service cloud.firestore {
         }
 
         allow read: if isAuthenticated();
-        allow list: if isAuthenticated(); // 🔥 ADICIONADO: Para listar comentários
+        allow list: if isAuthenticated();
         
-        allow create: if isAuthenticated()
-                     && isOwner(request.resource.data.authorId)
-                     && isValidString(request.resource.data.content, 1, 1000)
-                     && request.resource.data.createdAt == request.time
-                     && request.resource.data.likes == 0
-                     && request.resource.data.keys().hasAll(['authorId', 'content', 'createdAt', 'likes'])
-                     && request.resource.data.keys().hasOnly(['authorId', 'content', 'createdAt', 'likes', 'replyTo']);
+        allow create: if isAuthenticated() &&
+                     isOwner(request.resource.data.authorId) &&
+                     isValidString(request.resource.data.content, 1, 1000) &&
+                     request.resource.data.createdAt == request.time &&
+                     request.resource.data.likes == 0 &&
+                     request.resource.data.keys().hasAll(['authorId', 'content', 'createdAt', 'likes']) &&
+                     request.resource.data.keys().hasOnly(['authorId', 'content', 'createdAt', 'likes', 'replyTo']);
                      
-        allow update: if isOwner(resource.data.authorId)
-                     && isValidString(request.resource.data.content, 1, 1000)
-                     && request.resource.data.authorId == resource.data.authorId
-                     && request.resource.data.createdAt == resource.data.createdAt
-                     && request.resource.data.keys().hasOnly(['content']);
+        allow update: if isOwner(resource.data.authorId) &&
+                     isValidString(request.resource.data.content, 1, 1000) &&
+                     request.resource.data.authorId == resource.data.authorId &&
+                     request.resource.data.createdAt == resource.data.createdAt &&
+                     request.resource.data.keys().hasOnly(['content']);
                      
         allow delete: if isOwner(resource.data.authorId) || isAdmin() || isPostOwner();
       }
@@ -146,11 +163,11 @@ service cloud.firestore {
       // 💕 LIKES
       match /likes/{userId} {
         allow read: if isAuthenticated();
-        allow list: if isAuthenticated(); // 🔥 ADICIONADO: Para contar likes
-        allow create: if isOwner(userId) 
-                     && request.resource.data.keys().hasAll(['createdAt'])
-                     && request.resource.data.createdAt == request.time
-                     && request.resource.data.keys().hasOnly(['createdAt']);
+        allow list: if isAuthenticated();
+        allow create: if isOwner(userId) &&
+                     request.resource.data.keys().hasAll(['createdAt']) &&
+                     request.resource.data.createdAt == request.time &&
+                     request.resource.data.keys().hasOnly(['createdAt']);
         allow delete: if isOwner(userId);
       }
     }
@@ -158,29 +175,29 @@ service cloud.firestore {
     // 🛒 MARKETPLACE (Listagens)
     match /listagens/{listingId} {
       allow read: if isAuthenticated();
-      allow list: if isAuthenticated(); // 🔥 ADICIONADO: Para buscar produtos
+      allow list: if isAuthenticated();
       
-      allow create: if isAuthenticated()
-                   && isOwner(request.resource.data.sellerId)
-                   && isValidString(request.resource.data.title, 5, 100)
-                   && isValidString(request.resource.data.description, 10, 2000)
-                   && request.resource.data.price is number 
-                   && request.resource.data.price > 0 
-                   && request.resource.data.price <= 1000000
-                   && request.resource.data.createdAt == request.time
-                   && request.resource.data.status == 'active'
-                   && request.resource.data.category in ['eletronicos', 'roupas', 'casa', 'veiculos', 'servicos', 'outros']
-                   && request.resource.data.keys().hasAll(['sellerId', 'title', 'description', 'price', 'createdAt', 'status', 'category'])
-                   && request.resource.data.keys().hasOnly(['sellerId', 'title', 'description', 'price', 'createdAt', 'status', 'category', 'images', 'location', 'condition']);
+      allow create: if isAuthenticated() &&
+                   isOwner(request.resource.data.sellerId) &&
+                   isValidString(request.resource.data.title, 5, 100) &&
+                   isValidString(request.resource.data.description, 10, 2000) &&
+                   request.resource.data.price is number &&
+                   request.resource.data.price > 0 &&
+                   request.resource.data.price <= 1000000 &&
+                   request.resource.data.createdAt == request.time &&
+                   request.resource.data.status == 'active' &&
+                   request.resource.data.category in ['eletronicos', 'roupas', 'casa', 'veiculos', 'servicos', 'outros'] &&
+                   request.resource.data.keys().hasAll(['sellerId', 'title', 'description', 'price', 'createdAt', 'status', 'category']) &&
+                   request.resource.data.keys().hasOnly(['sellerId', 'title', 'description', 'price', 'createdAt', 'status', 'category', 'images', 'location', 'condition']);
                    
-      allow update: if isOwner(resource.data.sellerId)
-                   && request.resource.data.sellerId == resource.data.sellerId
-                   && request.resource.data.createdAt == resource.data.createdAt
-                   && (!request.resource.data.keys().hasAny(['title']) || isValidString(request.resource.data.title, 5, 100))
-                   && (!request.resource.data.keys().hasAny(['description']) || isValidString(request.resource.data.description, 10, 2000))
-                   && (!request.resource.data.keys().hasAny(['price']) || (request.resource.data.price is number && request.resource.data.price > 0 && request.resource.data.price <= 1000000))
-                   && (!request.resource.data.keys().hasAny(['status']) || request.resource.data.status in ['active', 'sold', 'inactive'])
-                   && request.resource.data.keys().hasOnly(['title', 'description', 'price', 'status', 'images', 'location', 'condition']);
+      allow update: if isOwner(resource.data.sellerId) &&
+                   request.resource.data.sellerId == resource.data.sellerId &&
+                   request.resource.data.createdAt == resource.data.createdAt &&
+                   (!request.resource.data.keys().hasAny(['title']) || isValidString(request.resource.data.title, 5, 100)) &&
+                   (!request.resource.data.keys().hasAny(['description']) || isValidString(request.resource.data.description, 10, 2000)) &&
+                   (!request.resource.data.keys().hasAny(['price']) || (request.resource.data.price is number && request.resource.data.price > 0 && request.resource.data.price <= 1000000)) &&
+                   (!request.resource.data.keys().hasAny(['status']) || request.resource.data.status in ['active', 'sold', 'inactive']) &&
+                   request.resource.data.keys().hasOnly(['title', 'description', 'price', 'status', 'images', 'location', 'condition']);
                    
       allow delete: if isOwner(resource.data.sellerId) || isAdmin();
     }
@@ -188,14 +205,14 @@ service cloud.firestore {
     // 🤝 SEGUIDORES/SEGUINDO
     match /users_public/{userId}/followers/{followerId} {
       allow read: if isAuthenticated();
-      allow list: if isAuthenticated(); // 🔥 ADICIONADO: Para listar seguidores
+      allow list: if isAuthenticated();
       allow create: if isOwner(followerId) && request.resource.data.createdAt == request.time;
       allow delete: if isOwner(followerId) || isOwner(userId);
     }
     
     match /users_public/{userId}/following/{followingId} {
       allow read: if isAuthenticated();
-      allow list: if isAuthenticated(); // 🔥 ADICIONADO: Para listar seguindo
+      allow list: if isAuthenticated();
       allow create: if isOwner(userId) && request.resource.data.createdAt == request.time;
       allow delete: if isOwner(userId);
     }
@@ -207,42 +224,48 @@ service cloud.firestore {
       }
       
       allow read: if isAuthenticated() && isParticipant();
-      allow list: if isAuthenticated(); // 🔥 ADICIONADO: Para listar conversas do usuário
+      allow list: if isAuthenticated();
       allow create: if isAuthenticated() && request.auth.uid in request.resource.data.participants;
       
       match /messages/{messageId} {
         allow read: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
-        allow list: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants; // 🔥 ADICIONADO
-        allow create: if isAuthenticated() 
-                     && isOwner(request.resource.data.senderId)
-                     && isValidString(request.resource.data.content, 1, 1000)
-                     && request.resource.data.createdAt == request.time;
+        allow list: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
+        allow create: if isAuthenticated() &&
+                     isOwner(request.resource.data.senderId) &&
+                     isValidString(request.resource.data.content, 1, 1000) &&
+                     request.resource.data.createdAt == request.time;
       }
     }
 
     // 📊 REPORTES/DENÚNCIAS
     match /reports/{reportId} {
-      allow create: if isAuthenticated()
-                   && isOwner(request.resource.data.reporterId)
-                   && request.resource.data.createdAt == request.time
-                   && request.resource.data.status == 'pending'
-                   && request.resource.data.type in ['spam', 'harassment', 'inappropriate', 'fake', 'other'];
+      allow create: if isAuthenticated() &&
+                   isOwner(request.resource.data.reporterId) &&
+                   request.resource.data.createdAt == request.time &&
+                   request.resource.data.status == 'pending' &&
+                   request.resource.data.type in ['spam', 'harassment', 'inappropriate', 'fake', 'other'];
       allow read: if isAdmin();
-      allow list: if isAdmin(); // 🔥 ADICIONADO: Para admins listarem reports
+      allow list: if isAdmin();
       allow update: if isAdmin();
     }
 
     // 👥 ADMINISTRADORES
     match /admins/{adminId} {
-      allow read: if isAuthenticated(); // Qualquer um pode verificar se alguém é admin
+      allow read: if isAuthenticated();
       allow write: if false; // Apenas via Admin SDK
     }
 
     // 📈 ANALYTICS (apenas leitura para admins)
     match /analytics/{document} {
       allow read: if isAdmin();
-      allow list: if isAdmin(); // 🔥 ADICIONADO: Para dashboards de admin
+      allow list: if isAdmin();
       allow write: if false; // Apenas via Cloud Functions
+    }
+
+    // 🔧 COLEÇÃO DE SISTEMA - Para operações internas
+    match /system/{document} {
+      allow read: if isAdmin();
+      allow write: if isSystemOperation();
     }
   }
 }
