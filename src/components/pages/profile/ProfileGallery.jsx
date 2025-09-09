@@ -1,19 +1,16 @@
-// src/components/pages/profile/ProfileGallery.jsx - VERSÃO COMPLETA REFATORADA
+// src/components/pages/profile/ProfileGallery.jsx - VERSÃO COMPLETA E CORRIGIDA
 
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import { 
-  XMarkIcon, 
-  PlusCircleIcon, 
-  PhotoIcon, 
+import {
+  XMarkIcon,
+  PlusCircleIcon,
+  PhotoIcon,
   VideoCameraIcon,
   EllipsisVerticalIcon,
-  TrashIcon 
+  TrashIcon,
 } from '@heroicons/react/24/solid';
-import { 
-  EyeIcon, 
-  EyeSlashIcon 
-} from '@heroicons/react/24/outline';
+import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 import {
   collection,
   query,
@@ -22,25 +19,26 @@ import {
   where,
   doc,
   deleteDoc,
-  updateDoc
+  updateDoc,
 } from 'firebase/firestore';
 import { db } from '../../../firebase/config';
 import { toast } from 'react-hot-toast';
 
-// Componente de esqueleto para carregamento
+// Componente de esqueleto para carregamento (sem alterações)
 const GallerySkeleton = () => (
   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 animate-pulse">
     {[...Array(8)].map((_, i) => (
-      <div 
-        key={i} 
+      <div
+        key={i}
         className="aspect-square bg-gray-200 dark:bg-gray-700 rounded-lg"
       />
     ))}
   </div>
 );
 
-// Componente individual para cada item de mídia
+// Componente individual para cada item de mídia (sem alterações)
 const MediaItem = ({ item, onSelect, isOwner, onDelete, onTogglePrivacy }) => {
+  // ... (código existente do MediaItem, sem alterações) ...
   const [showMenu, setShowMenu] = useState(false);
   const [imageError, setImageError] = useState(false);
 
@@ -54,19 +52,16 @@ const MediaItem = ({ item, onSelect, isOwner, onDelete, onTogglePrivacy }) => {
 
   return (
     <div className="relative group aspect-square overflow-hidden rounded-lg bg-gray-100 dark:bg-gray-800">
-      {/* Conteúdo da mídia */}
-      <div 
+      <div
         className="w-full h-full cursor-pointer"
         onClick={() => onSelect(item)}
       >
         {imageError ? (
-          // Fallback em caso de erro
           <div className="flex flex-col items-center justify-center w-full h-full text-gray-400 dark:text-gray-500">
             <PhotoIcon className="h-8 w-8 mb-2" />
             <span className="text-xs">Erro ao carregar</span>
           </div>
         ) : isVideo ? (
-          // Preview de vídeo
           <div className="relative w-full h-full">
             <video
               src={item.url}
@@ -79,7 +74,6 @@ const MediaItem = ({ item, onSelect, isOwner, onDelete, onTogglePrivacy }) => {
             </div>
           </div>
         ) : (
-          // Preview de imagem
           <img
             src={item.url}
             alt="Mídia da galeria"
@@ -90,16 +84,17 @@ const MediaItem = ({ item, onSelect, isOwner, onDelete, onTogglePrivacy }) => {
         )}
       </div>
 
-      {/* Indicadores de status */}
       <div className="absolute top-2 left-2 flex gap-1">
         {isPrivate && (
-          <div className="bg-black bg-opacity-60 rounded-full p-1.5" title="Conteúdo privado">
+          <div
+            className="bg-black bg-opacity-60 rounded-full p-1.5"
+            title="Conteúdo privado"
+          >
             <EyeSlashIcon className="h-3 w-3 text-white" />
           </div>
         )}
       </div>
 
-      {/* Menu de opções (apenas para o dono) */}
       {isOwner && (
         <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
           <div className="relative">
@@ -114,7 +109,6 @@ const MediaItem = ({ item, onSelect, isOwner, onDelete, onTogglePrivacy }) => {
               <EllipsisVerticalIcon className="h-4 w-4" />
             </button>
 
-            {/* Dropdown do menu */}
             {showMenu && (
               <div className="absolute top-full right-0 mt-1 w-40 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-10">
                 <button
@@ -154,16 +148,14 @@ const MediaItem = ({ item, onSelect, isOwner, onDelete, onTogglePrivacy }) => {
         </div>
       )}
 
-      {/* Overlay para clique */}
-      <div 
-        className="absolute inset-0 bg-black opacity-0 group-hover:opacity-10 transition-opacity pointer-events-none"
-      />
+      <div className="absolute inset-0 bg-black opacity-0 group-hover:opacity-10 transition-opacity pointer-events-none" />
     </div>
   );
 };
 
-// Modal para visualização em tela cheia
+// Modal para visualização em tela cheia (sem alterações)
 const MediaModal = ({ media, onClose }) => {
+  // ... (código existente do MediaModal, sem alterações) ...
   const isVideo = media.type?.startsWith('video');
 
   useEffect(() => {
@@ -180,7 +172,6 @@ const MediaModal = ({ media, onClose }) => {
       onClick={onClose}
     >
       <div className="relative max-w-full max-h-full">
-        {/* Botão de fechar */}
         <button
           onClick={onClose}
           className="absolute -top-12 right-0 text-white hover:text-gray-300 transition-colors z-10"
@@ -188,11 +179,7 @@ const MediaModal = ({ media, onClose }) => {
           <XMarkIcon className="h-8 w-8" />
         </button>
 
-        {/* Conteúdo da mídia */}
-        <div
-          className="relative"
-          onClick={(e) => e.stopPropagation()}
-        >
+        <div className="relative" onClick={(e) => e.stopPropagation()}>
           {isVideo ? (
             <video
               src={media.url}
@@ -209,7 +196,6 @@ const MediaModal = ({ media, onClose }) => {
           )}
         </div>
 
-        {/* Informações da mídia */}
         {media.caption && (
           <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-60 text-white p-4 rounded-b-lg">
             <p className="text-sm">{media.caption}</p>
@@ -233,27 +219,31 @@ export default function ProfileGallery({
   const [selectedMedia, setSelectedMedia] = useState(null);
   const [uploadingMedia, setUploadingMedia] = useState(false);
 
-  // Carrega as mídias do Firestore
   useEffect(() => {
-    if (!profileData?.id && !profileData?.uid) {
+    // CORREÇÃO: Usa profileData.id, que é o ID do documento, consistente em todo o app.
+    const userId = profileData?.id;
+
+    if (!userId) {
       setLoadingMedia(false);
       setMedia([]);
       return;
     }
 
-    const userId = profileData.id || profileData.uid;
     setLoadingMedia(true);
 
     try {
-      const mediaCollectionRef = collection(db, 'users', userId, 'media');
+      // CORREÇÃO: Busca as mídias da subcoleção de 'users_public', pois é o perfil público.
+      const mediaCollectionRef = collection(
+        db,
+        'users_public',
+        userId,
+        'media'
+      );
 
-      // Query diferente dependendo se é o dono ou não
       let q;
       if (isOwner) {
-        // Dono vê todas as mídias (públicas e privadas)
         q = query(mediaCollectionRef, orderBy('createdAt', 'desc'));
       } else {
-        // Visitantes veem apenas mídias públicas
         q = query(
           mediaCollectionRef,
           where('privacy', '==', 'public'),
@@ -268,10 +258,7 @@ export default function ProfileGallery({
             id: doc.id,
             ...doc.data(),
           }));
-          
-          console.log('Mídias carregadas da galeria:', mediaData.length);
-          setMedia(mediaData);
-          setLoadingMedia(false);
+
         },
         (error) => {
           console.error('Erro ao buscar mídias da galeria:', error);
@@ -286,28 +273,33 @@ export default function ProfileGallery({
       setLoadingMedia(false);
       toast.error('Erro ao configurar galeria');
     }
-  }, [profileData?.id, profileData?.uid, isOwner]);
+  }, [profileData?.id, isOwner]); // CORREÇÃO: Simplificada a dependência para profileData.id
 
-  // Handle para seleção de arquivo
   const handleFileSelect = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Validações
-    const maxSize = 50 * 1024 * 1024; // 50MB
+    const maxSize = 50 * 1024 * 1024;
     if (file.size > maxSize) {
       toast.error('Arquivo muito grande. Máximo 50MB.');
       return;
     }
 
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/webm'];
+    const allowedTypes = [
+      'image/jpeg',
+      'image/png',
+      'image/gif',
+      'image/webp',
+      'video/mp4',
+      'video/webm',
+    ];
     if (!allowedTypes.includes(file.type)) {
       toast.error('Tipo de arquivo não suportado.');
       return;
     }
 
     setUploadingMedia(true);
-    
+
     try {
       if (onMediaUpload) {
         await onMediaUpload(file);
@@ -318,19 +310,25 @@ export default function ProfileGallery({
       toast.error('Erro ao fazer upload da mídia');
     } finally {
       setUploadingMedia(false);
-      event.target.value = ''; // Limpa o input
+      event.target.value = '';
     }
   };
 
-  // Handle para excluir mídia
   const handleDeleteMedia = async (mediaItem) => {
     if (!window.confirm('Tem certeza que deseja excluir esta mídia?')) {
       return;
     }
 
     try {
-      const userId = profileData.id || profileData.uid;
-      const mediaDocRef = doc(db, 'users', userId, 'media', mediaItem.id);
+      const userId = profileData.id;
+      // CORREÇÃO: Apaga da subcoleção em 'users_public'
+      const mediaDocRef = doc(
+        db,
+        'users_public',
+        userId,
+        'media',
+        mediaItem.id
+      );
       await deleteDoc(mediaDocRef);
       toast.success('Mídia excluída com sucesso');
     } catch (error) {
@@ -339,33 +337,39 @@ export default function ProfileGallery({
     }
   };
 
-  // Handle para alternar privacidade
   const handleTogglePrivacy = async (mediaItem) => {
     try {
-      const userId = profileData.id || profileData.uid;
-      const mediaDocRef = doc(db, 'users', userId, 'media', mediaItem.id);
+      const userId = profileData.id;
+      // CORREÇÃO: Altera a privacidade na subcoleção em 'users_public'
+      const mediaDocRef = doc(
+        db,
+        'users_public',
+        userId,
+        'media',
+        mediaItem.id
+      );
       const newPrivacy = mediaItem.privacy === 'private' ? 'public' : 'private';
-      
+
       await updateDoc(mediaDocRef, {
         privacy: newPrivacy,
-        updatedAt: new Date()
+        updatedAt: new Date(),
       });
 
-      toast.success(`Mídia tornada ${newPrivacy === 'private' ? 'privada' : 'pública'}`);
+      toast.success(
+        `Mídia tornada ${newPrivacy === 'private' ? 'privada' : 'pública'}`
+      );
     } catch (error) {
       console.error('Erro ao alterar privacidade:', error);
       toast.error('Erro ao alterar privacidade');
     }
   };
 
-  // Se não há dados do perfil
   if (!profileData) {
     return null;
   }
 
   return (
     <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
-      {/* Cabeçalho da galeria */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2">
           <PhotoIcon className="h-6 w-6 text-gray-600 dark:text-gray-400" />
@@ -380,16 +384,14 @@ export default function ProfileGallery({
         </div>
       </div>
 
-      {/* Conteúdo da galeria */}
       {loadingMedia ? (
         <GallerySkeleton />
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-          {/* Botão de adicionar mídia (apenas para o dono em modo edição) */}
           {isOwner && editing && (
             <label
               className={`aspect-square rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 flex flex-col items-center justify-center cursor-pointer transition-all hover:border-ollo-accent hover:bg-ollo-accent/5 ${
-                (loading || uploadingMedia) ? 'opacity-50 cursor-not-allowed' : ''
+                loading || uploadingMedia ? 'opacity-50 cursor-not-allowed' : ''
               }`}
             >
               <div className="flex flex-col items-center text-gray-500 dark:text-gray-400">
@@ -416,27 +418,25 @@ export default function ProfileGallery({
             </label>
           )}
 
-          {/* Grid das mídias */}
-                    {media.map((item) => (
-                      <MediaItem
-                        key={item.id}
-                        item={item}
-                        onSelect={setSelectedMedia}
-                        isOwner={isOwner}
-                        onDelete={handleDeleteMedia}
-                        onTogglePrivacy={handleTogglePrivacy}
-                      />
-                    ))}
-                  </div>
-                )}
-          
-                {/* Modal para visualização de mídia */}
-                {selectedMedia && (
-                  <MediaModal
-                    media={selectedMedia}
-                    onClose={() => setSelectedMedia(null)}
-                  />
-                )}
-              </section>
-            );
-          }
+          {media.map((item) => (
+            <MediaItem
+              key={item.id}
+              item={item}
+              onSelect={setSelectedMedia}
+              isOwner={isOwner}
+              onDelete={handleDeleteMedia}
+              onTogglePrivacy={handleTogglePrivacy}
+            />
+          ))}
+        </div>
+      )}
+
+      {selectedMedia && (
+        <MediaModal
+          media={selectedMedia}
+          onClose={() => setSelectedMedia(null)}
+        />
+      )}
+    </section>
+  );
+}

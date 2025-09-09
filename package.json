@@ -4,13 +4,14 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "clean": "rimraf node_modules/.vite",
+    "clean": "rimraf .vite",
     "dev": "npm run clean && vite",
     "dev:emulator": "cross-env VITE_USE_FIREBASE_EMULATORS=true npm run dev",
     "emulators": "firebase emulators:start",
     "dev:full": "concurrently \"npm run emulators\" \"npm run dev:emulator\"",
     "build": "vite build",
     "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -32,7 +33,6 @@
     "react-icons": "^5.5.0",
     "react-router-dom": "^7.6.3",
     "react-share": "^5.2.2",
-    "react-toastify": "^11.0.5",
     "uuid": "^11.1.0",
     "zustand": "^5.0.5"
   },

@@ -1,4 +1,4 @@
-// ARQUIVO COMPLETO E CORRIGIDO: src/main.jsx
+// ARQUIVO COMPLETO E FINAL: src/main.jsx
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
@@ -66,8 +66,6 @@ const router = createBrowserRouter([
     element: <ActionHandlerPage />,
     errorElement: <PublicErrorPage />,
   },
-  // CORREÇÃO: Movendo a rota 'verify-email' para cá.
-  // Ela é uma página pública do fluxo de autenticação e não deve ser protegida.
   {
     path: '/verify-email',
     element: <VerifyEmailPage />,
@@ -90,17 +88,18 @@ const router = createBrowserRouter([
         element: <ListingDetailPage />,
       },
 
-      // -- Rotas Privadas (exigem login E e-mail verificado) --
+      // <<< CORREÇÃO FINAL: A rota de perfil agora usa :username >>>
+      { path: 'profile/:username', element: <ProfilePage /> },
+
+      // -- Rotas Privadas (exigem login) --
       {
         element: <ProtectedRoute />,
         children: [
           { path: 'marketplace', element: <MarketplacePage /> },
           { path: 'marketplace/criar', element: <CreateListingPage /> },
-          { path: 'profile', element: <ProfileRedirectPage /> },
+          { path: 'profile', index: true, element: <ProfileRedirectPage /> },
           { path: 'users', element: <UsersPage /> },
-          { path: 'profile/:username', element: <ProfilePage /> },
           { path: 'notifications', element: <NotificationsPage /> },
-          // CORREÇÃO: Removendo a rota 'verify-email' daqui para quebrar o loop.
         ],
       },
 
@@ -121,7 +120,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   </React.StrictMode>
 );
 
-// --- Service Worker (sem alterações) ---
+// --- Service Worker ---
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker

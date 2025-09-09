@@ -1,41 +1,48 @@
-// ARQUIVO: storage.rules
+// ARQUIVO COMPLETO E CORRIGIDO: storage.rules
 
 rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
 
-    // ADIÇÃO: Regra específica para a pasta de avatares
+    // Regra para avatares (Mantida)
     match /avatars/{userId}/{imageId} {
-      // Qualquer um pode ler um avatar (imagens de perfil são públicas).
       allow read: if true;
-      
-      // Apenas o usuário autenticado pode escrever em sua própria pasta de avatar.
-      // MELHORIA: Adicionamos uma verificação de tamanho e tipo de arquivo por segurança.
       allow write: if request.auth != null && request.auth.uid == userId
                    && request.resource.size < 5 * 1024 * 1024 // Limite de 5MB
                    && request.resource.contentType.matches('image/.*');
     }
 
-    // ADIÇÃO: Regra específica para a pasta de imagens de capa
+    // Regra para imagens de capa (Mantida)
     match /covers/{userId}/{imageId} {
       allow read: if true;
       allow write: if request.auth != null && request.auth.uid == userId
                    && request.resource.size < 5 * 1024 * 1024
                    && request.resource.contentType.matches('image/.*');
     }
+    
+    // <<< NOVA REGRA ADICIONADA AQUI >>>
+    // Regra específica para a pasta da galeria do usuário
+    match /gallery/{userId}/{mediaId} {
+      // Qualquer um pode ler mídias (se a privacidade for pública no Firestore)
+      allow read: if true; 
 
-    // SUA REGRA ORIGINAL PARA POSTS (PRESERVADA)
+      // Apenas o dono do perfil pode fazer upload, atualizar ou deletar suas próprias mídias.
+      // Adicionamos um limite de tamanho maior para vídeos (50MB).
+      allow write: if request.auth != null && request.auth.uid == userId
+                   && request.resource.size < 50 * 1024 * 1024 // Limite de 50MB
+                   && request.resource.contentType.matches('image/.*|video/.*');
+    }
+
+    // Regra para posts (Mantida)
     match /posts/{postId}/{allImages=**} {
       allow read: if true;
       allow create: if request.auth != null;
-      // Nota: A regra de update/delete aqui pode ser aprimorada no futuro
-      // para verificar a propriedade do post no Firestore.
       allow update, delete: if request.auth != null;
     }
 
-    // SUA REGRA ORIGINAL DE BLOQUEIO (PRESERVADA E ESSENCIAL)
-    // Bloqueia o acesso a qualquer outro caminho não especificado acima.
+    // Regra de bloqueio padrão (Mantida)
+    // ESSENCIAL: Garante que nenhum outro caminho seja acessível.
     match /{allPaths=**} {
       allow read, write: if false;
     }

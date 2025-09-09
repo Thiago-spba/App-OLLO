@@ -1,30 +1,41 @@
-// ARQUIVO: src/hooks/useProfileStore.js
+// ARQUIVO COMPLETO E FINAL: src/hooks/useProfileStore.js
 
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { db, storage } from '../firebase/config';
-import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import {
+  doc,
+  setDoc,
+  getDoc,
+  serverTimestamp,
+  collection,
+  addDoc, // Importa a função para adicionar novos documentos
+} from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { v4 as uuidv4 } from 'uuid';
 import { toast } from 'react-hot-toast';
 
-// CORREÇÃO: Garantimos que a constante seja exportada.
-// A falta da palavra "export" causava o SyntaxError que impedia o funcionamento da página.
+// Define o estado inicial para ser reutilizado
+const initialState = {
+  currentUser: null,
+  initialProfileData: null,
+  form: null,
+  editing: false,
+  avatarFile: null,
+  coverFile: null,
+  loading: false,
+  success: '',
+  error: '',
+  _reloadAuthUser: null,
+};
+
 export const useProfileStore = create(
   immer((set, get) => ({
-    // --- ESTADO ---
-    currentUser: null,
-    initialProfileData: null,
-    form: null,
-    editing: false,
-    avatarFile: null,
-    coverFile: null,
-    loading: false,
-    success: '',
-    error: '',
-    _reloadAuthUser: null,
+    ...initialState, // Inicia o store com o estado padrão
 
     // --- AÇÕES ---
+
+    reset: () => set(initialState),
 
     setReloadAuthUser: (reloadFn) => set({ _reloadAuthUser: reloadFn }),
 
@@ -45,28 +56,21 @@ export const useProfileStore = create(
     },
 
     initialize: (profileData) => {
-      const { form } = get();
-      const isSameProfile = form?.id === profileData.id;
-
+      get().cleanupPreviews();
       const initialForm = {
         ...profileData,
         avatarPreview: null,
         coverPreview: null,
       };
-      
-      if (isSameProfile) {
-        set({ initialProfileData: initialForm });
-      } else {
-        set({
-          initialProfileData: initialForm,
-          form: initialForm,
-          editing: false,
-          avatarFile: null,
-          coverFile: null,
-          success: '',
-          error: '',
-        });
-      }
+      set({
+        initialProfileData: initialForm,
+        form: initialForm,
+        editing: false,
+        avatarFile: null,
+        coverFile: null,
+        success: '',
+        error: '',
+      });
     },
 
     setCurrentUser: (user) => {
@@ -112,12 +116,43 @@ export const useProfileStore = create(
         const previewUrl = URL.createObjectURL(file);
         if (fileType === 'avatar') {
           state.avatarFile = file;
-          state.form.avatarPreview = previewUrl;
+          if (state.form) state.form.avatarPreview = previewUrl;
         } else if (fileType === 'cover') {
           state.coverFile = file;
-          state.form.coverPreview = previewUrl;
+          if (state.form) state.form.coverPreview = previewUrl;
         }
       });
+    },
+
+    // <<< FUNÇÃO DE UPLOAD DE MÍDIA ADICIONADA AQUI >>>
+    handleMediaUpload: async (file) => {
+      const { currentUser, form } = get();
+      if (!currentUser) {
+        toast.error('Você precisa estar logado para fazer upload.');
+        throw new Error('Usuário não autenticado');
+      }
+
+      const fileExtension = file.name.split('.').pop();
+      const fileName = `${uuidv4()}.${fileExtension}`;
+      const mediaPath = `gallery/${currentUser.uid}/${fileName}`;
+      const mediaRef = ref(storage, mediaPath);
+      
+      await uploadBytes(mediaRef, file);
+      const downloadURL = await getDownloadURL(mediaRef);
+      
+      const mediaData = {
+        url: downloadURL,
+        type: file.type,
+        path: mediaPath,
+        privacy: 'public', // Define 'public' como padrão
+        createdAt: serverTimestamp(),
+        userId: currentUser.uid,
+        username: form?.username || 'unknown',
+      };
+      
+      // Salva os metadados da mídia na subcoleção correta
+      const mediaCollectionRef = collection(db, 'users_public', currentUser.uid, 'media');
+      await addDoc(mediaCollectionRef, mediaData);
     },
 
     handleSave: async () => {

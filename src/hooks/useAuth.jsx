@@ -1,11 +1,12 @@
-// ARQUIVO COMPLETO E FINAL, À PROVA DE CONDIÇÃO DE CORRIDA: src/hooks/useAuth.jsx
+// ARQUIVO COMPLETO E FINAL: src/hooks/useAuth.jsx
+
 import { useState, useEffect, useCallback } from 'react';
 import {
   onIdTokenChanged,
   sendEmailVerification,
   reload,
   signOut,
-} from 'firebase/auth'; // 'getIdToken' é um método do objeto user, não precisa ser importado.
+} from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
 import { auth, db } from '../firebase/config';
@@ -13,6 +14,7 @@ import { createUserProfile } from '../services/firestoreService';
 import { parseAuthError } from '../utils/authErrorHandler';
 import firebaseAuthenticator from '../firebase/firebaseAuthenticator';
 
+// Mensagens de erro centralizadas
 const ERROR_MESSAGES = {
   PROFILE_LOAD: 'Houve um erro ao carregar os detalhes do seu perfil.',
   RELOAD_USER: 'Não foi possível atualizar seus dados. Tente novamente.',
@@ -25,9 +27,75 @@ const useAuth = () => {
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState(null);
 
+  // Função centralizada para buscar e combinar dados do usuário
+  const fetchAndCombineUserData = useCallback(async (firebaseUser) => {
+    // Se não há usuário autenticado, retorna null
+    if (!firebaseUser) {
+      return null;
+    }
+
+    try {
+      // Busca os dados públicos do Firestore
+      const publicDocRef = doc(db, 'users_public', firebaseUser.uid);
+      const publicDocSnap = await getDoc(publicDocRef);
+
+      let firestoreData = {};
+
+      if (publicDocSnap.exists()) {
+        firestoreData = publicDocSnap.data();
+      } else {
+        // Se o perfil público não existe, cria um com dados básicos.
+        // Isso é uma salvaguarda para usuários que podem ter sido criados
+        // antes da função de criação de perfil público existir.
+        console.warn(
+          `Perfil público para ${firebaseUser.uid} não encontrado. Criando um novo.`
+        );
+        const newProfileData = {
+          email: firebaseUser.email,
+          name: firebaseUser.displayName || firebaseUser.email.split('@')[0],
+          username: `user${firebaseUser.uid.substring(0, 8)}`, // Gera um username único
+          createdAt: new Date().toISOString(),
+        };
+        await createUserProfile(firebaseUser.uid, newProfileData);
+        firestoreData = newProfileData;
+      }
+
+      // Combina os dados da autenticação (firebaseUser) com os dados do Firestore
+      const combinedUser = {
+        ...firebaseUser,
+        ...firestoreData,
+        // Garante que avatarUrl sempre tenha um valor, priorizando o do Firestore
+        avatarUrl: firestoreData.avatarUrl || firebaseUser.photoURL || null,
+      };
+
+      return combinedUser;
+    } catch (error) {
+      console.error('[OLLO] Erro ao buscar dados do Firestore:', error);
+      toast.error(ERROR_MESSAGES.PROFILE_LOAD);
+      // Em caso de erro, retorna o usuário básico da autenticação para não quebrar o app
+      return firebaseUser;
+    }
+  }, []);
+
+  useEffect(() => {
+    setLoading(true);
+    const unsubscribe = onIdTokenChanged(auth, async (user) => {
+      if (user) {
+        const fullUser = await fetchAndCombineUserData(user);
+        setCurrentUser(fullUser);
+      } else {
+        setCurrentUser(null);
+      }
+      setLoading(false); // Define o loading como false APÓS toda a lógica de busca ser concluída.
+    });
+
+    return () => unsubscribe();
+  }, [fetchAndCombineUserData]);
+
   const logout = useCallback(async () => {
     try {
       await signOut(auth);
+      setCurrentUser(null); // Limpa o estado local
       return { success: true };
     } catch (error) {
       console.error('[OLLO] Erro no logout:', error);
@@ -36,62 +104,15 @@ const useAuth = () => {
     }
   }, []);
 
-  const fetchAndSetUser = useCallback(async (firebaseUser) => {
-    if (!firebaseUser) {
-      setCurrentUser(null);
-      setAuthError(null);
-      return;
-    }
-    try {
-      const [privateDoc, publicDoc] = await Promise.all([
-        getDoc(doc(db, 'users', firebaseUser.uid)),
-        getDoc(doc(db, 'users_public', firebaseUser.uid)),
-      ]);
-      let firestoreData;
-      if (publicDoc.exists()) {
-        firestoreData = { ...privateDoc.data(), ...publicDoc.data() };
-      } else {
-        firestoreData = await createUserProfile(firebaseUser.uid, {
-          email: firebaseUser.email,
-          name: firebaseUser.displayName || firebaseUser.email.split('@')[0],
-          username: `user_${firebaseUser.uid.substring(0, 5)}`,
-          createdAt: new Date().toISOString(),
-          emailVerified: firebaseUser.emailVerified,
-        });
-      }
-      setCurrentUser({ ...firebaseUser, ...firestoreData });
-      setAuthError(null);
-    } catch (error) {
-      console.error('[OLLO] Erro ao buscar dados do Firestore:', error);
-      setAuthError(error);
-      setCurrentUser(firebaseUser);
-      toast.error(ERROR_MESSAGES.PROFILE_LOAD);
-    }
-  }, []);
-
-  useEffect(() => {
-    const unsubscribe = onIdTokenChanged(auth, async (user) => {
-      await fetchAndSetUser(user);
-      setLoading(false);
-    });
-    return () => unsubscribe();
-  }, [fetchAndSetUser]);
-
-  // <<< VERSÃO DEFINITIVA COM ESTABILIZAÇÃO DE SESSÃO >>>
   const reloadCurrentUser = useCallback(async () => {
     const user = auth.currentUser;
     if (!user) return null;
 
     try {
-      // *** ESTA É A LINHA QUE RESOLVE TUDO ***
-      // Força a atualização do token de sessão antes da operação de reload,
-      // eliminando a condição de corrida em novas sessões.
-      await user.getIdToken(true);
-
       await reload(user);
-      const refreshedUser = auth.currentUser;
-      await fetchAndSetUser(refreshedUser);
-      return refreshedUser;
+      // O onIdTokenChanged será acionado automaticamente após o reload,
+      // atualizando o usuário em toda a aplicação.
+      return auth.currentUser;
     } catch (error) {
       console.error('[OLLO] Falha na sincronização do usuário:', error);
       if (
@@ -105,7 +126,7 @@ const useAuth = () => {
       }
       return null;
     }
-  }, [logout, fetchAndSetUser]);
+  }, [logout]);
 
   const loginWithEmail = useCallback(async (email, password) => {
     try {
@@ -128,10 +149,12 @@ const useAuth = () => {
         if (result.success) {
           const user = result.user;
           await sendEmailVerification(user);
+          // createUserProfile já é chamado dentro de fetchAndCombineUserData se o perfil não existir,
+          // mas manter aqui garante que os dados `name` e `username` do formulário de registro sejam usados.
           await createUserProfile(user.uid, {
             email: user.email,
             name: additionalData.name,
-            username: additionalData.username,
+            username: additionalData.username.toLowerCase(), // Padroniza para minúsculas
             createdAt: new Date().toISOString(),
             emailVerified: user.emailVerified || false,
           });
