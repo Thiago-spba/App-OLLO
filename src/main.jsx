@@ -1,4 +1,4 @@
-// ARQUIVO COMPLETO E FINAL: src/main.jsx
+// ARQUIVO COMPLETO E CORRIGIDO: src/main.jsx
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
@@ -88,13 +88,14 @@ const router = createBrowserRouter([
         element: <ListingDetailPage />,
       },
 
-      // <<< CORREÇÃO FINAL: A rota de perfil agora usa :username >>>
-      { path: 'profile/:username', element: <ProfilePage /> },
-
-      // -- Rotas Privadas (exigem login) --
+      // -- Rotas Privadas (exigem login e e-mail verificado) --
       {
-        element: <ProtectedRoute />,
+        element: <ProtectedRoute />, // O "guardião" das rotas abaixo
         children: [
+          // <<< CORREÇÃO APLICADA AQUI >>>
+          // A rota de perfil foi movida para dentro do bloco protegido.
+          { path: 'profile/:username', element: <ProfilePage /> },
+
           { path: 'marketplace', element: <MarketplacePage /> },
           { path: 'marketplace/criar', element: <CreateListingPage /> },
           { path: 'profile', index: true, element: <ProfileRedirectPage /> },
