@@ -1,8 +1,7 @@
-// COMPONENTE PARA GERENCIAR VERIFICAÇÃO DE EMAIL PERSONALIZADA
+// COMPONENTE PARA GERENCIAR VERIFICAÇÃO DE EMAIL - VERSÃO SIMPLIFICADA
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { getFunctions, httpsCallable } from 'firebase/functions';
 import { sendEmailVerification, reload } from 'firebase/auth';
 
 export default function EmailVerificationBanner() {
@@ -16,7 +15,7 @@ export default function EmailVerificationBanner() {
     return null;
   }
 
-  // Função para enviar email personalizado via Cloud Function
+  // Função para enviar email usando método padrão do Firebase
   const sendCustomVerification = async () => {
     if (sending) return;
 
@@ -24,37 +23,15 @@ export default function EmailVerificationBanner() {
     setMessage('');
 
     try {
-      const functions = getFunctions();
-      const sendVerification = httpsCallable(
-        functions,
-        'sendCustomVerificationEmail'
-      );
-
-      console.log('[EmailVerification] Chamando função personalizada...');
-
-      const result = await sendVerification();
-
-      console.log('[EmailVerification] Sucesso:', result.data);
-
+      console.log('[EmailVerification] Enviando email de verificação...');
+      await sendEmailVerification(currentUser);
       setMessage(
-        'Email de verificação personalizado enviado! Verifique sua caixa de entrada.'
+        'Email de verificação enviado! Verifique sua caixa de entrada.'
       );
       setLastSent(Date.now());
     } catch (error) {
-      console.error('[EmailVerification] Erro na função personalizada:', error);
-
-      // Fallback: usar método padrão do Firebase
-      try {
-        console.log('[EmailVerification] Tentando método padrão...');
-        await sendEmailVerification(currentUser);
-        setMessage(
-          'Email de verificação enviado! Verifique sua caixa de entrada.'
-        );
-        setLastSent(Date.now());
-      } catch (fallbackError) {
-        console.error('[EmailVerification] Erro no fallback:', fallbackError);
-        setMessage('Erro ao enviar email. Tente novamente em alguns minutos.');
-      }
+      console.error('[EmailVerification] Erro ao enviar email:', error);
+      setMessage('Erro ao enviar email. Tente novamente em alguns minutos.');
     } finally {
       setSending(false);
     }
@@ -66,10 +43,8 @@ export default function EmailVerificationBanner() {
       console.log('[EmailVerification] Verificando status do email...');
       await reload(currentUser);
 
-      // Forçar atualização do contexto de autenticação
       if (currentUser.emailVerified) {
         setMessage('Email verificado com sucesso! Recarregando página...');
-        // Recarregar a página após 2 segundos
         setTimeout(() => window.location.reload(), 2000);
       } else {
         setMessage(

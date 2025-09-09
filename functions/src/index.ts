@@ -24,11 +24,13 @@ const SENDER_INFO = {
 };
 
 // ===================================================================================
-// 📧 FUNÇÃO DE VERIFICAÇÃO DE EMAIL PERSONALIZADA
+// 📧 FUNÇÃO DE VERIFICAÇÃO DE EMAIL PERSONALIZADA - CORS CORRIGIDO
 // ===================================================================================
 export const sendCustomVerificationEmail = functions
   .region("southamerica-east1")
-  .runWith({ secrets: ["BREVO_API_KEY"] })
+  .runWith({ 
+    secrets: ["BREVO_API_KEY"]
+  })
   .https.onCall(async (data, context) => {
     // Verificar autenticação
     if (!context.auth) {
@@ -59,93 +61,50 @@ export const sendCustomVerificationEmail = functions
         subject: "🔐 Verifique seu email - OLLO",
         htmlContent: `
           <!DOCTYPE html>
-          <html>
+          <html lang="pt-br">
           <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Verificação de Email - OLLO</title>
+              <meta charset="UTF-8">
+              <title>Verificação de Email - OLLO</title>
           </head>
-          <body style="margin: 0; padding: 0; font-family: 'Arial', sans-serif; background-color: #f5f5f5;">
-            <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
-              
-              <!-- Header com Logo -->
-              <div style="background: linear-gradient(135deg, #0D4D44 0%, #1a6b5d 100%); padding: 40px 20px; text-align: center;">
-                <div style="background-color: #ffffff; width: 80px; height: 80px; border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;">
-                  <img src="https://olloapp.com.br/logo-icon.png" alt="OLLO" style="width: 50px; height: 50px;" />
-                </div>
-                <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: bold;">Verificação de Email</h1>
-                <p style="color: #e8f5f3; margin: 10px 0 0; font-size: 16px;">Confirme seu email para continuar</p>
-              </div>
+          <body style="margin: 0; padding: 0; background: linear-gradient(135deg, #a8edea 0%, #45c486 100%); min-height: 100vh; font-family: Arial, sans-serif;">
+              <div style="max-width: 480px; margin: 40px auto; background: #fff; border-radius: 18px; box-shadow: 0 6px 36px #3dd6a333, 0 1px 2px #0001; padding: 40px 28px 28px 28px; border: 1.5px solid #a8edea;">
 
-              <!-- Conteúdo Principal -->
-              <div style="padding: 40px 30px;">
-                <h2 style="color: #0D4D44; margin: 0 0 20px; font-size: 20px;">Olá! 👋</h2>
-                
-                <p style="color: #555555; line-height: 1.6; margin: 0 0 20px; font-size: 16px;">
-                  Para garantir a segurança da sua conta e completar seu cadastro no <strong>OLLO</strong>, 
-                  precisamos verificar seu endereço de email.
-                </p>
+                  <div style="display: flex; align-items: flex-start; gap: 18px; margin-bottom: 24px;">
+                      <img src="https://storage.googleapis.com/gweb-cloud-media-autogen/website-prd/images/20240728T105822-0/ollo_logo_new.png"
+                          alt="OLLO Logo" style="width: 60px; height: auto; border-radius: 7px; display: block; margin-top: 2px;">
+                      <div>
+                          <h2 style="color: #17925c; font-size: 20px; margin: 2px 0 8px 0; font-weight: bold; letter-spacing: 0.5px;">
+                              Verifique seu email, ${context.auth.token.name || "usuário"}!</h2>
+                          <div style="font-size: 15px; color: #444; line-height: 1.6; margin-bottom: 0;">
+                              Para garantir a segurança da sua conta, precisamos verificar seu endereço de email.<br>
+                              Clique no botão abaixo para ativar sua conta.
+                          </div>
+                      </div>
+                  </div>
 
-                <p style="color: #555555; line-height: 1.6; margin: 0 0 30px; font-size: 16px;">
-                  Clique no botão abaixo para confirmar que este email pertence a você:
-                </p>
+                  <div style="text-align: center; margin: 30px 0 20px 0;">
+                      <img src="https://storage.googleapis.com/gweb-cloud-media-autogen/website-prd/images/20240728T105822-0/ollo_eyes_new.png"
+                          alt="Olhos OLLO" style="width: 75px; max-width: 100%; height: auto;">
+                  </div>
 
-                <!-- Botão Principal -->
-                <div style="text-align: center; margin: 30px 0;">
-                  <a href="${verificationLink}" 
-                     style="background: linear-gradient(135deg, #0D4D44 0%, #1a6b5d 100%); 
-                            color: #ffffff; 
-                            text-decoration: none; 
-                            padding: 15px 40px; 
-                            border-radius: 8px; 
-                            font-weight: bold; 
-                            font-size: 16px; 
-                            display: inline-block;
-                            box-shadow: 0 4px 12px rgba(13, 77, 68, 0.3);
-                            transition: all 0.3s ease;">
-                    ✅ Verificar Email
-                  </a>
-                </div>
+                  <div style="text-align: center; margin: 28px 0 8px 0;">
+                      <a href="${verificationLink}"
+                          style="display: inline-block; background: linear-gradient(90deg, #3fd08a 0%, #28c4c0 100%); color: #fff; padding: 17px 40px; border-radius: 13px; text-decoration: none; font-size: 18px; font-weight: 700; box-shadow: 0 2px 12px #22b97633; transition: background 0.2s;">
+                          Verificar meu email
+                      </a>
+                  </div>
 
-                <!-- Informações Adicionais -->
-                <div style="background-color: #f8fffe; border-left: 4px solid #0D4D44; padding: 20px; margin: 30px 0; border-radius: 4px;">
-                  <h3 style="color: #0D4D44; margin: 0 0 10px; font-size: 16px;">⚡ Rápido e Seguro</h3>
-                  <p style="color: #666666; margin: 0; font-size: 14px; line-height: 1.5;">
-                    Após a verificação, você terá acesso completo a todas as funcionalidades do OLLO: 
-                    criar posts, seguir outros usuários, acessar o marketplace e muito mais!
+                  <p style="text-align: center; color: #f39c12; font-size: 13px; margin-top: 30px; margin-bottom: -10px; font-weight: bold;">
+                      Não encontrou o e-mail? Verifique sua caixa de Spam.
                   </p>
-                </div>
 
-                <!-- Link Alternativo -->
-                <p style="color: #888888; font-size: 14px; line-height: 1.5; margin: 20px 0;">
-                  Se o botão não funcionar, copie e cole este link no seu navegador:<br>
-                  <a href="${verificationLink}" style="color: #0D4D44; word-break: break-all;">${verificationLink}</a>
-                </p>
-
-                <!-- Aviso de Segurança -->
-                <div style="border-top: 1px solid #eeeeee; padding-top: 20px; margin-top: 30px;">
-                  <p style="color: #999999; font-size: 13px; line-height: 1.4; margin: 0;">
-                    🔒 <strong>Segurança:</strong> Este email foi enviado para ${email}. 
-                    Se você não se cadastrou no OLLO, pode ignorar esta mensagem com segurança.
+                  <p style="text-align: center; color: #aaa; font-size: 12px; margin-top: 30px; margin-bottom: 8px;">
+                      Se você não criou esta conta, por favor ignore este e-mail.
                   </p>
-                </div>
+                  <p style="text-align: center; color: #aaa; font-size: 12px; margin: 0;">
+                      Equipe OLLO
+                  </p>
               </div>
-
-              <!-- Footer -->
-              <div style="background-color: #f8f9fa; padding: 30px; text-align: center; border-top: 1px solid #eeeeee;">
-                <p style="color: #0D4D44; margin: 0 0 10px; font-weight: bold; font-size: 16px;">
-                  Bem-vindo à comunidade OLLO! 🎉
-                </p>
-                <p style="color: #888888; margin: 0; font-size: 14px;">
-                  © 2025 OLLO App - Conectando pessoas e oportunidades
-                </p>
-                <div style="margin-top: 15px;">
-                  <a href="https://olloapp.com.br" style="color: #0D4D44; text-decoration: none; margin: 0 10px; font-size: 14px;">Site</a>
-                  <a href="https://olloapp.com.br/suporte" style="color: #0D4D44; text-decoration: none; margin: 0 10px; font-size: 14px;">Suporte</a>
-                  <a href="https://olloapp.com.br/privacidade" style="color: #0D4D44; text-decoration: none; margin: 0 10px; font-size: 14px;">Privacidade</a>
-                </div>
-              </div>
-            </div>
           </body>
           </html>
         `,
@@ -349,7 +308,7 @@ export const onUserDelete = functions
   });
 
 // ===================================================================================
-// 🔄 FUNÇÃO PARA ATUALIZAR STATUS DE VERIFICAÇÃO DE EMAIL
+// 🔄 FUNÇÃO PARA ATUALIZAR STATUS DE VERIFICAÇÃO DE EMAIL - CORS CORRIGIDO
 // ===================================================================================
 export const updateEmailVerificationStatus = functions
   .region("southamerica-east1")
