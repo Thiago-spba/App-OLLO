@@ -42,9 +42,11 @@ service cloud.firestore {
                    && (!request.resource.data.keys().hasAny(['email']) || isValidEmail(request.resource.data.email));
     }
 
-    // 📢 PERFIS PÚBLICOS (Dados visíveis)
+    // 📢 PERFIS PÚBLICOS (CORREÇÃO PRINCIPAL - PERMITE QUERIES)
     match /users_public/{userId} {
+      // ✅ CORREÇÃO: Permite leitura individual E queries de coleção
       allow read: if isAuthenticated();
+      allow list: if isAuthenticated(); // 🔥 ADICIONADO: Permite buscar múltiplos usuários
       allow write: if isOwner(userId) || isAdmin();
       
       // Validação de schema para perfis públicos
@@ -64,6 +66,7 @@ service cloud.firestore {
       // 🖼️ MÍDIA DE USUÁRIO
       match /media/{mediaId} {
         allow read: if resource.data.privacy == 'public' || isOwner(userId) || isAdmin();
+        allow list: if isAuthenticated(); // 🔥 ADICIONADO: Para queries de mídia
         
         allow create: if isOwner(userId)
                      && request.resource.data.userId == userId
@@ -85,11 +88,12 @@ service cloud.firestore {
       }
     }
     
-    // ✍️ POSTS (CORREÇÃO DO PROBLEMA PRINCIPAL)
+    // ✍️ POSTS (CORREÇÃO DA SINTAXE)
     match /posts/{postId} {
       allow read: if isAuthenticated();
+      allow list: if isAuthenticated(); // 🔥 ADICIONADO: Para feed de posts
       
-      // CORREÇÃO: Torna o campo 'media' opcional e adiciona validações de segurança
+      // ✅ CORREÇÃO: Sintaxe corrigida para validação de mídia
       allow create: if isAuthenticated()
                    && isOwner(request.resource.data.authorId)
                    && isValidString(request.resource.data.content, 1, 2000)
@@ -100,10 +104,10 @@ service cloud.firestore {
                    && request.resource.data.keys().hasAll(['authorId', 'content', 'createdAt', 'likes', 'commentsCount'])
                    // CAMPOS PERMITIDOS (media é opcional)
                    && request.resource.data.keys().hasOnly(['authorId', 'content', 'createdAt', 'likes', 'commentsCount', 'media', 'location', 'tags'])
-                   // VALIDAÇÃO DE MÍDIA (se presente)
-                   && (!request.resource.data.keys().hasAny(['media']) || request.resource.data.media is list)
-                   // VALIDAÇÃO DE TAGS (se presente)
-                   && (!request.resource.data.keys().hasAny(['tags']) || (request.resource.data.tags is list && request.resource.data.tags.size() <= 10));
+                   // ✅ CORREÇÃO: Validação de mídia corrigida
+                   && (!('media' in request.resource.data) || request.resource.data.media is list)
+                   // ✅ CORREÇÃO: Validação de tags corrigida  
+                   && (!('tags' in request.resource.data) || (request.resource.data.tags is list && request.resource.data.tags.size() <= 10));
       
       allow update: if isOwner(resource.data.authorId) || isAdmin()
                    && isValidString(request.resource.data.content, 1, 2000)
@@ -120,6 +124,7 @@ service cloud.firestore {
         }
 
         allow read: if isAuthenticated();
+        allow list: if isAuthenticated(); // 🔥 ADICIONADO: Para listar comentários
         
         allow create: if isAuthenticated()
                      && isOwner(request.resource.data.authorId)
@@ -141,6 +146,7 @@ service cloud.firestore {
       // 💕 LIKES
       match /likes/{userId} {
         allow read: if isAuthenticated();
+        allow list: if isAuthenticated(); // 🔥 ADICIONADO: Para contar likes
         allow create: if isOwner(userId) 
                      && request.resource.data.keys().hasAll(['createdAt'])
                      && request.resource.data.createdAt == request.time
@@ -152,6 +158,7 @@ service cloud.firestore {
     // 🛒 MARKETPLACE (Listagens)
     match /listagens/{listingId} {
       allow read: if isAuthenticated();
+      allow list: if isAuthenticated(); // 🔥 ADICIONADO: Para buscar produtos
       
       allow create: if isAuthenticated()
                    && isOwner(request.resource.data.sellerId)
@@ -181,12 +188,14 @@ service cloud.firestore {
     // 🤝 SEGUIDORES/SEGUINDO
     match /users_public/{userId}/followers/{followerId} {
       allow read: if isAuthenticated();
+      allow list: if isAuthenticated(); // 🔥 ADICIONADO: Para listar seguidores
       allow create: if isOwner(followerId) && request.resource.data.createdAt == request.time;
       allow delete: if isOwner(followerId) || isOwner(userId);
     }
     
     match /users_public/{userId}/following/{followingId} {
       allow read: if isAuthenticated();
+      allow list: if isAuthenticated(); // 🔥 ADICIONADO: Para listar seguindo
       allow create: if isOwner(userId) && request.resource.data.createdAt == request.time;
       allow delete: if isOwner(userId);
     }
@@ -198,10 +207,12 @@ service cloud.firestore {
       }
       
       allow read: if isAuthenticated() && isParticipant();
+      allow list: if isAuthenticated(); // 🔥 ADICIONADO: Para listar conversas do usuário
       allow create: if isAuthenticated() && request.auth.uid in request.resource.data.participants;
       
       match /messages/{messageId} {
         allow read: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
+        allow list: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants; // 🔥 ADICIONADO
         allow create: if isAuthenticated() 
                      && isOwner(request.resource.data.senderId)
                      && isValidString(request.resource.data.content, 1, 1000)
@@ -217,6 +228,7 @@ service cloud.firestore {
                    && request.resource.data.status == 'pending'
                    && request.resource.data.type in ['spam', 'harassment', 'inappropriate', 'fake', 'other'];
       allow read: if isAdmin();
+      allow list: if isAdmin(); // 🔥 ADICIONADO: Para admins listarem reports
       allow update: if isAdmin();
     }
 
@@ -229,6 +241,7 @@ service cloud.firestore {
     // 📈 ANALYTICS (apenas leitura para admins)
     match /analytics/{document} {
       allow read: if isAdmin();
+      allow list: if isAdmin(); // 🔥 ADICIONADO: Para dashboards de admin
       allow write: if false; // Apenas via Cloud Functions
     }
   }
