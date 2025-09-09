@@ -3,120 +3,233 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- FUNÇÕES HELPER (Otimizadas) ---
+    // --- FUNÇÕES HELPER (Otimizadas para Segurança) ---
     function isOwner(userId) {
       return request.auth != null && request.auth.uid == userId;
     }
+    
     function isAdmin() {
       return request.auth != null && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
+    
     function isAuthenticated() {
-      return request.auth != null;
+      return request.auth != null && request.auth.uid != null;
+    }
+    
+    function isValidString(field, minLength, maxLength) {
+      return field is string && field.size() >= minLength && field.size() <= maxLength;
+    }
+    
+    function isValidEmail(email) {
+      return email is string && email.matches('.*@.*\\..*');
     }
 
-    // --- REGRAS GLOBAIS ---
-    // Nega todas as leituras e escritas por padrão. Acesso só é concedido
-    // pelas regras específicas abaixo. Esta é a prática de segurança mais importante.
+    // --- REGRAS GLOBAIS DE SEGURANÇA ---
+    // DENY BY DEFAULT: Máxima segurança - apenas regras específicas concedem acesso
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // --- REGRAS POR COLEÇÃO ---
+    // --- COLEÇÕES PRINCIPAIS ---
 
-    // 👤 Coleção 'users' (DADOS PRIVADOS E SENSÍVEIS)
+    // 👤 USUÁRIOS PRIVADOS (Dados sensíveis)
     match /users/{userId} {
-      // Apenas o próprio usuário ou um admin pode ler/escrever seus dados privados.
       allow read, write: if isOwner(userId) || isAdmin();
+      
+      // Validação extra para escrita
+      allow update: if (isOwner(userId) || isAdmin())
+                   && request.resource.data.keys().hasOnly(['email', 'displayName', 'photoURL', 'bio', 'settings', 'lastActive'])
+                   && (!request.resource.data.keys().hasAny(['email']) || isValidEmail(request.resource.data.email));
     }
 
-    // 📢 Coleção 'users_public' (DADOS PÚBLICOS DE PERFIL)
+    // 📢 PERFIS PÚBLICOS (Dados visíveis)
     match /users_public/{userId} {
       allow read: if isAuthenticated();
-      allow write: if isOwner(userId) || isAdmin(); // Validação mais granular pode ser adicionada aqui
+      allow write: if isOwner(userId) || isAdmin();
+      
+      // Validação de schema para perfis públicos
+      allow create: if isOwner(userId)
+                   && isValidString(request.resource.data.displayName, 2, 50)
+                   && request.resource.data.createdAt == request.time
+                   && request.resource.data.postsCount == 0
+                   && request.resource.data.followersCount == 0
+                   && request.resource.data.followingCount == 0;
+                   
+      allow update: if isOwner(userId)
+                   && request.resource.data.userId == resource.data.userId
+                   && request.resource.data.createdAt == resource.data.createdAt
+                   && (!request.resource.data.keys().hasAny(['displayName']) || isValidString(request.resource.data.displayName, 2, 50))
+                   && (!request.resource.data.keys().hasAny(['bio']) || isValidString(request.resource.data.bio, 0, 300));
 
-      // 🖼️ Subcoleção 'media' de um usuário
+      // 🖼️ MÍDIA DE USUÁRIO
       match /media/{mediaId} {
         allow read: if resource.data.privacy == 'public' || isOwner(userId) || isAdmin();
+        
         allow create: if isOwner(userId)
-                      && request.resource.data.userId == userId
-                      && request.resource.data.createdAt == request.time
-                      && request.resource.data.url is string
-                      && request.resource.data.type is string
-                      && request.resource.data.privacy in ['public', 'private'];
-        allow update: if isOwner(userId) || isAdmin()
-                      // Garante que campos imutáveis não sejam alterados
-                      && request.resource.data.userId == resource.data.userId
-                      && request.resource.data.createdAt == resource.data.createdAt
-                      && request.resource.data.url == resource.data.url
-                      && request.resource.data.type == resource.data.type
-                      // Apenas a privacidade pode ser alterada
-                      && request.resource.data.keys().hasOnly(['userId', 'createdAt', 'url', 'type', 'privacy', 'caption']);
+                     && request.resource.data.userId == userId
+                     && request.resource.data.createdAt == request.time
+                     && isValidString(request.resource.data.url, 10, 2000)
+                     && request.resource.data.type in ['image', 'video']
+                     && request.resource.data.privacy in ['public', 'private']
+                     && request.resource.data.size < 50000000; // 50MB max
+                     
+        allow update: if isOwner(userId)
+                     && request.resource.data.userId == resource.data.userId
+                     && request.resource.data.createdAt == resource.data.createdAt
+                     && request.resource.data.url == resource.data.url
+                     && request.resource.data.type == resource.data.type
+                     && request.resource.data.privacy in ['public', 'private']
+                     && request.resource.data.keys().hasOnly(['userId', 'createdAt', 'url', 'type', 'privacy', 'caption', 'size']);
+                     
         allow delete: if isOwner(userId) || isAdmin();
       }
     }
     
-    // ✍️ Coleção 'posts'
+    // ✍️ POSTS (CORREÇÃO DO PROBLEMA PRINCIPAL)
     match /posts/{postId} {
       allow read: if isAuthenticated();
-      allow create: if isOwner(request.resource.data.authorId)
-                      // Validação de Schema: garante que o post tenha os campos necessários e corretos
-                      && request.resource.data.content is string
-                      && request.resource.data.createdAt == request.time
-                      && request.resource.data.likes == 0
-                      && request.resource.data.commentsCount == 0
-                      && request.resource.data.keys().hasAll(['authorId', 'content', 'createdAt', 'likes', 'commentsCount', 'media']);
+      
+      // CORREÇÃO: Torna o campo 'media' opcional e adiciona validações de segurança
+      allow create: if isAuthenticated()
+                   && isOwner(request.resource.data.authorId)
+                   && isValidString(request.resource.data.content, 1, 2000)
+                   && request.resource.data.createdAt == request.time
+                   && request.resource.data.likes == 0
+                   && request.resource.data.commentsCount == 0
+                   // CAMPOS OBRIGATÓRIOS
+                   && request.resource.data.keys().hasAll(['authorId', 'content', 'createdAt', 'likes', 'commentsCount'])
+                   // CAMPOS PERMITIDOS (media é opcional)
+                   && request.resource.data.keys().hasOnly(['authorId', 'content', 'createdAt', 'likes', 'commentsCount', 'media', 'location', 'tags'])
+                   // VALIDAÇÃO DE MÍDIA (se presente)
+                   && (!request.resource.data.keys().hasAny(['media']) || request.resource.data.media is list)
+                   // VALIDAÇÃO DE TAGS (se presente)
+                   && (!request.resource.data.keys().hasAny(['tags']) || (request.resource.data.tags is list && request.resource.data.tags.size() <= 10));
+      
       allow update: if isOwner(resource.data.authorId) || isAdmin()
-                      // Permite alterar apenas o conteúdo do post
-                      && request.resource.data.content is string
-                      && request.resource.data.keys().hasOnly(['content']);
+                   && isValidString(request.resource.data.content, 1, 2000)
+                   && request.resource.data.authorId == resource.data.authorId
+                   && request.resource.data.createdAt == resource.data.createdAt
+                   && request.resource.data.keys().hasOnly(['content', 'tags', 'location']);
+                   
       allow delete: if isOwner(resource.data.authorId) || isAdmin();
 
-      // 💬 Subcoleção 'comments' dentro de posts
+      // 💬 COMENTÁRIOS
       match /comments/{commentId} {
         function isPostOwner() {
           return get(/databases/$(database)/documents/posts/$(postId)).data.authorId == request.auth.uid;
         }
 
         allow read: if isAuthenticated();
-        allow create: if isOwner(request.resource.data.authorId)
-                      && request.resource.data.content is string
-                      && request.resource.data.createdAt == request.time;
+        
+        allow create: if isAuthenticated()
+                     && isOwner(request.resource.data.authorId)
+                     && isValidString(request.resource.data.content, 1, 1000)
+                     && request.resource.data.createdAt == request.time
+                     && request.resource.data.likes == 0
+                     && request.resource.data.keys().hasAll(['authorId', 'content', 'createdAt', 'likes'])
+                     && request.resource.data.keys().hasOnly(['authorId', 'content', 'createdAt', 'likes', 'replyTo']);
+                     
         allow update: if isOwner(resource.data.authorId)
-                      && request.resource.data.content is string
-                      && request.resource.data.keys().hasOnly(['content']); // Só pode editar o conteúdo
-        allow delete: if isOwner(resource.data.authorId) || isAdmin() || isPostOwner(); // Dono do post também pode deletar
+                     && isValidString(request.resource.data.content, 1, 1000)
+                     && request.resource.data.authorId == resource.data.authorId
+                     && request.resource.data.createdAt == resource.data.createdAt
+                     && request.resource.data.keys().hasOnly(['content']);
+                     
+        allow delete: if isOwner(resource.data.authorId) || isAdmin() || isPostOwner();
       }
 
-      // 💕 Subcoleção 'likes' dentro de posts
+      // 💕 LIKES
       match /likes/{userId} {
         allow read: if isAuthenticated();
-        // O ID do documento de like deve ser o UID do usuário
-        allow create: if isOwner(userId) && request.resource.data.size() == 0; // Documento de like deve ser vazio
+        allow create: if isOwner(userId) 
+                     && request.resource.data.keys().hasAll(['createdAt'])
+                     && request.resource.data.createdAt == request.time
+                     && request.resource.data.keys().hasOnly(['createdAt']);
         allow delete: if isOwner(userId);
       }
     }
 
-    // 🛒 Coleção 'listagens' (Marketplace) - Nome ajustado conforme seu código
+    // 🛒 MARKETPLACE (Listagens)
     match /listagens/{listingId} {
       allow read: if isAuthenticated();
-      allow create: if isOwner(request.resource.data.sellerId)
-                      && request.resource.data.title is string && request.resource.data.title.size() > 0
-                      && request.resource.data.price is number && request.resource.data.price > 0
-                      && request.resource.data.createdAt == request.time;
+      
+      allow create: if isAuthenticated()
+                   && isOwner(request.resource.data.sellerId)
+                   && isValidString(request.resource.data.title, 5, 100)
+                   && isValidString(request.resource.data.description, 10, 2000)
+                   && request.resource.data.price is number 
+                   && request.resource.data.price > 0 
+                   && request.resource.data.price <= 1000000
+                   && request.resource.data.createdAt == request.time
+                   && request.resource.data.status == 'active'
+                   && request.resource.data.category in ['eletronicos', 'roupas', 'casa', 'veiculos', 'servicos', 'outros']
+                   && request.resource.data.keys().hasAll(['sellerId', 'title', 'description', 'price', 'createdAt', 'status', 'category'])
+                   && request.resource.data.keys().hasOnly(['sellerId', 'title', 'description', 'price', 'createdAt', 'status', 'category', 'images', 'location', 'condition']);
+                   
       allow update: if isOwner(resource.data.sellerId)
-                      // Garante que o vendedor e a data de criação não mudem
-                      && request.resource.data.sellerId == resource.data.sellerId
-                      && request.resource.data.createdAt == resource.data.createdAt;
-      allow delete: if isOwner(resource.data.sellerId);
+                   && request.resource.data.sellerId == resource.data.sellerId
+                   && request.resource.data.createdAt == resource.data.createdAt
+                   && (!request.resource.data.keys().hasAny(['title']) || isValidString(request.resource.data.title, 5, 100))
+                   && (!request.resource.data.keys().hasAny(['description']) || isValidString(request.resource.data.description, 10, 2000))
+                   && (!request.resource.data.keys().hasAny(['price']) || (request.resource.data.price is number && request.resource.data.price > 0 && request.resource.data.price <= 1000000))
+                   && (!request.resource.data.keys().hasAny(['status']) || request.resource.data.status in ['active', 'sold', 'inactive'])
+                   && request.resource.data.keys().hasOnly(['title', 'description', 'price', 'status', 'images', 'location', 'condition']);
+                   
+      allow delete: if isOwner(resource.data.sellerId) || isAdmin();
     }
 
-    // 👥 Coleção 'admins'
-    match /admins/{adminId} {
-      // CORREÇÃO CRÍTICA: Qualquer usuário autenticado pode ler a lista de admins.
-      // A regra antiga (if isAdmin()) criava uma dependência circular.
+    // 🤝 SEGUIDORES/SEGUINDO
+    match /users_public/{userId}/followers/{followerId} {
       allow read: if isAuthenticated();
-      // Ninguém pode escrever do lado do cliente.
-      allow write: if false;
+      allow create: if isOwner(followerId) && request.resource.data.createdAt == request.time;
+      allow delete: if isOwner(followerId) || isOwner(userId);
+    }
+    
+    match /users_public/{userId}/following/{followingId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId) && request.resource.data.createdAt == request.time;
+      allow delete: if isOwner(userId);
+    }
+
+    // 💬 CONVERSAS PRIVADAS
+    match /conversations/{conversationId} {
+      function isParticipant() {
+        return request.auth.uid in resource.data.participants;
+      }
+      
+      allow read: if isAuthenticated() && isParticipant();
+      allow create: if isAuthenticated() && request.auth.uid in request.resource.data.participants;
+      
+      match /messages/{messageId} {
+        allow read: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
+        allow create: if isAuthenticated() 
+                     && isOwner(request.resource.data.senderId)
+                     && isValidString(request.resource.data.content, 1, 1000)
+                     && request.resource.data.createdAt == request.time;
+      }
+    }
+
+    // 📊 REPORTES/DENÚNCIAS
+    match /reports/{reportId} {
+      allow create: if isAuthenticated()
+                   && isOwner(request.resource.data.reporterId)
+                   && request.resource.data.createdAt == request.time
+                   && request.resource.data.status == 'pending'
+                   && request.resource.data.type in ['spam', 'harassment', 'inappropriate', 'fake', 'other'];
+      allow read: if isAdmin();
+      allow update: if isAdmin();
+    }
+
+    // 👥 ADMINISTRADORES
+    match /admins/{adminId} {
+      allow read: if isAuthenticated(); // Qualquer um pode verificar se alguém é admin
+      allow write: if false; // Apenas via Admin SDK
+    }
+
+    // 📈 ANALYTICS (apenas leitura para admins)
+    match /analytics/{document} {
+      allow read: if isAdmin();
+      allow write: if false; // Apenas via Cloud Functions
     }
   }
 }
