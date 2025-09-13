@@ -3,7 +3,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- FUNÇÕES HELPER (Otimizadas para Segurança) ---
+    // --- FUNÇÕES HELPER (Segurança Otimizada) ---
     function isOwner(userId) {
       return request.auth != null && request.auth.uid == userId;
     }
@@ -16,16 +16,12 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid != null;
     }
     
-    // CORREÇÃO CRÍTICA: Cloud Functions do Firebase Admin SDK não têm token
-    // Elas fazem requests sem auth token quando usando Admin SDK
+    // Cloud Functions do Firebase Admin SDK não têm token de auth
     function isCloudFunction() {
-      // Cloud Functions com Admin SDK não têm request.auth
-      // OU têm um token especial com admin claim
       return request.auth == null || 
              (request.auth.token != null && request.auth.token.admin == true);
     }
     
-    // Função alternativa mais flexível para operações do sistema
     function isSystemOperation() {
       return request.auth == null || // Admin SDK
              (request.auth.token != null && request.auth.token.admin == true) || // Admin claim
@@ -40,68 +36,68 @@ service cloud.firestore {
       return email is string && email.matches('.*@.*\\..*');
     }
 
+    // Função para validar tipos de mídia
+    function isValidMediaType(mediaType) {
+      return mediaType is string && (
+        mediaType.matches('image/.*') || 
+        mediaType.matches('video/.*')
+      );
+    }
+
     // --- REGRAS GLOBAIS DE SEGURANÇA ---
-    // DENY BY DEFAULT: Máxima segurança - apenas regras específicas concedem acesso
+    // DENY BY DEFAULT: Máxima segurança
     match /{document=**} {
       allow read, write: if false;
     }
 
     // --- COLEÇÕES PRINCIPAIS ---
 
-    // 👤 USUÁRIOS PRIVADOS (Dados sensíveis)
+    // USUÁRIOS PRIVADOS (Dados sensíveis)
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
-      
-      // CORREÇÃO: Permitir Cloud Functions e sistema criarem/atualizarem perfis
       allow create: if isSystemOperation() || isOwner(userId);
       allow write: if isSystemOperation() || isOwner(userId) || isAdmin();
       
-      // Validação para updates do próprio usuário (não se aplica a system operations)
       allow update: if isSystemOperation() ||
                    ((isOwner(userId) || isAdmin()) &&
                    request.resource.data.keys().hasOnly(['email', 'displayName', 'photoURL', 'bio', 'settings', 'lastActive', 'emailVerified', 'updatedAt', 'username', 'createdAt']) &&
                    (!request.resource.data.keys().hasAny(['email']) || isValidEmail(request.resource.data.email)));
     }
 
-    // 📢 PERFIS PÚBLICOS - CORREÇÃO CRÍTICA
+    // PERFIS PÚBLICOS
     match /users_public/{userId} {
-      allow read: if true; // Perfis públicos devem ser... públicos!
+      allow read: if true; // Perfis públicos são... públicos!
       allow list: if isAuthenticated();
       
-      // CORREÇÃO CRÍTICA: Permitir criação mais flexível
       allow create: if isSystemOperation() || 
                    isOwner(userId) ||
                    (isOwner(userId) &&
-                   // Apenas campos mínimos obrigatórios
                    request.resource.data.keys().hasAll(['userId', 'createdAt']) &&
                    request.resource.data.userId == userId);
                    
       allow write: if isSystemOperation() || isOwner(userId) || isAdmin();
                    
-      // Update mais flexível para o próprio usuário
       allow update: if isSystemOperation() ||
                    isAdmin() ||
                    (isOwner(userId) &&
-                   // Mantém userId e createdAt imutáveis
                    (!request.resource.data.keys().hasAny(['userId']) || request.resource.data.userId == resource.data.userId) &&
                    (!request.resource.data.keys().hasAny(['createdAt']) || request.resource.data.createdAt == resource.data.createdAt));
 
-      // 🖼️ MÍDIA DE USUÁRIO
+      // MÍDIA DE USUÁRIO - REGRAS CORRIGIDAS
       match /media/{mediaId} {
         allow read: if resource.data.privacy == 'public' || isOwner(userId) || isAdmin();
         allow list: if isAuthenticated();
         
+        // CORREÇÃO CRÍTICA: Regras mais flexíveis para upload
         allow create: if isOwner(userId) &&
                      request.resource.data.userId == userId &&
-                     request.resource.data.createdAt == request.time &&
                      isValidString(request.resource.data.url, 10, 2000) &&
-                     request.resource.data.type in ['image', 'video'] &&
+                     isValidMediaType(request.resource.data.type) && // Aceita image/* e video/*
                      request.resource.data.privacy in ['public', 'private'] &&
-                     request.resource.data.size < 50000000;
+                     request.resource.data.size < 52428800; // 50MB em bytes
                      
         allow update: if isOwner(userId) &&
                      request.resource.data.userId == resource.data.userId &&
-                     request.resource.data.createdAt == resource.data.createdAt &&
                      request.resource.data.url == resource.data.url &&
                      request.resource.data.type == resource.data.type &&
                      request.resource.data.privacy in ['public', 'private'];
@@ -110,7 +106,7 @@ service cloud.firestore {
       }
     }
     
-    // ✍️ POSTS
+    // POSTS
     match /posts/{postId} {
       allow read: if isAuthenticated();
       allow list: if isAuthenticated();
@@ -134,7 +130,7 @@ service cloud.firestore {
                    
       allow delete: if isOwner(resource.data.authorId) || isAdmin();
 
-      // 💬 COMENTÁRIOS
+      // COMENTÁRIOS
       match /comments/{commentId} {
         function isPostOwner() {
           return get(/databases/$(database)/documents/posts/$(postId)).data.authorId == request.auth.uid;
@@ -160,7 +156,7 @@ service cloud.firestore {
         allow delete: if isOwner(resource.data.authorId) || isAdmin() || isPostOwner();
       }
 
-      // 💕 LIKES
+      // LIKES
       match /likes/{userId} {
         allow read: if isAuthenticated();
         allow list: if isAuthenticated();
@@ -172,7 +168,7 @@ service cloud.firestore {
       }
     }
 
-    // 🛒 MARKETPLACE (Listagens)
+    // MARKETPLACE (Listagens)
     match /listagens/{listingId} {
       allow read: if isAuthenticated();
       allow list: if isAuthenticated();
@@ -202,7 +198,7 @@ service cloud.firestore {
       allow delete: if isOwner(resource.data.sellerId) || isAdmin();
     }
 
-    // 🤝 SEGUIDORES/SEGUINDO
+    // SEGUIDORES/SEGUINDO
     match /users_public/{userId}/followers/{followerId} {
       allow read: if isAuthenticated();
       allow list: if isAuthenticated();
@@ -217,7 +213,7 @@ service cloud.firestore {
       allow delete: if isOwner(userId);
     }
 
-    // 💬 CONVERSAS PRIVADAS
+    // CONVERSAS PRIVADAS
     match /conversations/{conversationId} {
       function isParticipant() {
         return request.auth.uid in resource.data.participants;
@@ -237,7 +233,7 @@ service cloud.firestore {
       }
     }
 
-    // 📊 REPORTES/DENÚNCIAS
+    // REPORTES/DENÚNCIAS
     match /reports/{reportId} {
       allow create: if isAuthenticated() &&
                    isOwner(request.resource.data.reporterId) &&
@@ -249,20 +245,20 @@ service cloud.firestore {
       allow update: if isAdmin();
     }
 
-    // 👥 ADMINISTRADORES
+    // ADMINISTRADORES
     match /admins/{adminId} {
       allow read: if isAuthenticated();
       allow write: if false; // Apenas via Admin SDK
     }
 
-    // 📈 ANALYTICS (apenas leitura para admins)
+    // ANALYTICS (apenas leitura para admins)
     match /analytics/{document} {
       allow read: if isAdmin();
       allow list: if isAdmin();
       allow write: if false; // Apenas via Cloud Functions
     }
 
-    // 🔧 COLEÇÃO DE SISTEMA - Para operações internas
+    // COLEÇÃO DE SISTEMA - Para operações internas
     match /system/{document} {
       allow read: if isAdmin();
       allow write: if isSystemOperation();

@@ -1,4 +1,4 @@
-// src/components/pages/profile/ProfileGallery.jsx - VERSÃO COMPLETA E CORRIGIDA
+// ARQUIVO CORRIGIDO: src/components/pages/profile/ProfileGallery.jsx
 
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
@@ -24,7 +24,7 @@ import {
 import { db } from '../../../firebase/config';
 import { toast } from 'react-hot-toast';
 
-// Componente de esqueleto para carregamento (sem alterações)
+// Componente de esqueleto para carregamento
 const GallerySkeleton = () => (
   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 animate-pulse">
     {[...Array(8)].map((_, i) => (
@@ -36,9 +36,8 @@ const GallerySkeleton = () => (
   </div>
 );
 
-// Componente individual para cada item de mídia (sem alterações)
+// Componente individual para cada item de mídia
 const MediaItem = ({ item, onSelect, isOwner, onDelete, onTogglePrivacy }) => {
-  // ... (código existente do MediaItem, sem alterações) ...
   const [showMenu, setShowMenu] = useState(false);
   const [imageError, setImageError] = useState(false);
 
@@ -153,9 +152,8 @@ const MediaItem = ({ item, onSelect, isOwner, onDelete, onTogglePrivacy }) => {
   );
 };
 
-// Modal para visualização em tela cheia (sem alterações)
+// Modal para visualização em tela cheia
 const MediaModal = ({ media, onClose }) => {
-  // ... (código existente do MediaModal, sem alterações) ...
   const isVideo = media.type?.startsWith('video');
 
   useEffect(() => {
@@ -220,19 +218,20 @@ export default function ProfileGallery({
   const [uploadingMedia, setUploadingMedia] = useState(false);
 
   useEffect(() => {
-    // CORREÇÃO: Usa profileData.id, que é o ID do documento, consistente em todo o app.
     const userId = profileData?.id;
 
     if (!userId) {
+      console.log('[ProfileGallery] Nenhum userId fornecido');
       setLoadingMedia(false);
       setMedia([]);
       return;
     }
 
+    console.log('[ProfileGallery] Carregando mídia para userId:', userId);
     setLoadingMedia(true);
 
     try {
-      // CORREÇÃO: Busca as mídias da subcoleção de 'users_public', pois é o perfil público.
+      // Buscar mídias da subcoleção
       const mediaCollectionRef = collection(
         db,
         'users_public',
@@ -242,12 +241,20 @@ export default function ProfileGallery({
 
       let q;
       if (isOwner) {
+        // Proprietário vê todas as mídias
         q = query(mediaCollectionRef, orderBy('createdAt', 'desc'));
+        console.log(
+          '[ProfileGallery] Carregando todas as mídias (proprietário)'
+        );
       } else {
+        // Visitantes veem apenas mídias públicas
         q = query(
           mediaCollectionRef,
           where('privacy', '==', 'public'),
           orderBy('createdAt', 'desc')
+        );
+        console.log(
+          '[ProfileGallery] Carregando apenas mídias públicas (visitante)'
         );
       }
 
@@ -259,27 +266,45 @@ export default function ProfileGallery({
             ...doc.data(),
           }));
 
+          console.log('[ProfileGallery] Mídias carregadas:', mediaData.length);
+          setMedia(mediaData); // CORREÇÃO CRÍTICA: Esta linha estava faltando!
+          setLoadingMedia(false);
         },
         (error) => {
-          console.error('Erro ao buscar mídias da galeria:', error);
+          console.error('[ProfileGallery] Erro ao buscar mídias:', error);
           setLoadingMedia(false);
-          toast.error('Erro ao carregar a galeria');
+          setMedia([]);
+
+          if (error.code === 'permission-denied') {
+            console.warn(
+              '[ProfileGallery] Permissão negada para acessar galeria'
+            );
+          } else {
+            toast.error('Erro ao carregar galeria');
+          }
         }
       );
 
-      return () => unsubscribe();
+      return () => {
+        console.log('[ProfileGallery] Limpando listener da galeria');
+        unsubscribe();
+      };
     } catch (error) {
-      console.error('Erro ao configurar listener da galeria:', error);
+      console.error('[ProfileGallery] Erro ao configurar listener:', error);
       setLoadingMedia(false);
+      setMedia([]);
       toast.error('Erro ao configurar galeria');
     }
-  }, [profileData?.id, isOwner]); // CORREÇÃO: Simplificada a dependência para profileData.id
+  }, [profileData?.id, isOwner]);
 
   const handleFileSelect = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const maxSize = 50 * 1024 * 1024;
+    console.log('[ProfileGallery] Arquivo selecionado:', file.name, file.size);
+
+    // Validações
+    const maxSize = 50 * 1024 * 1024; // 50MB
     if (file.size > maxSize) {
       toast.error('Arquivo muito grande. Máximo 50MB.');
       return;
@@ -302,15 +327,20 @@ export default function ProfileGallery({
 
     try {
       if (onMediaUpload) {
+        console.log('[ProfileGallery] Iniciando upload via onMediaUpload');
         await onMediaUpload(file);
+        console.log('[ProfileGallery] Upload concluído com sucesso');
         toast.success('Mídia adicionada com sucesso!');
+      } else {
+        console.error('[ProfileGallery] onMediaUpload não fornecido');
+        toast.error('Função de upload não configurada');
       }
     } catch (error) {
-      console.error('Erro no upload:', error);
+      console.error('[ProfileGallery] Erro no upload:', error);
       toast.error('Erro ao fazer upload da mídia');
     } finally {
       setUploadingMedia(false);
-      event.target.value = '';
+      event.target.value = ''; // Limpar input
     }
   };
 
@@ -319,9 +349,10 @@ export default function ProfileGallery({
       return;
     }
 
+    console.log('[ProfileGallery] Excluindo mídia:', mediaItem.id);
+
     try {
       const userId = profileData.id;
-      // CORREÇÃO: Apaga da subcoleção em 'users_public'
       const mediaDocRef = doc(
         db,
         'users_public',
@@ -329,18 +360,27 @@ export default function ProfileGallery({
         'media',
         mediaItem.id
       );
+
       await deleteDoc(mediaDocRef);
+      console.log('[ProfileGallery] Mídia excluída com sucesso');
       toast.success('Mídia excluída com sucesso');
     } catch (error) {
-      console.error('Erro ao excluir mídia:', error);
+      console.error('[ProfileGallery] Erro ao excluir mídia:', error);
       toast.error('Erro ao excluir mídia');
     }
   };
 
   const handleTogglePrivacy = async (mediaItem) => {
+    const newPrivacy = mediaItem.privacy === 'private' ? 'public' : 'private';
+    console.log(
+      '[ProfileGallery] Alterando privacidade:',
+      mediaItem.id,
+      'para',
+      newPrivacy
+    );
+
     try {
       const userId = profileData.id;
-      // CORREÇÃO: Altera a privacidade na subcoleção em 'users_public'
       const mediaDocRef = doc(
         db,
         'users_public',
@@ -348,23 +388,24 @@ export default function ProfileGallery({
         'media',
         mediaItem.id
       );
-      const newPrivacy = mediaItem.privacy === 'private' ? 'public' : 'private';
 
       await updateDoc(mediaDocRef, {
         privacy: newPrivacy,
         updatedAt: new Date(),
       });
 
+      console.log('[ProfileGallery] Privacidade alterada com sucesso');
       toast.success(
         `Mídia tornada ${newPrivacy === 'private' ? 'privada' : 'pública'}`
       );
     } catch (error) {
-      console.error('Erro ao alterar privacidade:', error);
+      console.error('[ProfileGallery] Erro ao alterar privacidade:', error);
       toast.error('Erro ao alterar privacidade');
     }
   };
 
   if (!profileData) {
+    console.log('[ProfileGallery] Nenhum profileData fornecido');
     return null;
   }
 
@@ -388,16 +429,17 @@ export default function ProfileGallery({
         <GallerySkeleton />
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+          {/* Botão de adicionar mídia (apenas para proprietário em modo de edição) */}
           {isOwner && editing && (
             <label
-              className={`aspect-square rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 flex flex-col items-center justify-center cursor-pointer transition-all hover:border-ollo-accent hover:bg-ollo-accent/5 ${
+              className={`aspect-square rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 flex flex-col items-center justify-center cursor-pointer transition-all hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 ${
                 loading || uploadingMedia ? 'opacity-50 cursor-not-allowed' : ''
               }`}
             >
               <div className="flex flex-col items-center text-gray-500 dark:text-gray-400">
                 {uploadingMedia ? (
                   <>
-                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-ollo-accent mb-2"></div>
+                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-blue-500 mb-2"></div>
                     <span className="text-sm font-medium">Enviando...</span>
                   </>
                 ) : (
@@ -418,6 +460,7 @@ export default function ProfileGallery({
             </label>
           )}
 
+          {/* Lista de mídias */}
           {media.map((item) => (
             <MediaItem
               key={item.id}
@@ -428,9 +471,29 @@ export default function ProfileGallery({
               onTogglePrivacy={handleTogglePrivacy}
             />
           ))}
+
+          {/* Mensagem quando não há mídias */}
+          {media.length === 0 && !uploadingMedia && (
+            <div className="col-span-full flex flex-col items-center justify-center py-12 text-gray-500 dark:text-gray-400">
+              <PhotoIcon className="h-16 w-16 mb-4 opacity-50" />
+              <p className="text-lg font-medium mb-2">
+                {isOwner
+                  ? 'Sua galeria está vazia'
+                  : 'Nenhuma mídia compartilhada'}
+              </p>
+              <p className="text-sm text-center max-w-sm">
+                {isOwner && editing
+                  ? 'Adicione fotos e vídeos para compartilhar com outros usuários'
+                  : isOwner
+                    ? 'Clique em "Editar" para adicionar fotos e vídeos'
+                    : 'Este usuário ainda não compartilhou nenhuma mídia'}
+              </p>
+            </div>
+          )}
         </div>
       )}
 
+      {/* Modal de visualização */}
       {selectedMedia && (
         <MediaModal
           media={selectedMedia}
@@ -440,3 +503,11 @@ export default function ProfileGallery({
     </section>
   );
 }
+
+ProfileGallery.propTypes = {
+  profileData: PropTypes.object,
+  editing: PropTypes.bool,
+  isOwner: PropTypes.bool,
+  loading: PropTypes.bool,
+  onMediaUpload: PropTypes.func,
+};

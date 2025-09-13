@@ -1,5 +1,5 @@
-// ARQUIVO CORRIGIDO E OTIMIZADO: src/pages/ProfilePage.jsx
-// Versão com prevenção de loops e melhor tratamento de erros
+// ARQUIVO CORRIGIDO: src/pages/ProfilePage.jsx
+// Versão com importação corrigida e integração do reloadAuthUser
 
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -61,7 +61,7 @@ const ProfileSetupRedirect = () => (
 export default function ProfilePage() {
   const { username } = useParams();
   const navigate = useNavigate();
-  const { currentUser, loading: authLoading } = useAuth();
+  const { currentUser, loading: authLoading, forceReloadUser } = useAuth(); // CORRIGIDO: adicionar forceReloadUser
 
   // Estados locais otimizados
   const [pageState, setPageState] = useState({
@@ -81,6 +81,7 @@ export default function ProfilePage() {
   const {
     initialize,
     setCurrentUser,
+    setReloadAuthUser, // ADICIONADO: função para configurar reload
     form,
     editing,
     loading: storeLoading,
@@ -93,10 +94,25 @@ export default function ProfilePage() {
     reset,
   } = useProfileStore();
 
+  // CRITICAL: Configurar função de reload quando hook carregar
+  useEffect(() => {
+    if (forceReloadUser) {
+      console.log(
+        '[ProfilePage] Configurando função de reload no ProfileStore'
+      );
+      setReloadAuthUser(forceReloadUser);
+    }
+  }, [forceReloadUser, setReloadAuthUser]);
+
+  // Verificar se o usuário logado é o dono do perfil
+  const isOwner = useMemo(() => {
+    return currentUser?.uid === form?.id;
+  }, [currentUser?.uid, form?.id]);
+
   // Função para verificar se o perfil está sendo criado
   const checkProfileSetup = useCallback(async (userId, attemptCount = 0) => {
     const maxAttempts = 5;
-    const delayMs = 2000; // 2 segundos entre tentativas
+    const delayMs = 2000;
 
     if (attemptCount >= maxAttempts) {
       console.log('[ProfilePage] Max tentativas de setup excedidas');
@@ -123,7 +139,6 @@ export default function ProfilePage() {
         return userData;
       }
 
-      // Perfil ainda não existe, aguardar e tentar novamente
       console.log(
         `[ProfilePage] Perfil ainda não criado, tentativa ${attemptCount + 1}/${maxAttempts}`
       );
@@ -154,7 +169,6 @@ export default function ProfilePage() {
   // Função otimizada para buscar perfil do usuário
   const fetchUserProfile = useCallback(
     async (targetUsername) => {
-      // Prevenir múltiplas chamadas para o mesmo username
       if (
         lastFetchedUsername.current === targetUsername &&
         fetchAttempts.current > 0
@@ -163,7 +177,6 @@ export default function ProfilePage() {
         return;
       }
 
-      // Limitar tentativas de busca
       if (fetchAttempts.current >= 3) {
         console.log(
           '[ProfilePage] Limite de tentativas excedido para:',
@@ -185,7 +198,6 @@ export default function ProfilePage() {
       lastFetchedUsername.current = targetUsername;
       fetchAttempts.current += 1;
 
-      // Reset do estado
       setPageState((prev) => ({
         ...prev,
         loading: true,
@@ -209,12 +221,12 @@ export default function ProfilePage() {
       }
 
       try {
-        // Primeiro, tentar buscar por username (case-insensitive)
+        // Buscar por username
         const usersRef = collection(db, 'users_public');
         const q = query(
           usersRef,
           where('username', '==', targetUsername.toLowerCase()),
-          limit(1) // Limitar a 1 resultado para performance
+          limit(1)
         );
 
         console.log(
@@ -224,7 +236,6 @@ export default function ProfilePage() {
         const querySnapshot = await getDocs(q);
 
         if (!querySnapshot.empty) {
-          // Usuário encontrado por username
           const userDoc = querySnapshot.docs[0];
           const userData = { id: userDoc.id, ...userDoc.data() };
 
@@ -233,7 +244,6 @@ export default function ProfilePage() {
             userData
           );
 
-          // Inicializar store
           initialize(userData);
           if (currentUser) {
             setCurrentUser(currentUser);
@@ -253,7 +263,7 @@ export default function ProfilePage() {
           targetUsername
         );
 
-        // Verificar se é um UID válido (28 caracteres alfanuméricos)
+        // Verificar se é um UID válido
         const isValidUid = /^[a-zA-Z0-9]{20,}$/.test(targetUsername);
 
         if (isValidUid) {
@@ -268,7 +278,6 @@ export default function ProfilePage() {
             const userData = { id: userDocSnap.id, ...userDocSnap.data() };
             console.log('[ProfilePage] Usuário encontrado por ID:', userData);
 
-            // Redirecionar para o username correto se disponível
             if (userData.username && userData.username !== targetUsername) {
               console.log(
                 '[ProfilePage] Redirecionando para username correto:',
@@ -293,7 +302,7 @@ export default function ProfilePage() {
           }
         }
 
-        // Se chegou aqui e é o usuário atual tentando acessar seu próprio perfil
+        // Se é o usuário atual tentando acessar próprio perfil
         if (
           currentUser &&
           (targetUsername === currentUser.uid ||
@@ -303,11 +312,9 @@ export default function ProfilePage() {
             '[ProfilePage] Usuário atual tentando acessar próprio perfil não criado'
           );
 
-          // Verificar se o perfil está sendo criado
           const profileData = await checkProfileSetup(currentUser.uid);
 
           if (profileData) {
-            // Perfil foi criado, redirecionar para o username correto
             if (profileData.username) {
               navigate(`/profile/${profileData.username}`, { replace: true });
             } else {
@@ -355,9 +362,8 @@ export default function ProfilePage() {
     ]
   );
 
-  // Effect principal - executado quando username muda
+  // Effect principal
   useEffect(() => {
-    // Reset de controle quando username muda
     if (username !== lastFetchedUsername.current) {
       fetchAttempts.current = 0;
     }
@@ -375,7 +381,6 @@ export default function ProfilePage() {
       });
     }
 
-    // Cleanup
     return () => {
       if (setupCheckTimeout.current) {
         clearTimeout(setupCheckTimeout.current);
@@ -395,14 +400,9 @@ export default function ProfilePage() {
     };
   }, []);
 
-  // Verificar se o usuário logado é o dono do perfil
-  const isOwner = useMemo(() => {
-    return currentUser?.uid === form?.id;
-  }, [currentUser?.uid, form?.id]);
-
   // Função para retry
   const handleRetry = useCallback(() => {
-    fetchAttempts.current = 0; // Reset attempts
+    fetchAttempts.current = 0;
     if (username) {
       fetchUserProfile(username);
     }
@@ -452,7 +452,6 @@ export default function ProfilePage() {
   return (
     <main className="max-w-2xl mx-auto my-4 md:my-8 px-4">
       <div className="space-y-4">
-        {/* Header do perfil */}
         <ProfileHeader
           profileData={form}
           editing={editing}
@@ -465,14 +464,12 @@ export default function ProfilePage() {
           onHandleCancel={handleCancel}
         />
 
-        {/* Bio do perfil */}
         <ProfileBio
           profileData={form}
           editing={editing}
           onHandleChange={handleChange}
         />
 
-        {/* Galeria do perfil */}
         <ProfileGallery
           profileData={form}
           editing={editing}

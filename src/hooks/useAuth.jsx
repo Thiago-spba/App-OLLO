@@ -1,9 +1,9 @@
 // ARQUIVO CORRIGIDO: src/hooks/useAuth.jsx
-// Versão sem criação automática de perfil (deixa para Cloud Function)
+// Versão com detecção correta de emailVerified
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  onIdTokenChanged,
+  onAuthStateChanged,
   sendEmailVerification,
   reload,
   signOut,
@@ -28,14 +28,15 @@ const useAuthLogic = () => {
   const [authError, setAuthError] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
 
-  // Ref para controlar se já está buscando perfil
+  // Refs para controle
   const fetchingProfile = useRef(false);
   const lastFetchedUid = useRef(null);
+  const emailVerificationCheck = useRef(null);
 
   // Função para aguardar criação do perfil pela Cloud Function
   const waitForProfile = useCallback(async (uid, maxAttempts = 5) => {
     let attempts = 0;
-    const delay = 2000; // 2 segundos entre tentativas
+    const delay = 2000;
 
     while (attempts < maxAttempts) {
       try {
@@ -73,10 +74,7 @@ const useAuthLogic = () => {
   // Função centralizada para buscar e combinar dados do usuário
   const fetchAndCombineUserData = useCallback(
     async (firebaseUser) => {
-      // Se não há usuário autenticado, retorna null
-      if (!firebaseUser) {
-        return null;
-      }
+      if (!firebaseUser) return null;
 
       // Evitar buscar múltiplas vezes para o mesmo usuário
       if (
@@ -102,12 +100,9 @@ const useAuthLogic = () => {
           firestoreData = publicDocSnap.data();
           console.log('[useAuth] Perfil encontrado:', firestoreData.username);
         } else {
-          // Perfil não existe ainda - aguardar Cloud Function criar
           console.log(
             '[useAuth] Perfil não encontrado, aguardando Cloud Function...'
           );
-
-          // Aguardar a Cloud Function criar o perfil
           const profileData = await waitForProfile(firebaseUser.uid);
 
           if (profileData) {
@@ -117,24 +112,22 @@ const useAuthLogic = () => {
               firestoreData.username
             );
           } else {
-            // Se ainda não existe após aguardar, retornar apenas dados básicos
             console.warn('[useAuth] Perfil não foi criado após aguardar');
-            // NÃO criar perfil aqui - deixar para Cloud Function ou processo manual
           }
         }
 
-        // Combina os dados da autenticação com os dados do Firestore
+        // Combina os dados - IMPORTANTE: usar dados ATUAIS do Firebase Auth
         const combinedUser = {
           uid: firebaseUser.uid,
           email: firebaseUser.email,
-          emailVerified: firebaseUser.emailVerified,
+          emailVerified: firebaseUser.emailVerified, // SEMPRE do Firebase Auth atual
           displayName: firebaseUser.displayName,
           photoURL: firebaseUser.photoURL,
-          // Dados do Firestore (se existirem)
+          // Dados do Firestore
           ...firestoreData,
           // Garantir que alguns campos sempre existam
           avatarUrl: firestoreData.avatarUrl || firebaseUser.photoURL || null,
-          username: firestoreData.username || null, // Importante: pode ser null
+          username: firestoreData.username || null,
           name:
             firestoreData.name ||
             firebaseUser.displayName ||
@@ -145,11 +138,12 @@ const useAuthLogic = () => {
       } catch (error) {
         console.error('[useAuth] Erro ao buscar dados do Firestore:', error);
         toast.error(ERROR_MESSAGES.PROFILE_LOAD);
+
         // Em caso de erro, retorna o usuário básico da autenticação
         return {
           uid: firebaseUser.uid,
           email: firebaseUser.email,
-          emailVerified: firebaseUser.emailVerified,
+          emailVerified: firebaseUser.emailVerified, // SEMPRE do Firebase Auth atual
           displayName: firebaseUser.displayName,
           photoURL: firebaseUser.photoURL,
           username: null,
@@ -163,9 +157,51 @@ const useAuthLogic = () => {
     [waitForProfile]
   );
 
+  // Função para forçar reload e atualizar estado
+  const forceReloadUser = useCallback(async () => {
+    const user = auth.currentUser;
+    if (!user) return null;
+
+    try {
+      console.log('[useAuth] Forçando reload do usuário...');
+      await reload(user);
+
+      // Buscar dados atualizados
+      const fullUser = await fetchAndCombineUserData(user);
+      setCurrentUser(fullUser);
+
+      console.log(
+        '[useAuth] Usuário recarregado. EmailVerified:',
+        user.emailVerified
+      );
+      return fullUser;
+    } catch (error) {
+      console.error('[useAuth] Erro ao recarregar usuário:', error);
+      if (
+        error.code === 'auth/user-token-expired' ||
+        error.code === 'auth/invalid-user-token'
+      ) {
+        toast.error(ERROR_MESSAGES.SESSION_EXPIRED);
+        await logout();
+      } else {
+        toast.error(ERROR_MESSAGES.RELOAD_USER);
+      }
+      return null;
+    }
+  }, [fetchAndCombineUserData]);
+
+  // Effect principal - MUDANÇA CRÍTICA: usar onAuthStateChanged
   useEffect(() => {
     setLoading(true);
-    const unsubscribe = onIdTokenChanged(auth, async (user) => {
+
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      console.log(
+        '[useAuth] Estado de autenticação mudou:',
+        user
+          ? `User: ${user.email}, EmailVerified: ${user.emailVerified}`
+          : 'Sem usuário'
+      );
+
       if (user) {
         const fullUser = await fetchAndCombineUserData(user);
         setCurrentUser(fullUser);
@@ -176,11 +212,67 @@ const useAuthLogic = () => {
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      if (emailVerificationCheck.current) {
+        clearInterval(emailVerificationCheck.current);
+      }
+    };
   }, [fetchAndCombineUserData]);
+
+  // Monitoramento periódico de verificação de email para usuários não verificados
+  useEffect(() => {
+    if (currentUser && !currentUser.emailVerified) {
+      console.log(
+        '[useAuth] Iniciando monitoramento de verificação de email...'
+      );
+
+      emailVerificationCheck.current = setInterval(async () => {
+        const user = auth.currentUser;
+        if (user && !user.emailVerified) {
+          console.log('[useAuth] Verificando status de email...');
+          try {
+            await reload(user);
+            if (user.emailVerified) {
+              console.log('[useAuth] Email verificado detectado!');
+              const fullUser = await fetchAndCombineUserData(user);
+              setCurrentUser(fullUser);
+
+              // Parar monitoramento
+              if (emailVerificationCheck.current) {
+                clearInterval(emailVerificationCheck.current);
+                emailVerificationCheck.current = null;
+              }
+            }
+          } catch (error) {
+            console.error('[useAuth] Erro ao verificar email:', error);
+          }
+        }
+      }, 5000); // Verificar a cada 5 segundos
+    } else {
+      // Parar monitoramento se email já verificado
+      if (emailVerificationCheck.current) {
+        clearInterval(emailVerificationCheck.current);
+        emailVerificationCheck.current = null;
+      }
+    }
+
+    return () => {
+      if (emailVerificationCheck.current) {
+        clearInterval(emailVerificationCheck.current);
+        emailVerificationCheck.current = null;
+      }
+    };
+  }, [currentUser, fetchAndCombineUserData]);
 
   const logout = useCallback(async () => {
     try {
+      // Parar monitoramento
+      if (emailVerificationCheck.current) {
+        clearInterval(emailVerificationCheck.current);
+        emailVerificationCheck.current = null;
+      }
+
       await signOut(auth);
       setCurrentUser(null);
       lastFetchedUid.current = null;
@@ -193,36 +285,13 @@ const useAuthLogic = () => {
   }, []);
 
   const reloadCurrentUser = useCallback(async () => {
-    const user = auth.currentUser;
-    if (!user) return null;
-
-    try {
-      await reload(user);
-      // Forçar refetch dos dados do Firestore
-      lastFetchedUid.current = null;
-      const fullUser = await fetchAndCombineUserData(user);
-      setCurrentUser(fullUser);
-      return fullUser;
-    } catch (error) {
-      console.error('[useAuth] Falha na sincronização do usuário:', error);
-      if (
-        error.code === 'auth/user-token-expired' ||
-        error.code === 'auth/invalid-user-token'
-      ) {
-        toast.error(ERROR_MESSAGES.SESSION_EXPIRED);
-        await logout();
-      } else {
-        toast.error(ERROR_MESSAGES.RELOAD_USER);
-      }
-      return null;
-    }
-  }, [logout, fetchAndCombineUserData]);
+    return await forceReloadUser();
+  }, [forceReloadUser]);
 
   const loginWithEmail = useCallback(async (email, password) => {
     try {
       const result = await firebaseAuthenticator.login(email, password);
       if (result.success) {
-        // Limpar cache para forçar busca do perfil
         lastFetchedUid.current = null;
       }
       return result;
@@ -244,17 +313,10 @@ const useAuthLogic = () => {
 
         if (result.success) {
           const user = result.user;
-
-          // Enviar email de verificação
           await sendEmailVerification(user);
-
-          // NÃO criar perfil aqui - deixar para Cloud Function
-          // A Cloud Function onnewusercreated será acionada automaticamente
-
           toast.success(
             'Conta criada! Verifique seu email para ativar sua conta.'
           );
-
           return { success: true, user };
         } else {
           throw result.error;
@@ -306,8 +368,8 @@ const useAuthLogic = () => {
     resetPassword,
     resendVerificationEmail,
     reloadCurrentUser,
+    forceReloadUser, // Nova função exposta
   };
 };
 
-// IMPORTANTE: Exportar como default para evitar conflito com o contexto
 export default useAuthLogic;

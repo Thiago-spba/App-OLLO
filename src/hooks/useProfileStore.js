@@ -1,4 +1,5 @@
-// ARQUIVO COMPLETO E CORRIGIDO: src/hooks/useProfileStore.js
+// ARQUIVO CORRIGIDO: src/stores/useProfileStore.js
+// Versão com upload e salvamento funcionando
 
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
@@ -15,7 +16,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { v4 as uuidv4 } from 'uuid';
 import { toast } from 'react-hot-toast';
 
-// Estado inicial limpo e consistente
+// Estado inicial limpo
 const initialState = {
   currentUser: null,
   initialProfileData: null,
@@ -33,7 +34,16 @@ export const useProfileStore = create(
   immer((set, get) => ({
     ...initialState,
 
-    // --- AÇÕES BÁSICAS ---
+    // --- CONFIGURAÇÃO ---
+    setReloadAuthUser: (reloadFn) => {
+      console.log('[ProfileStore] Função de reload do auth configurada');
+      set({ _reloadAuthUser: reloadFn });
+    },
+
+    setCurrentUser: (user) => {
+      console.log('[ProfileStore] Usuário atual definido:', user?.uid);
+      set({ currentUser: user });
+    },
 
     reset: () => {
       console.log('[ProfileStore] Reset do store executado');
@@ -42,11 +52,7 @@ export const useProfileStore = create(
       set(initialState);
     },
 
-    setReloadAuthUser: (reloadFn) => {
-      console.log('[ProfileStore] Função de reload do auth configurada');
-      set({ _reloadAuthUser: reloadFn });
-    },
-
+    // --- LIMPEZA DE PREVIEWS ---
     cleanupPreviews: (type) => {
       const { form } = get();
       if (!form) return;
@@ -55,7 +61,7 @@ export const useProfileStore = create(
         if (preview && preview.startsWith('blob:')) {
           try {
             URL.revokeObjectURL(preview);
-            console.log('[ProfileStore] Preview URL limpa:', preview.substring(0, 50));
+            console.log('[ProfileStore] Preview limpa:', preview.substring(0, 30));
           } catch (error) {
             console.warn('[ProfileStore] Erro ao limpar preview:', error);
           }
@@ -70,8 +76,7 @@ export const useProfileStore = create(
       }
     },
 
-    // --- INICIALIZAÇÃO E CONFIGURAÇÃO ---
-
+    // --- INICIALIZAÇÃO ---
     initialize: (profileData) => {
       console.log('[ProfileStore] Inicializando com dados:', profileData?.username);
       
@@ -114,13 +119,7 @@ export const useProfileStore = create(
       }
     },
 
-    setCurrentUser: (user) => {
-      console.log('[ProfileStore] Usuário atual definido:', user?.uid);
-      set({ currentUser: user });
-    },
-
     // --- AÇÕES DE EDIÇÃO ---
-
     handleEdit: () => {
       console.log('[ProfileStore] Modo de edição ativado');
       set({ editing: true, error: '', success: '' });
@@ -157,13 +156,14 @@ export const useProfileStore = create(
       });
     },
 
+    // --- MANIPULAÇÃO DE ARQUIVOS ---
     handleFileChange: (e, fileType) => {
       const file = e.target.files?.[0];
       if (!file) return;
 
       console.log('[ProfileStore] Arquivo selecionado:', fileType, file.name, file.size);
 
-      // Validações de arquivo
+      // Validações
       if (!file.type.startsWith('image/')) {
         toast.error('Por favor, selecione um arquivo de imagem.');
         return;
@@ -196,74 +196,38 @@ export const useProfileStore = create(
       }
     },
 
-    // --- UPLOAD DE MÍDIA (CORRIGIDO) ---
-    handleMediaUpload: async (file) => {
-      const { currentUser, form } = get();
+    // --- UPLOAD INDIVIDUAL DE IMAGEM ---
+    uploadImage: async (file, path) => {
+      console.log('[ProfileStore] Iniciando upload:', path);
       
-      console.log('[ProfileStore] Iniciando upload de mídia:', file.name);
-      
-      if (!currentUser) {
-        const error = 'Usuário não autenticado para upload';
-        console.error('[ProfileStore]', error);
-        toast.error('Você precisa estar logado para fazer upload.');
-        throw new Error(error);
-      }
-
       try {
-        const fileExtension = file.name.split('.').pop() || 'jpg';
-        const fileName = `${uuidv4()}.${fileExtension}`;
-        const mediaPath = `gallery/${currentUser.uid}/${fileName}`;
-        const mediaRef = ref(storage, mediaPath);
+        const imageRef = ref(storage, path);
         
-        console.log('[ProfileStore] Fazendo upload para:', mediaPath);
+        // Upload do arquivo
+        const uploadResult = await uploadBytes(imageRef, file);
+        console.log('[ProfileStore] Upload concluído para:', path);
         
-        // Upload para Storage
-        await uploadBytes(mediaRef, file);
-        const downloadURL = await getDownloadURL(mediaRef);
+        // Obter URL de download
+        const downloadURL = await getDownloadURL(uploadResult.ref);
+        console.log('[ProfileStore] URL obtida:', downloadURL.substring(0, 50) + '...');
         
-        console.log('[ProfileStore] Upload concluído, URL:', downloadURL.substring(0, 50));
-        
-        // Preparar dados da mídia
-        const mediaData = {
-          url: downloadURL,
-          type: file.type,
-          path: mediaPath,
-          privacy: 'public',
-          createdAt: serverTimestamp(),
-          userId: currentUser.uid,
-          username: form?.username || 'unknown',
-          fileName: file.name,
-          size: file.size,
-        };
-        
-        // Salvar metadados no Firestore
-        const mediaCollectionRef = collection(db, 'users_public', currentUser.uid, 'media');
-        const docRef = await addDoc(mediaCollectionRef, mediaData);
-        
-        console.log('[ProfileStore] Mídia salva no Firestore:', docRef.id);
-        
-        return {
-          id: docRef.id,
-          url: downloadURL,
-          ...mediaData
-        };
-        
+        return downloadURL;
       } catch (error) {
-        console.error('[ProfileStore] Erro no upload de mídia:', error);
+        console.error('[ProfileStore] Erro no upload:', error);
         
-        if (error.code === 'permission-denied') {
-          toast.error('Sem permissão para upload. Verifique se está logado.');
-        } else if (error.code === 'storage/unauthorized') {
-          toast.error('Não autorizado para upload de arquivos.');
-        } else {
-          toast.error('Erro no upload. Tente novamente.');
+        if (error.code === 'storage/unauthorized') {
+          throw new Error('Não autorizado para upload. Verifique suas permissões.');
+        } else if (error.code === 'storage/canceled') {
+          throw new Error('Upload cancelado.');
+        } else if (error.code === 'storage/unknown') {
+          throw new Error('Erro desconhecido no upload. Tente novamente.');
         }
         
         throw error;
       }
     },
 
-    // --- SALVAMENTO DE PERFIL (CORRIGIDO) ---
+    // --- SALVAMENTO PRINCIPAL ---
     handleSave: async () => {
       const { 
         currentUser, 
@@ -277,14 +241,19 @@ export const useProfileStore = create(
       console.log('[ProfileStore] Iniciando salvamento do perfil');
       
       // Validações críticas
-      if (!currentUser || !form) {
-        console.error('[ProfileStore] Dados ausentes para salvamento');
-        return toast.error('Não foi possível salvar, dados do usuário ausentes.');
+      if (!currentUser) {
+        console.error('[ProfileStore] Usuário não autenticado');
+        return toast.error('Você precisa estar logado para salvar o perfil.');
+      }
+      
+      if (!form) {
+        console.error('[ProfileStore] Dados do formulário não disponíveis');
+        return toast.error('Dados do formulário não disponíveis.');
       }
       
       if (!_reloadAuthUser) {
-        console.error('[ProfileStore] Função de recarga do AuthContext não configurada');
-        return toast.error('Erro de configuração. Tente recarregar a página.');
+        console.error('[ProfileStore] Função de reload não configurada');
+        return toast.error('Configuração inválida. Recarregue a página.');
       }
 
       set({ loading: true, error: '', success: '' });
@@ -294,43 +263,33 @@ export const useProfileStore = create(
         let newAvatarUrl = initialProfileData?.avatarUrl || null;
         let newCoverUrl = initialProfileData?.coverUrl || null;
 
-        // Função auxiliar para upload de imagem
-        const uploadImage = async (file, path) => {
-          console.log('[ProfileStore] Fazendo upload de imagem:', path);
-          const imageRef = ref(storage, path);
-          await uploadBytes(imageRef, file);
-          const url = await getDownloadURL(imageRef);
-          console.log('[ProfileStore] Upload concluído:', url.substring(0, 50));
-          return url;
-        };
-
-        // Upload de avatar se necessário
+        // Upload de avatar se selecionado
         if (avatarFile) {
           try {
-            newAvatarUrl = await uploadImage(
-              avatarFile, 
-              `avatars/${currentUser.uid}/${uuidv4()}.${avatarFile.name.split('.').pop()}`
-            );
+            console.log('[ProfileStore] Fazendo upload do avatar...');
+            const avatarPath = `avatars/${currentUser.uid}/${uuidv4()}.${avatarFile.name.split('.').pop()}`;
+            newAvatarUrl = await get().uploadImage(avatarFile, avatarPath);
+            console.log('[ProfileStore] Avatar salvo:', newAvatarUrl.substring(0, 50));
           } catch (error) {
             console.error('[ProfileStore] Erro no upload do avatar:', error);
-            throw new Error('Falha no upload do avatar');
+            throw new Error(`Falha no upload do avatar: ${error.message}`);
           }
         }
 
-        // Upload de cover se necessário
+        // Upload de capa se selecionado
         if (coverFile) {
           try {
-            newCoverUrl = await uploadImage(
-              coverFile, 
-              `covers/${currentUser.uid}/${uuidv4()}.${coverFile.name.split('.').pop()}`
-            );
+            console.log('[ProfileStore] Fazendo upload da capa...');
+            const coverPath = `covers/${currentUser.uid}/${uuidv4()}.${coverFile.name.split('.').pop()}`;
+            newCoverUrl = await get().uploadImage(coverFile, coverPath);
+            console.log('[ProfileStore] Capa salva:', newCoverUrl.substring(0, 50));
           } catch (error) {
             console.error('[ProfileStore] Erro no upload da capa:', error);
-            throw new Error('Falha no upload da capa');
+            throw new Error(`Falha no upload da capa: ${error.message}`);
           }
         }
 
-        // Preparar dados para salvamento
+        // Preparar dados para salvar
         const dataToSave = {
           name: form.name?.trim() || '',
           bio: form.bio?.trim() || '',
@@ -339,23 +298,25 @@ export const useProfileStore = create(
           updatedAt: serverTimestamp(),
         };
 
-        console.log('[ProfileStore] Salvando dados no Firestore:', Object.keys(dataToSave));
+        console.log('[ProfileStore] Salvando no Firestore:', Object.keys(dataToSave));
 
         // Salvar no Firestore
         const userDocRef = doc(db, 'users_public', currentUser.uid);
         await setDoc(userDocRef, dataToSave, { merge: true });
 
-        console.log('[ProfileStore] Dados salvos com sucesso no Firestore');
+        console.log('[ProfileStore] Dados salvos no Firestore com sucesso');
 
-        // Recarregar dados do usuário
+        // Recarregar dados do usuário autenticado
         try {
+          console.log('[ProfileStore] Recarregando dados do usuário...');
           await _reloadAuthUser();
           console.log('[ProfileStore] Dados do usuário recarregados');
         } catch (reloadError) {
-          console.warn('[ProfileStore] Erro ao recarregar usuário (não crítico):', reloadError);
+          console.warn('[ProfileStore] Aviso: Erro ao recarregar usuário:', reloadError);
+          // Não é crítico, continuar
         }
 
-        // Atualizar estado local
+        // Atualizar estado local com dados salvos
         const updatedProfileData = { 
           ...initialProfileData, 
           ...dataToSave,
@@ -363,6 +324,7 @@ export const useProfileStore = create(
           coverPreview: null,
         };
         
+        // Limpar previews e arquivos
         get().cleanupPreviews();
         
         set({
@@ -386,8 +348,10 @@ export const useProfileStore = create(
         
         if (error.code === 'permission-denied') {
           errorMessage = 'Sem permissão para salvar. Verifique sua autenticação.';
-        } else if (error.code === 'storage/unauthorized') {
-          errorMessage = 'Não autorizado para upload de imagens.';
+        } else if (error.message?.includes('avatar')) {
+          errorMessage = `Erro no upload do avatar: ${error.message}`;
+        } else if (error.message?.includes('capa')) {
+          errorMessage = `Erro no upload da capa: ${error.message}`;
         } else if (error.message) {
           errorMessage = error.message;
         }
@@ -398,6 +362,73 @@ export const useProfileStore = create(
         });
         
         toast.error(errorMessage, { id: toastId });
+      }
+    },
+
+    // --- UPLOAD DE MÍDIA PARA GALERIA ---
+    handleMediaUpload: async (file) => {
+      const { currentUser, form } = get();
+      
+      console.log('[ProfileStore] Iniciando upload de mídia para galeria:', file.name);
+      
+      if (!currentUser) {
+        const error = 'Usuário não autenticado para upload';
+        console.error('[ProfileStore]', error);
+        toast.error('Você precisa estar logado para fazer upload.');
+        throw new Error(error);
+      }
+
+      try {
+        const fileExtension = file.name.split('.').pop() || 'jpg';
+        const fileName = `${uuidv4()}.${fileExtension}`;
+        const mediaPath = `gallery/${currentUser.uid}/${fileName}`;
+        
+        console.log('[ProfileStore] Fazendo upload para galeria:', mediaPath);
+        
+        // Upload para Storage
+        const downloadURL = await get().uploadImage(file, mediaPath);
+        
+        console.log('[ProfileStore] Upload da galeria concluído:', downloadURL.substring(0, 50));
+        
+        // Preparar dados da mídia
+        const mediaData = {
+          url: downloadURL,
+          type: file.type,
+          path: mediaPath,
+          privacy: 'public', // Por padrão público
+          createdAt: serverTimestamp(),
+          userId: currentUser.uid,
+          username: form?.username || 'unknown',
+          fileName: file.name,
+          size: file.size,
+        };
+        
+        // Salvar metadados no Firestore
+        const mediaCollectionRef = collection(db, 'users_public', currentUser.uid, 'media');
+        const docRef = await addDoc(mediaCollectionRef, mediaData);
+        
+        console.log('[ProfileStore] Mídia salva no Firestore:', docRef.id);
+        
+        toast.success('Mídia adicionada à galeria!');
+        
+        return {
+          id: docRef.id,
+          url: downloadURL,
+          ...mediaData
+        };
+        
+      } catch (error) {
+        console.error('[ProfileStore] Erro no upload de mídia para galeria:', error);
+        
+        if (error.code === 'permission-denied') {
+          toast.error('Sem permissão para upload. Verifique se está logado.');
+        } else if (error.code === 'storage/unauthorized') {
+          toast.error('Não autorizado para upload de arquivos.');
+        } else {
+          toast.error('Erro no upload. Tente novamente.');
+        }
+        
+        throw error;
       }
     },
   }))

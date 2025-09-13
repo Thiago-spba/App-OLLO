@@ -1,4 +1,5 @@
 // ARQUIVO CORRIGIDO: src/pages/VerifyEmailPage.jsx
+// Versão otimizada para o novo fluxo de verificação
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -10,10 +11,11 @@ import {
   CheckCircle,
   Warning,
   Clock,
+  ArrowLeft,
 } from '@phosphor-icons/react';
 
 const VerifyEmailPage = () => {
-  const { currentUser, logout, resendVerificationEmail, reloadCurrentUser } =
+  const { currentUser, logout, resendVerificationEmail, forceReloadUser } =
     useAuth();
   const navigate = useNavigate();
 
@@ -22,14 +24,13 @@ const VerifyEmailPage = () => {
   const [resendCooldown, setResendCooldown] = useState(0);
   const [checkingEmail, setCheckingEmail] = useState(false);
   const [checkCount, setCheckCount] = useState(0);
-  const [lastCheckTime, setLastCheckTime] = useState(null);
 
-  // Refs para controle de timers
+  // Refs para controle
   const intervalRef = useRef(null);
   const cooldownRef = useRef(null);
   const isUnmountedRef = useRef(false);
 
-  // Função para limpar todos os timers
+  // Função para limpar timers
   const cleanupTimers = useCallback(() => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
@@ -41,21 +42,12 @@ const VerifyEmailPage = () => {
     }
   }, []);
 
-  // Função segura para verificar status do email
+  // Função para verificar status do email
   const checkEmailVerification = useCallback(
     async (isManual = false) => {
-      // Prevenir verificações simultâneas ou após unmount
       if (checkingEmail || isUnmountedRef.current) return false;
 
-      // Throttle automático: mínimo 3 segundos entre verificações
-      const now = Date.now();
-      if (!isManual && lastCheckTime && now - lastCheckTime < 3000) {
-        console.log('[VerifyEmail] Verificação muito frequente, pulando');
-        return false;
-      }
-
       setCheckingEmail(true);
-      setLastCheckTime(now);
       setCheckCount((prev) => prev + 1);
 
       console.log(
@@ -63,7 +55,7 @@ const VerifyEmailPage = () => {
       );
 
       try {
-        const refreshedUser = await reloadCurrentUser();
+        const refreshedUser = await forceReloadUser();
 
         if (isUnmountedRef.current) return false;
 
@@ -71,27 +63,33 @@ const VerifyEmailPage = () => {
           console.log('[VerifyEmail] Email verificado com sucesso!');
           cleanupTimers();
 
-          toast.success('Email verificado com sucesso!', {
+          toast.success('Email verificado com sucesso! Redirecionando...', {
             duration: 3000,
-            style: { background: '#10B981', color: '#FFFFFF' },
+            style: {
+              background: '#10B981',
+              color: '#FFFFFF',
+              fontSize: '16px',
+              fontWeight: '600',
+            },
           });
 
-          // Delay antes de navegar para mostrar o toast
+          // Delay antes de navegar
           setTimeout(() => {
             if (!isUnmountedRef.current) {
               navigate('/', { replace: true });
             }
-          }, 1500);
+          }, 2000);
 
           return true;
         } else {
           console.log('[VerifyEmail] Email ainda não verificado');
           if (isManual) {
             toast(
-              'Email ainda não verificado. Verifique sua caixa de entrada.',
+              'Email ainda não verificado. Verifique sua caixa de entrada e spam.',
               {
                 icon: '📧',
                 duration: 4000,
+                style: { fontSize: '14px' },
               }
             );
           }
@@ -102,19 +100,6 @@ const VerifyEmailPage = () => {
         if (isManual) {
           toast.error('Erro ao verificar status do email. Tente novamente.');
         }
-
-        // Em caso de erro repetido, aumentar intervalo de verificação
-        if (checkCount > 5) {
-          console.log(
-            '[VerifyEmail] Muitos erros, reduzindo frequência de verificação'
-          );
-          cleanupTimers();
-          // Reagendar com intervalo maior
-          intervalRef.current = setInterval(
-            () => checkEmailVerification(),
-            15000
-          );
-        }
       } finally {
         if (!isUnmountedRef.current) {
           setCheckingEmail(false);
@@ -123,14 +108,7 @@ const VerifyEmailPage = () => {
 
       return false;
     },
-    [
-      checkingEmail,
-      lastCheckTime,
-      checkCount,
-      reloadCurrentUser,
-      navigate,
-      cleanupTimers,
-    ]
+    [checkingEmail, checkCount, forceReloadUser, navigate, cleanupTimers]
   );
 
   // Gerenciar cooldown do reenvio
@@ -155,7 +133,7 @@ const VerifyEmailPage = () => {
     console.log('[VerifyEmail] Inicializando página de verificação');
     isUnmountedRef.current = false;
 
-    // Verificar redirecionamentos necessários
+    // Verificar redirecionamentos
     if (currentUser?.emailVerified) {
       console.log('[VerifyEmail] Usuário já verificado, redirecionando');
       navigate('/', { replace: true });
@@ -170,34 +148,25 @@ const VerifyEmailPage = () => {
       return;
     }
 
-    // Toast inicial apenas uma vez
+    // Toast inicial
     toast('Verifique sua caixa de entrada e pasta de spam', {
-      duration: 5000,
+      duration: 6000,
       icon: '📧',
+      style: { fontSize: '14px' },
     });
 
-    // Primeira verificação após 2 segundos
+    // Primeira verificação após 3 segundos
     const initialCheckTimeout = setTimeout(() => {
       if (!isUnmountedRef.current) {
         checkEmailVerification();
       }
-    }, 2000);
-
-    // Configurar polling com intervalo maior (10 segundos)
-    const pollingTimeout = setTimeout(() => {
-      if (!isUnmountedRef.current) {
-        intervalRef.current = setInterval(() => {
-          checkEmailVerification();
-        }, 10000);
-      }
-    }, 5000);
+    }, 3000);
 
     // Cleanup
     return () => {
       console.log('[VerifyEmail] Cleanup da página');
       isUnmountedRef.current = true;
       clearTimeout(initialCheckTimeout);
-      clearTimeout(pollingTimeout);
       cleanupTimers();
     };
   }, [currentUser, navigate, checkEmailVerification, cleanupTimers]);
@@ -213,11 +182,12 @@ const VerifyEmailPage = () => {
       const result = await resendVerificationEmail();
 
       if (result?.success) {
-        toast.success('Email de verificação reenviado!', { duration: 4000 });
+        toast.success('Email de verificação reenviado com sucesso!', {
+          duration: 4000,
+          style: { fontSize: '14px' },
+        });
         startResendCooldown();
-
-        // Reset contador de verificações após reenvio
-        setCheckCount(0);
+        setCheckCount(0); // Reset contador
       } else {
         toast.error('Erro ao reenviar email. Tente novamente.');
       }
@@ -261,6 +231,11 @@ const VerifyEmailPage = () => {
       checkEmailVerification(true);
     }
   }, [checkingEmail, checkEmailVerification]);
+
+  // Voltar para home (mesmo sem verificar)
+  const handleGoBack = useCallback(() => {
+    navigate('/', { replace: true });
+  }, [navigate]);
 
   // Loading se usuário não carregado
   if (!currentUser) {
@@ -327,11 +302,11 @@ const VerifyEmailPage = () => {
               </span>
             </div>
             <p className="text-xs text-blue-600 dark:text-blue-400">
-              Verificação automática a cada 10 segundos
+              Sistema verifica automaticamente
             </p>
             {checkCount > 0 && (
               <p className="text-xs text-blue-500 mt-1">
-                Tentativas: {checkCount}
+                Verificações: {checkCount}
               </p>
             )}
           </div>
@@ -348,14 +323,14 @@ const VerifyEmailPage = () => {
               {checkingEmail ? 'Verificando...' : 'Já verifiquei'}
             </button>
 
-            {/* Botões de reenvio e logout */}
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            {/* Linha de botões */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 onClick={handleResendEmail}
                 disabled={isResending || resendCooldown > 0}
-                className="flex-1 px-6 py-3 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-full flex items-center justify-center gap-2 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                className="px-4 py-3 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-full flex items-center justify-center gap-2 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
-                <EnvelopeSimple size={20} weight="bold" />
+                <EnvelopeSimple size={18} weight="bold" />
                 {isResending
                   ? 'Enviando...'
                   : resendCooldown > 0
@@ -365,26 +340,33 @@ const VerifyEmailPage = () => {
 
               <button
                 onClick={handleLogoutAndRedirect}
-                className="flex-1 px-6 py-3 text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-full flex items-center justify-center gap-2 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                className="px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-full flex items-center justify-center gap-2 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
               >
-                <SignOut size={20} weight="bold" />
+                <SignOut size={18} weight="bold" />
                 Sair
               </button>
             </div>
+
+            {/* Botão para voltar */}
+            <button
+              onClick={handleGoBack}
+              className="w-full px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 flex items-center justify-center gap-2 transition-colors duration-200"
+            >
+              <ArrowLeft size={16} />
+              Continuar sem verificar (não recomendado)
+            </button>
           </div>
 
           {/* Dicas */}
           <div className="text-xs text-gray-500 dark:text-gray-400 space-y-2">
             <div className="bg-yellow-50 dark:bg-yellow-900/20 p-3 rounded-lg border border-yellow-200 dark:border-yellow-800">
-              <p>
-                <strong>💡 Dica:</strong> Verifique sua pasta de spam
-              </p>
-              <p>
-                <strong>🔄 Reenvio:</strong> Disponível a cada 60 segundos
-              </p>
-              <p>
-                <strong>⚡ Automático:</strong> Verificação a cada 10 segundos
-              </p>
+              <p className="font-medium mb-2">📌 Instruções:</p>
+              <ul className="text-left space-y-1">
+                <li>• Verifique sua pasta de spam</li>
+                <li>• O link pode demorar alguns minutos</li>
+                <li>• Após clicar no link, volte aqui</li>
+                <li>• Use "Já verifiquei" para verificar</li>
+              </ul>
             </div>
           </div>
         </div>
