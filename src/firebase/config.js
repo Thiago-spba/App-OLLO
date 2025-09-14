@@ -81,3 +81,13 @@ if (import.meta.env.DEV) {
   setupDevEnvironment();
   applyCorsFix();
 }
+
+// ADIÇÃO: Configurações específicas para produção
+if (import.meta.env.PROD) {
+  import('./prodConfig.js').then(({ setupProductionEnvironment, setupProductionMonitoring }) => {
+    setupProductionEnvironment();
+    setupProductionMonitoring();
+  }).catch(error => {
+    console.warn('[OLLO] Erro ao carregar configurações de produção:', error);
+  });
+}
