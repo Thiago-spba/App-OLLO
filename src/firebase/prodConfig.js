@@ -7,7 +7,7 @@
  * 2. Implementa fallbacks para diferentes cenários de hospedagem
  * 3. Garante compatibilidade com diferentes provedores de hosting
  * 
- * @version 2.0
+ * @version 2.1 - Fix CORS credentials
  * @author OLLO Team
  */
 
@@ -30,6 +30,7 @@ const AUTHORIZED_DOMAINS = [
   // Adicione aqui o domínio da sua hospedagem atual
   currentDomain
 ].filter(Boolean);
+
 /**
  * Configuração robusta para ambiente de produção
  * Elimina problemas de CORS e otimiza performance
@@ -96,11 +97,11 @@ function applyProductionCorsFix() {
         ...init.headers
       };
       
-      // Configurações otimizadas
+      // Configurações otimizadas - CORREÇÃO: sem credentials para evitar CORS
       const enhancedInit = {
         ...init,
         mode: 'cors',
-        credentials: 'include',
+        credentials: 'same-origin', // CORREÇÃO: mudado de 'include' para 'same-origin'
         headers: enhancedHeaders,
         redirect: 'follow'
       };
@@ -196,7 +197,7 @@ function applyFallbackConfig() {
       
       if (typeof url === 'string' && url.includes('firebase')) {
         init.mode = 'cors';
-        init.credentials = 'include';
+        init.credentials = 'same-origin'; // CORREÇÃO: fallback também usa same-origin
         init.headers = {
           'Content-Type': 'application/json',
           ...init.headers
