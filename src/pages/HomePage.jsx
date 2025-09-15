@@ -1,4 +1,5 @@
 // ARQUIVO: src/pages/HomePage.jsx
+// VERSÃO CORRIGIDA - Resolve erro de permissões do Firestore
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -47,7 +48,7 @@ const RightSidebar = ({ navigate }) => {
 const mockStories = [];
 
 const HomePage = () => {
-  const { currentUser } = useAuth();
+  const { currentUser, loading } = useAuth(); // CORREÇÃO: Adicionar loading do useAuth
   const navigate = useNavigate();
   const [posts, setPosts] = useState([]);
   const [postsLoading, setPostsLoading] = useState(true);
@@ -57,22 +58,50 @@ const HomePage = () => {
   const [isCreateStoryModalOpen, setIsCreateStoryModalOpen] = useState(false);
   const [currentStory, setCurrentStory] = useState(null);
 
+  // CORREÇÃO: Função fetchPosts modificada para verificar autenticação
   const fetchPosts = useCallback(async () => {
+    // CORREÇÃO: Só buscar posts se o usuário estiver autenticado
+    if (!currentUser) {
+      console.log('[HomePage] Usuário não autenticado, não buscando posts');
+      setPostsLoading(false);
+      setPosts([]);
+      return;
+    }
+
     setPostsLoading(true);
     try {
+      console.log(
+        '[HomePage] Buscando posts para usuário autenticado:',
+        currentUser.uid
+      );
       const enrichedPosts = await getFeedPosts();
       setPosts(enrichedPosts);
     } catch (error) {
       console.error('Erro Crítico ao buscar feed:', error);
+
+      // CORREÇÃO: Melhor tratamento de erro
+      if (error.code === 'permission-denied') {
+        console.error(
+          '[HomePage] Erro de permissão - usuário pode não estar completamente autenticado'
+        );
+      }
       setPosts([]);
     } finally {
       setPostsLoading(false);
     }
-  }, []);
+  }, [currentUser]); // CORREÇÃO: Adicionar currentUser como dependência
 
+  // CORREÇÃO: useEffect modificado para aguardar autenticação
   useEffect(() => {
-    fetchPosts();
-  }, [fetchPosts]);
+    // CORREÇÃO: Só executar quando não estiver loading auth e houver usuário
+    if (!loading && currentUser) {
+      fetchPosts();
+    } else if (!loading && !currentUser) {
+      // Se não há usuário, limpar posts
+      setPosts([]);
+      setPostsLoading(false);
+    }
+  }, [fetchPosts, loading, currentUser]); // CORREÇÃO: Adicionar loading como dependência
 
   const handleAddNewPost = useCallback((newPost) => {
     setPosts((currentPosts) => [newPost, ...currentPosts]);
@@ -98,7 +127,7 @@ const HomePage = () => {
         }
       }
     },
-    [currentUser, navigate] // CORREÇÃO: A dependência 'posts' foi removida para otimização.
+    [currentUser, navigate, posts] // Manter posts como dependência aqui pois é necessário
   );
 
   const handleOpenModal = () =>
@@ -160,7 +189,17 @@ const HomePage = () => {
           onAddPost={handleAddNewPost}
         />
       )}
-      {/* O restante dos modais permanece igual */}
+
+      {isStoryModalOpen && (
+        <StoryModal
+          story={currentStory}
+          onClose={() => setIsStoryModalOpen(false)}
+        />
+      )}
+
+      {isCreateStoryModalOpen && (
+        <CreateStoryModal onClose={() => setIsCreateStoryModalOpen(false)} />
+      )}
     </div>
   );
 };
