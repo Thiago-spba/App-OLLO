@@ -19,7 +19,7 @@ export default function EmailVerificationBanner() {
     return null;
   }
 
-  // Função para enviar email de verificação - CORRIGIDA
+  // Função CORRIGIDA para enviar email (usa auth.currentUser)
   const sendVerificationEmail = async () => {
     if (sending) return;
 
@@ -28,12 +28,7 @@ export default function EmailVerificationBanner() {
 
     try {
       console.log('[EmailVerification] Enviando email...');
-
-      // CORREÇÃO CRÍTICA: Usar auth.currentUser em vez de currentUser do contexto
-      if (!auth.currentUser) {
-        throw new Error('Usuário não autenticado no Firebase Auth');
-      }
-
+      // CORREÇÃO: usar auth.currentUser em vez de currentUser do contexto
       await sendEmailVerification(auth.currentUser);
       setMessage('Email enviado! Verifique sua caixa de entrada.');
       setLastSent(Date.now());
@@ -45,7 +40,7 @@ export default function EmailVerificationBanner() {
     }
   };
 
-  // Função para sincronizar status de verificação - NOVA
+  // NOVA FUNÇÃO: Sincronizar status via Cloud Function
   const syncVerificationStatus = async () => {
     if (syncing) return;
 
@@ -55,19 +50,8 @@ export default function EmailVerificationBanner() {
     try {
       console.log('[EmailVerification] Sincronizando status...');
 
-      // Primeiro, recarregar os dados do Firebase Auth
-      await forceReloadUser();
-
-      // Se ainda não foi verificado no Firebase Auth, não prosseguir
-      if (!auth.currentUser?.emailVerified) {
-        setMessage(
-          'Email ainda não foi verificado. Clique no link recebido por email primeiro.'
-        );
-        return;
-      }
-
-      // Chamar a Cloud Function para sincronizar com Firestore
-      const functions = getFunctions();
+      // Chamar Cloud Function de sincronização
+const functions = getFunctions(undefined, 'southamerica-east1');
       const syncFunction = httpsCallable(
         functions,
         'syncEmailVerificationStatus'
@@ -76,30 +60,27 @@ export default function EmailVerificationBanner() {
       const result = await syncFunction();
 
       if (result.data.success) {
-        setMessage('Status sincronizado! Recarregando página...');
-        // Recarregar a página para refletir as mudanças
-        setTimeout(() => {
-          window.location.reload();
-        }, 1500);
+        setMessage('Verificação sincronizada! Recarregando...');
+
+        // Forçar reload do usuário para pegar dados atualizados
+        setTimeout(async () => {
+          await forceReloadUser();
+          window.location.reload(); // Recarregar página para refletir mudanças
+        }, 1000);
       } else {
-        setMessage('Erro ao sincronizar status. Tente novamente.');
+        setMessage(
+          'Email ainda não foi verificado. Verifique sua caixa de entrada.'
+        );
       }
     } catch (error) {
       console.error('[EmailVerification] Erro na sincronização:', error);
-
-      if (error.code === 'functions/failed-precondition') {
-        setMessage(
-          'Email ainda não foi verificado. Clique no link do email primeiro.'
-        );
-      } else {
-        setMessage('Erro ao sincronizar. Tente recarregar a página.');
-      }
+      setMessage('Erro ao verificar. Tente novamente em alguns segundos.');
     } finally {
       setSyncing(false);
     }
   };
 
-  // Verificar cooldown de 1 minuto para reenvio
+  // Verificar cooldown de 1 minuto
   const canResend = !lastSent || Date.now() - lastSent > 60000;
 
   return (
@@ -143,21 +124,26 @@ export default function EmailVerificationBanner() {
                 </p>
               )}
 
-              <p className="text-xs mt-2 text-gray-600">
-                Já clicou no link do email?
+              {/* NOVA SEÇÃO: Verificação após clicar no link */}
+              <div className="mt-3 p-2 bg-blue-50 rounded border border-blue-200">
+                <p className="text-sm text-blue-800 mb-2">
+                  Já clicou no link do email?
+                </p>
                 <button
                   onClick={syncVerificationStatus}
                   disabled={syncing}
-                  className="ml-1 font-medium text-blue-600 underline hover:text-blue-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-sm font-medium py-2 px-4 rounded transition-colors"
                 >
                   {syncing ? 'Verificando...' : 'Clique aqui para verificar'}
                 </button>
-              </p>
+              </div>
 
               {message && (
                 <p
                   className={`text-xs mt-2 font-medium ${
-                    message.includes('Erro') ? 'text-red-600' : 'text-green-600'
+                    message.includes('Erro') || message.includes('ainda não')
+                      ? 'text-red-600'
+                      : 'text-green-600'
                   }`}
                 >
                   {message}
