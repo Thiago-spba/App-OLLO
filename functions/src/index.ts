@@ -1,5 +1,5 @@
 // Lógica completa de autenticação, criação de perfil e verificação de email personalizada.
-// VERSÃO CORRIGIDA - Previne loops e duplicações
+// VERSÃO CORRIGIDA - Previne loops e duplicações + SINCRONIZAÇÃO AUTOMÁTICA DE EMAIL
 
 import * as admin from "firebase-admin";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
@@ -331,6 +331,181 @@ export const onnewusercreated = functions
       // O usuário pode tentar fazer login novamente se necessário
     }
   });
+
+// ===================================================================================
+// 🔄 FUNÇÃO ALTERNATIVA: SINCRONIZAÇÃO MANUAL DE EMAIL VERIFICADO
+// ===================================================================================
+// Como Firebase Functions v1 não tem onUpdate para Auth, usamos uma função callable
+// que pode ser chamada pelo cliente quando o email for verificado
+
+export const syncEmailVerificationStatus = functions
+  .region("southamerica-east1")
+  .runWith({ timeoutSeconds: 30 })
+  .https.onCall(async (data, context) => {
+    // Verificar autenticação
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'Usuário não autenticado');
+    }
+
+    const { uid } = context.auth;
+
+    try {
+      // Buscar dados atuais do usuário no Auth
+      const userRecord = await admin.auth().getUser(uid);
+      
+      if (!userRecord.emailVerified) {
+        throw new functions.https.HttpsError('failed-precondition', 'Email ainda não foi verificado');
+      }
+
+      logger.info(`[EMAIL-VERIFIED] Sincronizando status para usuário ${uid}`);
+
+      const db = getFirestore();
+      
+      // Usar transação para atualizar ambos os documentos atomicamente
+      await db.runTransaction(async (transaction) => {
+        const privateRef = db.collection("users").doc(uid);
+        const publicRef = db.collection("users_public").doc(uid);
+        
+        // Verificar se os documentos existem
+        const [privateSnap, publicSnap] = await Promise.all([
+          transaction.get(privateRef),
+          transaction.get(publicRef)
+        ]);
+        
+        // Atualizar documento privado se existir
+        if (privateSnap.exists) {
+          transaction.update(privateRef, {
+            emailVerified: true,
+            updatedAt: FieldValue.serverTimestamp(),
+            emailVerifiedAt: FieldValue.serverTimestamp() // Timestamp da verificação
+          });
+          logger.info(`[EMAIL-VERIFIED] Documento privado atualizado para ${uid}`);
+        } else {
+          logger.warn(`[EMAIL-VERIFIED] Documento privado não encontrado para ${uid}`);
+        }
+
+        // Atualizar documento público se existir  
+        if (publicSnap.exists) {
+          transaction.update(publicRef, {
+            verified: true,
+            emailVerifiedAt: FieldValue.serverTimestamp()
+          });
+          logger.info(`[EMAIL-VERIFIED] Documento público atualizado para ${uid}`);
+        } else {
+          logger.warn(`[EMAIL-VERIFIED] Documento público não encontrado para ${uid}`);
+        }
+      });
+
+      logger.info(`[EMAIL-VERIFIED] ✅ Sincronização concluída com sucesso para usuário ${uid}`);
+
+      // Enviar email de confirmação da verificação
+      if (userRecord.email) {
+        await sendEmailVerificationConfirmation(userRecord);
+      }
+
+      return { 
+        success: true, 
+        message: "Status de verificação sincronizado com sucesso!" 
+      };
+
+    } catch (error) {
+      logger.error(`[EMAIL-VERIFIED] ❌ Erro ao sincronizar usuário ${uid}:`, {
+        error: error instanceof Error ? error.message : error,
+        stack: error instanceof Error ? error.stack : undefined,
+        uid
+      });
+      
+      if (error instanceof functions.https.HttpsError) {
+        throw error;
+      }
+      
+      throw new functions.https.HttpsError('internal', 'Erro ao sincronizar status de verificação');
+    }
+  });
+
+// ===================================================================================
+// 📧 FUNÇÃO AUXILIAR: EMAIL DE CONFIRMAÇÃO DA VERIFICAÇÃO
+// ===================================================================================
+async function sendEmailVerificationConfirmation(user: admin.auth.UserRecord): Promise<void> {
+  if (!user.email) return;
+
+  try {
+    logger.info(`[CONFIRMAÇÃO] Enviando email de confirmação para ${user.email}`);
+
+    const apiInstance = initBrevoApi();
+
+    const sendSmtpEmail = new Brevo.SendSmtpEmail({
+      subject: "✅ Email verificado com sucesso - OLLO",
+      htmlContent: `
+        <!DOCTYPE html>
+        <html lang="pt-br">
+        <head>
+            <meta charset="UTF-8">
+            <title>Email Verificado - OLLO</title>
+        </head>
+        <body style="margin: 0; padding: 0; background: linear-gradient(135deg, #a8edea 0%, #45c486 100%); min-height: 100vh; font-family: Arial, sans-serif;">
+            <div style="max-width: 480px; margin: 40px auto; background: #fff; border-radius: 18px; box-shadow: 0 6px 36px #3dd6a333, 0 1px 2px #0001; padding: 40px 28px 28px 28px; border: 1.5px solid #a8edea;">
+
+                <div style="display: flex; align-items: flex-start; gap: 18px; margin-bottom: 24px;">
+                    <img src="https://storage.googleapis.com/gweb-cloud-media-autogen/website-prd/images/20240728T105822-0/ollo_logo_new.png"
+                        alt="OLLO Logo" style="width: 60px; height: auto; border-radius: 7px; display: block; margin-top: 2px;">
+                    <div>
+                        <h2 style="color: #17925c; font-size: 20px; margin: 2px 0 8px 0; font-weight: bold; letter-spacing: 0.5px;">
+                            ✅ Email verificado, ${user.displayName || "usuário"}!</h2>
+                        <div style="font-size: 15px; color: #444; line-height: 1.6; margin-bottom: 0;">
+                            Sua conta foi ativada com sucesso!<br>
+                            Agora você tem acesso completo a todos os recursos do OLLO.
+                        </div>
+                    </div>
+                </div>
+
+                <div style="text-align: center; margin: 30px 0 20px 0;">
+                    <img src="https://storage.googleapis.com/gweb-cloud-media-autogen/website-prd/images/20240728T105822-0/ollo_eyes_new.png"
+                        alt="Olhos OLLO" style="width: 75px; max-width: 100%; height: auto;">
+                </div>
+
+                <div style="background: #f0fdf4; border-radius: 12px; padding: 20px; margin: 25px 0; border-left: 4px solid #22c55e;">
+                    <h3 style="color: #16a34a; margin: 0 0 12px; font-size: 16px; font-weight: bold;">🎉 Conta ativada com sucesso!</h3>
+                    <p style="color: #444; line-height: 1.6; font-size: 14px; margin: 0;">
+                        Sua conta está agora totalmente verificada e você pode aproveitar todos os recursos da plataforma OLLO.
+                    </p>
+                </div>
+
+                <div style="text-align: center; margin: 28px 0 8px 0;">
+                    <a href="https://olloapp.com.br"
+                        style="display: inline-block; background: linear-gradient(90deg, #3fd08a 0%, #28c4c0 100%); color: #fff; padding: 17px 40px; border-radius: 13px; text-decoration: none; font-size: 18px; font-weight: 700; box-shadow: 0 2px 12px #22b97633; transition: background 0.2s;">
+                        Acessar OLLO
+                    </a>
+                </div>
+
+                <p style="text-align: center; color: #aaa; font-size: 12px; margin-top: 30px; margin-bottom: 8px;">
+                    Obrigado por fazer parte da comunidade OLLO!
+                </p>
+                <p style="text-align: center; color: #aaa; font-size: 12px; margin: 0;">
+                    Equipe OLLO
+                </p>
+            </div>
+        </body>
+        </html>
+      `,
+      sender: SENDER_INFO,
+      to: [{ 
+        email: user.email, 
+        name: user.displayName || "Usuário OLLO" 
+      }],
+    });
+    
+    const response = await apiInstance.sendTransacEmail(sendSmtpEmail);
+    
+    logger.info(`[CONFIRMAÇÃO] Email de confirmação enviado para ${user.email}`, {
+      messageId: response.body?.messageId
+    });
+
+  } catch (error) {
+    logger.error(`[CONFIRMAÇÃO] Erro ao enviar email de confirmação para ${user.email}:`, error);
+    // Não lançar erro - é apenas um email de cortesia
+  }
+}
 
 // ===================================================================================
 // 📧 FUNÇÃO AUXILIAR PARA ENVIAR EMAIL DE BOAS-VINDAS

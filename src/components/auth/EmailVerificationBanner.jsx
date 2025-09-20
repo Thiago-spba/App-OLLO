@@ -1,12 +1,16 @@
-// COMPONENTE MINIMAL PARA VERIFICAÇÃO DE EMAIL - SEM LOOPS
+// COMPONENTE DEFINITIVO PARA VERIFICAÇÃO DE EMAIL - PROBLEMA RESOLVIDO
+// Versão com correção do erro getIdToken e integração com Cloud Function
 
 import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { auth } from '../../firebase/config';
 import { sendEmailVerification } from 'firebase/auth';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
 export default function EmailVerificationBanner() {
-  const { currentUser } = useAuth();
+  const { currentUser, forceReloadUser } = useAuth();
   const [sending, setSending] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState('');
   const [lastSent, setLastSent] = useState(null);
 
@@ -15,7 +19,7 @@ export default function EmailVerificationBanner() {
     return null;
   }
 
-  // Função SIMPLIFICADA para enviar email
+  // Função para enviar email de verificação - CORRIGIDA
   const sendVerificationEmail = async () => {
     if (sending) return;
 
@@ -24,7 +28,13 @@ export default function EmailVerificationBanner() {
 
     try {
       console.log('[EmailVerification] Enviando email...');
-      await sendEmailVerification(currentUser);
+
+      // CORREÇÃO CRÍTICA: Usar auth.currentUser em vez de currentUser do contexto
+      if (!auth.currentUser) {
+        throw new Error('Usuário não autenticado no Firebase Auth');
+      }
+
+      await sendEmailVerification(auth.currentUser);
       setMessage('Email enviado! Verifique sua caixa de entrada.');
       setLastSent(Date.now());
     } catch (error) {
@@ -35,9 +45,61 @@ export default function EmailVerificationBanner() {
     }
   };
 
-  // REMOVIDA a função checkEmailVerification que causava loops
+  // Função para sincronizar status de verificação - NOVA
+  const syncVerificationStatus = async () => {
+    if (syncing) return;
 
-  // Verificar cooldown de 1 minuto
+    setSyncing(true);
+    setMessage('');
+
+    try {
+      console.log('[EmailVerification] Sincronizando status...');
+
+      // Primeiro, recarregar os dados do Firebase Auth
+      await forceReloadUser();
+
+      // Se ainda não foi verificado no Firebase Auth, não prosseguir
+      if (!auth.currentUser?.emailVerified) {
+        setMessage(
+          'Email ainda não foi verificado. Clique no link recebido por email primeiro.'
+        );
+        return;
+      }
+
+      // Chamar a Cloud Function para sincronizar com Firestore
+      const functions = getFunctions();
+      const syncFunction = httpsCallable(
+        functions,
+        'syncEmailVerificationStatus'
+      );
+
+      const result = await syncFunction();
+
+      if (result.data.success) {
+        setMessage('Status sincronizado! Recarregando página...');
+        // Recarregar a página para refletir as mudanças
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      } else {
+        setMessage('Erro ao sincronizar status. Tente novamente.');
+      }
+    } catch (error) {
+      console.error('[EmailVerification] Erro na sincronização:', error);
+
+      if (error.code === 'functions/failed-precondition') {
+        setMessage(
+          'Email ainda não foi verificado. Clique no link do email primeiro.'
+        );
+      } else {
+        setMessage('Erro ao sincronizar. Tente recarregar a página.');
+      }
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // Verificar cooldown de 1 minuto para reenvio
   const canResend = !lastSent || Date.now() - lastSent > 60000;
 
   return (
@@ -80,6 +142,17 @@ export default function EmailVerificationBanner() {
                   Aguarde 1 minuto antes de reenviar.
                 </p>
               )}
+
+              <p className="text-xs mt-2 text-gray-600">
+                Já clicou no link do email?
+                <button
+                  onClick={syncVerificationStatus}
+                  disabled={syncing}
+                  className="ml-1 font-medium text-blue-600 underline hover:text-blue-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {syncing ? 'Verificando...' : 'Clique aqui para verificar'}
+                </button>
+              </p>
 
               {message && (
                 <p
