@@ -166,7 +166,7 @@ class FirebaseAuthenticator {
       if (import.meta.env.VITE_EMAIL_VERIFICATION === 'true') {
         try {
           const sendCustomVerificationEmail = httpsCallable(functions, 'sendCustomVerificationEmail');
-          await sendCustomVerificationEmail();
+          await sendCustomVerificationEmail({ uid: user.uid });
         } catch (verificationError) {
           console.warn("[OLLO] Não foi possível enviar e-mail de verificação:", verificationError);
         }
