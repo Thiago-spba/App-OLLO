@@ -1,12 +1,14 @@
-// ARQUIVO CORRIGIDO: src/context/AuthContext.jsx
-// Versão sem conflitos de importação
+// src/context/AuthContext.jsx
+// ARQUIVO FINAL: Unifica a lógica de `useAuthLogic` com a praticidade do Context API.
+// Esta é agora a ÚNICA fonte da verdade para autenticação na OLLO.
 
 import React, { createContext, useContext, useMemo } from 'react';
-import useAuthLogic from '../hooks/useAuth'; // Hook com a lógica
+// CORREÇÃO: Apontando para o arquivo correto do nosso hook de lógica.
+import useAuthLogic from '../hooks/useAuthLogic';
 
 const AuthContext = createContext(null);
 
-// Exportar o hook do contexto com nome diferente para evitar conflito
+// Hook que os componentes usarão para acessar os dados de autenticação.
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -15,34 +17,40 @@ export const useAuth = () => {
   return context;
 };
 
+// Provedor que encapsula a aplicação e disponibiliza o contexto.
 export const AuthProvider = ({ children }) => {
-  // Usar o hook de lógica
+  // 1. Toda a lógica complexa é encapsulada aqui.
   const authLogic = useAuthLogic();
 
-  // Memorizar o valor do contexto para evitar re-renders desnecessários
+  // 2. O valor do contexto é memorizado para otimização de performance.
   const value = useMemo(
     () => ({
+      // Espalha todos os retornos do nosso hook de lógica (currentUser, login, logout, etc.)
       ...authLogic,
-      // Adicionar propriedades computadas úteis
+      // Adiciona propriedades computadas para facilitar o uso nos componentes.
       isAuthenticated: !!authLogic.currentUser,
       isEmailVerified: authLogic.currentUser?.emailVerified || false,
       hasUsername: !!authLogic.currentUser?.username,
+      // Útil para direcionar o usuário para a tela de criação de perfil.
       needsProfileSetup:
         authLogic.currentUser && !authLogic.currentUser?.username,
     }),
-    [authLogic, authLogic.currentUser]
+    // CORREÇÃO: A dependência `authLogic.currentUser` é redundante.
+    // O objeto `authLogic` já muda quando `currentUser` muda, então apenas `authLogic` é suficiente.
+    [authLogic]
   );
 
-  // Renderizar loading enquanto verifica autenticação
+  // 3. Mostra um loading global enquanto o estado inicial de auth é resolvido.
   if (authLogic.loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="w-16 h-16 border-4 border-ollo-accent-light border-t-transparent rounded-full animate-spin" />
+      <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
+        <div className="w-16 h-16 border-4 border-ollo-primary border-t-transparent rounded-full animate-spin" />
         <span className="sr-only">Carregando...</span>
       </div>
     );
   }
 
+  // 4. Fornece o valor para todos os componentes filhos.
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
