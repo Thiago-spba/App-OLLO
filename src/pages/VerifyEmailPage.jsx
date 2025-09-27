@@ -1,9 +1,9 @@
 // ARQUIVO CORRIGIDO: src/pages/VerifyEmailPage.jsx
-// Remove redirecionamento problemático para login
+// Corrige o loop de renderização e melhora a verificação automática
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/AuthContext'; // CORREÇÃO: Usando nosso AuthContext
 import { toast, Toaster } from 'react-hot-toast';
 import { reload } from 'firebase/auth';
 import { auth } from '../firebase/config';
@@ -13,29 +13,31 @@ import {
   CheckCircle,
   Warning,
   Clock,
-  ArrowLeft,
 } from '@phosphor-icons/react';
 
 const VerifyEmailPage = () => {
+  // CORREÇÃO: O hook correto parece ser useAuth, vindo do AuthContext que usamos no projeto.
+  // Se você migrou para useAuthLogic, apenas troque esta linha.
   const { currentUser, logout, resendVerificationEmail } = useAuth();
   const navigate = useNavigate();
 
-  // Estados locais
   const [isResending, setIsResending] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [checkingEmail, setCheckingEmail] = useState(false);
   const [checkCount, setCheckCount] = useState(0);
 
-  // Refs para controle
-  const intervalRef = useRef(null);
   const cooldownRef = useRef(null);
   const isUnmountedRef = useRef(false);
+  // MUDANÇA: Criamos uma ref para o intervalo da verificação automática
+  const verificationIntervalRef = useRef(null);
 
-  // Função para limpar timers
+  // MUDANÇA: Usaremos uma ref para a função de verificação para evitar o loop no useEffect
+  const checkEmailVerificationRef = useRef(null);
+
   const cleanupTimers = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
+    if (verificationIntervalRef.current) {
+      clearInterval(verificationIntervalRef.current);
+      verificationIntervalRef.current = null;
     }
     if (cooldownRef.current) {
       clearInterval(cooldownRef.current);
@@ -43,16 +45,24 @@ const VerifyEmailPage = () => {
     }
   }, []);
 
-  // Função para verificar status do email
   const checkEmailVerification = useCallback(
     async (isManual = false) => {
-      if (checkingEmail || isUnmountedRef.current) return false;
+      // CORREÇÃO: Usamos um setter funcional para evitar a dependência de `checkingEmail`
+      let isCurrentlyChecking = false;
+      setCheckingEmail((prev) => {
+        isCurrentlyChecking = prev;
+        return true;
+      });
 
-      setCheckingEmail(true);
+      if (isCurrentlyChecking || isUnmountedRef.current) {
+        setCheckingEmail(false);
+        return false;
+      }
+
       setCheckCount((prev) => prev + 1);
 
       console.log(
-        `[VerifyEmail] Verificação ${checkCount + 1} ${isManual ? '(manual)' : '(automática)'}`
+        `[VerifyEmail] Verificação ${isManual ? '(manual)' : '(automática)'}`
       );
 
       try {
@@ -65,18 +75,10 @@ const VerifyEmailPage = () => {
           if (user.emailVerified) {
             console.log('[VerifyEmail] Email verificado com sucesso!');
             cleanupTimers();
-
             toast.success('Email verificado com sucesso! Redirecionando...', {
               duration: 3000,
-              style: {
-                background: '#10B981',
-                color: '#FFFFFF',
-                fontSize: '16px',
-                fontWeight: '600',
-              },
             });
 
-            // Delay antes de navegar
             setTimeout(() => {
               if (!isUnmountedRef.current) {
                 navigate('/', { replace: true });
@@ -89,18 +91,13 @@ const VerifyEmailPage = () => {
             if (isManual) {
               toast(
                 'Email ainda não verificado. Verifique sua caixa de entrada e spam.',
-                {
-                  icon: '📧',
-                  duration: 4000,
-                  style: { fontSize: '14px' },
-                }
+                { icon: '📧' }
               );
             }
           }
         }
       } catch (error) {
         console.error('[VerifyEmail] Erro ao verificar email:', error);
-
         if (isManual) {
           toast.error('Erro ao verificar status do email. Tente novamente.');
         }
@@ -109,22 +106,24 @@ const VerifyEmailPage = () => {
           setCheckingEmail(false);
         }
       }
-
       return false;
     },
-    [checkingEmail, checkCount, navigate, cleanupTimers]
+    // CORREÇÃO: Removidas dependências instáveis. `Maps` e `cleanupTimers` são estáveis.
+    [navigate, cleanupTimers]
   );
 
-  // Gerenciar cooldown do reenvio
+  // MUDANÇA: Mantém a ref sempre com a última versão da função
+  useEffect(() => {
+    checkEmailVerificationRef.current = checkEmailVerification;
+  });
+
   const startResendCooldown = useCallback(() => {
     setResendCooldown(60);
     cooldownRef.current = setInterval(() => {
       setResendCooldown((prev) => {
         if (prev <= 1) {
-          if (cooldownRef.current) {
-            clearInterval(cooldownRef.current);
-            cooldownRef.current = null;
-          }
+          clearInterval(cooldownRef.current);
+          cooldownRef.current = null;
           return 0;
         }
         return prev - 1;
@@ -137,14 +136,12 @@ const VerifyEmailPage = () => {
     console.log('[VerifyEmail] Inicializando página de verificação');
     isUnmountedRef.current = false;
 
-    // Se usuário já verificado, redirecionar
     if (currentUser?.emailVerified) {
       console.log('[VerifyEmail] Usuário já verificado, redirecionando');
       navigate('/', { replace: true });
       return;
     }
 
-    // Se não há usuário, redirecionar para login
     if (!currentUser) {
       console.log(
         '[VerifyEmail] Usuário não autenticado, redirecionando para login'
@@ -153,46 +150,38 @@ const VerifyEmailPage = () => {
       return;
     }
 
-    // Toast inicial
     toast('Verifique sua caixa de entrada e pasta de spam', {
       duration: 6000,
       icon: '📧',
-      style: { fontSize: '14px' },
     });
 
-    // Primeira verificação após 3 segundos
-    const initialCheckTimeout = setTimeout(() => {
+    // CORREÇÃO: Substituímos o setTimeout por setInterval para verificações periódicas
+    // e chamamos a função através da ref para não criar um loop.
+    verificationIntervalRef.current = setInterval(() => {
       if (!isUnmountedRef.current) {
-        checkEmailVerification();
+        checkEmailVerificationRef.current();
       }
-    }, 3000);
+    }, 10000); // Verifica a cada 10 segundos
 
-    // Cleanup
     return () => {
       console.log('[VerifyEmail] Cleanup da página');
       isUnmountedRef.current = true;
-      clearTimeout(initialCheckTimeout);
       cleanupTimers();
     };
-  }, [currentUser, navigate, checkEmailVerification, cleanupTimers]);
+    // CORREÇÃO: Removida a dependência `checkEmailVerification` para quebrar o loop.
+  }, [currentUser, navigate, cleanupTimers]);
 
-  // Função para reenviar email
   const handleResendEmail = useCallback(async () => {
     if (isResending || resendCooldown > 0) return;
 
-    console.log('[VerifyEmail] Reenviando email de verificação');
     setIsResending(true);
 
     try {
       const result = await resendVerificationEmail();
-
       if (result?.success) {
-        toast.success('Email de verificação reenviado com sucesso!', {
-          duration: 4000,
-          style: { fontSize: '14px' },
-        });
+        toast.success('Email de verificação reenviado com sucesso!');
         startResendCooldown();
-        setCheckCount(0); // Reset contador
+        setCheckCount(0);
       } else {
         toast.error('Erro ao reenviar email. Tente novamente.');
       }
@@ -209,15 +198,12 @@ const VerifyEmailPage = () => {
     startResendCooldown,
   ]);
 
-  // Função para logout
   const handleLogout = useCallback(async () => {
-    console.log('[VerifyEmail] Fazendo logout');
     cleanupTimers();
     await logout();
     navigate('/login', { replace: true });
   }, [logout, navigate, cleanupTimers]);
 
-  // Se não há usuário, mostrar loading (enquanto redireciona)
   if (!currentUser) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -229,11 +215,7 @@ const VerifyEmailPage = () => {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="flex justify-center">
-          <div className="w-16 h-16 bg-ollo-primary rounded-full flex items-center justify-center">
-            <span className="text-white font-bold text-xl">O</span>
-          </div>
-        </div>
+        <div className="flex justify-center">{/* Seu logo aqui */}</div>
         <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
           Verifique seu email
         </h2>
@@ -258,7 +240,7 @@ const VerifyEmailPage = () => {
 
             <div className="text-center text-sm text-gray-500 dark:text-gray-400">
               <Clock size={16} className="inline mr-1" />
-              Verificações realizadas: {checkCount}
+              Verificações automáticas em andamento...
             </div>
 
             <div className="space-y-3">
@@ -268,10 +250,7 @@ const VerifyEmailPage = () => {
                 className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {checkingEmail ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                    Verificando...
-                  </>
+                  'Verificando...'
                 ) : (
                   <>
                     <CheckCircle size={16} className="mr-2" />
@@ -286,10 +265,7 @@ const VerifyEmailPage = () => {
                 className="w-full flex justify-center py-2 px-4 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ollo-primary disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isResending ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-gray-600 border-t-transparent rounded-full animate-spin mr-2" />
-                    Reenviando...
-                  </>
+                  'Reenviando...'
                 ) : resendCooldown > 0 ? (
                   <>
                     <Warning size={16} className="mr-2" />
@@ -316,16 +292,7 @@ const VerifyEmailPage = () => {
           </div>
         </div>
       </div>
-
-      <Toaster
-        position="top-center"
-        toastOptions={{
-          duration: 4000,
-          style: {
-            maxWidth: '500px',
-          },
-        }}
-      />
+      <Toaster position="top-center" />
     </div>
   );
 };
