@@ -1,4 +1,5 @@
-// ARQUIVO COMPLETO: src/components/ProtectedRoute.jsx
+// src/components/ProtectedRoute.jsx
+// COMPONENTE DE ROTA PROTEGIDA - VERSÃO FINAL
 
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
@@ -6,34 +7,32 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom';
 
 /**
  * Componente de rota protegida.
- * Requer que o usuário esteja autenticado E com o e-mail verificado para acessar as rotas filhas.
+ * Requer que o usuário esteja autenticado E com o e-mail verificado.
  */
 export default function ProtectedRoute({ children }) {
-  // MUDANÇA: Consumindo as propriedades refatoradas do nosso hook.
-  const { isAuthenticated, isEmailVerified, loading } = useAuth();
+  const { currentUser, loading } = useAuth();
   const location = useLocation();
 
-  // Espera o estado inicial de carregamento do AuthContext
+  // Aguarda o carregamento do estado de autenticação
   if (loading) {
-    // O spinner já é exibido pelo AuthProvider, então retornamos null para evitar renderização
-    // de tela branca ou piscar.
-    return null;
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
+        <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
   }
 
-  // CORREÇÃO: Lógica de redirecionamento em ordem de prioridade
-
-  // 1. Se o usuário não está autenticado, redireciona para a página de login.
-  if (!isAuthenticated) {
+  // 1. Se não há usuário autenticado, redireciona para login
+  if (!currentUser) {
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
-  // 2. Se o usuário está autenticado, mas o e-mail não está verificado, redireciona
-  // para a página de verificação de e-mail. Isso garante que o usuário não acesse
-  // o conteúdo protegido sem a confirmação.
-  if (!isEmailVerified) {
+  // 2. Se o usuário existe mas email não verificado, redireciona para verificação
+  if (!currentUser.emailVerified) {
     return <Navigate to="/verify-email" replace state={{ from: location }} />;
   }
 
-  // 3. Se todas as verificações passarem, permite o acesso ao conteúdo protegido.
+  // 3. Se tudo está ok, permite acesso ao conteúdo protegido
   return children || <Outlet />;
 }
+

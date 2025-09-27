@@ -1,14 +1,28 @@
 // src/context/AuthContext.jsx
-// ARQUIVO FINAL: Unifica a lógica de `useAuthLogic` com a praticidade do Context API.
-// Esta é agora a ÚNICA fonte da verdade para autenticação na OLLO.
+// VERSÃO COMPLETAMENTE CORRIGIDA - SEM DEPENDÊNCIAS EXTERNAS PROBLEMÁTICAS
 
-import React, { createContext, useContext, useMemo } from 'react';
-// CORREÇÃO: Apontando para o arquivo correto do nosso hook de lógica.
-import useAuthLogic from '../hooks/useAuthLogic';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+} from 'react';
+import {
+  onAuthStateChanged,
+  signOut,
+  sendEmailVerification,
+  reload,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  sendPasswordResetEmail,
+} from 'firebase/auth';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { auth, db } from '../firebase/config';
+import { toast } from 'react-hot-toast';
 
 const AuthContext = createContext(null);
 
-// Hook que os componentes usarão para acessar os dados de autenticação.
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -17,41 +31,213 @@ export const useAuth = () => {
   return context;
 };
 
-// Provedor que encapsula a aplicação e disponibiliza o contexto.
 export const AuthProvider = ({ children }) => {
-  // 1. Toda a lógica complexa é encapsulada aqui.
-  const authLogic = useAuthLogic();
+  const [currentUser, setCurrentUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // 2. O valor do contexto é memorizado para otimização de performance.
-  const value = useMemo(
-    () => ({
-      // Espalha todos os retornos do nosso hook de lógica (currentUser, login, logout, etc.)
-      ...authLogic,
-      // Adiciona propriedades computadas para facilitar o uso nos componentes.
-      isAuthenticated: !!authLogic.currentUser,
-      isEmailVerified: authLogic.currentUser?.emailVerified || false,
-      hasUsername: !!authLogic.currentUser?.username,
-      // Útil para direcionar o usuário para a tela de criação de perfil.
-      needsProfileSetup:
-        authLogic.currentUser && !authLogic.currentUser?.username,
-    }),
-    // CORREÇÃO: A dependência `authLogic.currentUser` é redundante.
-    // O objeto `authLogic` já muda quando `currentUser` muda, então apenas `authLogic` é suficiente.
-    [authLogic]
+  // Função para criar perfil do usuário no Firestore
+  const createUserProfile = async (user, additionalData = {}) => {
+    if (!user) return;
+
+    const userRef = doc(db, 'users_public', user.uid);
+
+    try {
+      const snapshot = await getDoc(userRef);
+
+      if (!snapshot.exists()) {
+        const { email, uid } = user;
+        const createdAt = new Date();
+
+        await setDoc(userRef, {
+          email,
+          uid,
+          createdAt,
+          ...additionalData,
+        });
+
+        console.log('[Auth] Perfil do usuário criado no Firestore');
+      }
+    } catch (error) {
+      console.error('[Auth] Erro ao criar perfil:', error);
+    }
+  };
+
+  // Função de registro
+  const registerWithEmail = useCallback(
+    async (email, password, additionalData = {}) => {
+      try {
+        setLoading(true);
+
+        const { user } = await createUserWithEmailAndPassword(
+          auth,
+          email,
+          password
+        );
+
+        // Criar perfil no Firestore
+        await createUserProfile(user, additionalData);
+
+        // Enviar email de verificação
+        await sendEmailVerification(user);
+
+        toast.success('Conta criada! Verifique seu email para ativar.');
+
+        return { success: true, user };
+      } catch (error) {
+        console.error('[Auth] Erro no registro:', error);
+        toast.error(getErrorMessage(error.code));
+        return { success: false, error };
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
   );
 
-  // 3. Mostra um loading global enquanto o estado inicial de auth é resolvido.
-  if (authLogic.loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
-        <div className="w-16 h-16 border-4 border-ollo-primary border-t-transparent rounded-full animate-spin" />
-        <span className="sr-only">Carregando...</span>
-      </div>
-    );
-  }
+  // Função de login
+  const loginWithEmail = useCallback(async (email, password) => {
+    try {
+      setLoading(true);
 
-  // 4. Fornece o valor para todos os componentes filhos.
+      const { user } = await signInWithEmailAndPassword(auth, email, password);
+
+      toast.success('Login realizado com sucesso!');
+
+      return { success: true, user };
+    } catch (error) {
+      console.error('[Auth] Erro no login:', error);
+      toast.error(getErrorMessage(error.code));
+      return { success: false, error };
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Função de logout
+  const logout = useCallback(async () => {
+    try {
+      await signOut(auth);
+      toast.success('Logout realizado com sucesso!');
+      return { success: true };
+    } catch (error) {
+      console.error('[Auth] Erro no logout:', error);
+      toast.error('Erro ao sair da conta');
+      return { success: false, error };
+    }
+  }, []);
+
+  // Função para reenviar email de verificação
+  const resendVerificationEmail = useCallback(async () => {
+    try {
+      if (!auth.currentUser) {
+        throw new Error('Usuário não autenticado');
+      }
+
+      await sendEmailVerification(auth.currentUser);
+      return { success: true };
+    } catch (error) {
+      console.error('[Auth] Erro ao reenviar email:', error);
+      return { success: false, error };
+    }
+  }, []);
+
+  // Função para recuperação de senha
+  const forgotPassword = useCallback(async (email) => {
+    try {
+      await sendPasswordResetEmail(auth, email);
+      return { success: true };
+    } catch (error) {
+      console.error('[Auth] Erro na recuperação de senha:', error);
+      throw error;
+    }
+  }, []);
+
+  // Função para forçar reload do usuário
+  const forceReloadUser = useCallback(async () => {
+    try {
+      const user = auth.currentUser;
+      if (user) {
+        await reload(user);
+        return user;
+      }
+      return null;
+    } catch (error) {
+      console.error('[Auth] Erro ao recarregar usuário:', error);
+      return null;
+    }
+  }, []);
+
+  // Função para obter mensagens de erro amigáveis
+  const getErrorMessage = (errorCode) => {
+    switch (errorCode) {
+      case 'auth/user-not-found':
+        return 'Usuário não encontrado';
+      case 'auth/wrong-password':
+        return 'Senha incorreta';
+      case 'auth/email-already-in-use':
+        return 'Este email já está em uso';
+      case 'auth/weak-password':
+        return 'Senha muito fraca';
+      case 'auth/invalid-email':
+        return 'Email inválido';
+      case 'auth/too-many-requests':
+        return 'Muitas tentativas. Tente novamente mais tarde';
+      default:
+        return 'Ocorreu um erro. Tente novamente';
+    }
+  };
+
+  // Effect para monitorar mudanças de autenticação
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      console.log(
+        '[Auth] Estado de autenticação mudou:',
+        user ? user.email : 'Nenhum usuário'
+      );
+
+      if (user) {
+        // Buscar dados adicionais do Firestore se necessário
+        try {
+          const userRef = doc(db, 'users_public', user.uid);
+          const userDoc = await getDoc(userRef);
+
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            setCurrentUser({ ...user, ...userData });
+          } else {
+            setCurrentUser(user);
+          }
+        } catch (error) {
+          console.error('[Auth] Erro ao buscar dados do usuário:', error);
+          setCurrentUser(user);
+        }
+      } else {
+        setCurrentUser(null);
+      }
+
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Valores computados
+  const value = {
+    currentUser,
+    loading,
+
+    // Funções de autenticação
+    registerWithEmail,
+    loginWithEmail,
+    logout,
+    resendVerificationEmail,
+    forgotPassword,
+    forceReloadUser,
+
+    // Propriedades úteis
+    isAuthenticated: !!currentUser,
+    isEmailVerified: currentUser?.emailVerified || false,
+  };
+
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
-
-export default AuthProvider;

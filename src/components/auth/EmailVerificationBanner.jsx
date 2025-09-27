@@ -1,47 +1,45 @@
-// COMPONENTE MINIMAL PARA VERIFICAÇÃO DE EMAIL - SEM LOOPS
+// src/components/auth/EmailVerificationBanner.jsx
+// COMPONENTE SIMPLES PARA BANNER DE VERIFICAÇÃO - SEM LOOPS
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { sendEmailVerification } from 'firebase/auth';
+import { toast } from 'react-hot-toast';
 
 export default function EmailVerificationBanner() {
   const { currentUser } = useAuth();
   const [sending, setSending] = useState(false);
-  const [message, setMessage] = useState('');
   const [lastSent, setLastSent] = useState(null);
 
-  // Verificar se precisa mostrar o banner
+  // Se não há usuário ou email já verificado, não mostra o banner
   if (!currentUser || currentUser.emailVerified) {
     return null;
   }
 
-  // Função SIMPLIFICADA para enviar email
+  // Função para enviar email de verificação
   const sendVerificationEmail = async () => {
     if (sending) return;
 
     setSending(true);
-    setMessage('');
 
     try {
-      console.log('[EmailVerification] Enviando email...');
+      console.log('[EmailVerificationBanner] Enviando email...');
       await sendEmailVerification(currentUser);
-      setMessage('Email enviado! Verifique sua caixa de entrada.');
+      toast.success('Email enviado! Verifique sua caixa de entrada.');
       setLastSent(Date.now());
     } catch (error) {
-      console.error('[EmailVerification] Erro:', error);
-      setMessage('Erro ao enviar. Tente novamente.');
+      console.error('[EmailVerificationBanner] Erro:', error);
+      toast.error('Erro ao enviar. Tente novamente.');
     } finally {
       setSending(false);
     }
   };
 
-  // REMOVIDA a função checkEmailVerification que causava loops
-
   // Verificar cooldown de 1 minuto
   const canResend = !lastSent || Date.now() - lastSent > 60000;
 
   return (
-    <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
+    <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4 dark:bg-yellow-900/20 dark:border-yellow-500">
       <div className="flex items-center justify-between">
         <div className="flex">
           <div className="flex-shrink-0">
@@ -58,17 +56,17 @@ export default function EmailVerificationBanner() {
             </svg>
           </div>
           <div className="ml-3">
-            <h3 className="text-sm font-medium text-yellow-800">
+            <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
               Verifique seu email
             </h3>
-            <div className="mt-1 text-sm text-yellow-700">
+            <div className="mt-1 text-sm text-yellow-700 dark:text-yellow-300">
               <p>
                 Seu email ainda não foi verificado. Verifique sua caixa de
                 entrada ou{' '}
                 <button
                   onClick={sendVerificationEmail}
                   disabled={sending || !canResend}
-                  className="font-medium text-yellow-800 underline hover:text-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="font-medium text-yellow-800 underline hover:text-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed dark:text-yellow-200 dark:hover:text-yellow-100"
                 >
                   {sending ? 'Enviando...' : 'clique para reenviar'}
                 </button>
@@ -76,31 +74,12 @@ export default function EmailVerificationBanner() {
               </p>
 
               {!canResend && (
-                <p className="text-xs mt-1">
+                <p className="text-xs mt-1 text-yellow-600 dark:text-yellow-400">
                   Aguarde 1 minuto antes de reenviar.
-                </p>
-              )}
-
-              {message && (
-                <p
-                  className={`text-xs mt-2 font-medium ${
-                    message.includes('Erro') ? 'text-red-600' : 'text-green-600'
-                  }`}
-                >
-                  {message}
                 </p>
               )}
             </div>
           </div>
-        </div>
-
-        <div className="flex space-x-2">
-          <button
-            onClick={() => window.location.reload()}
-            className="bg-yellow-100 hover:bg-yellow-200 text-yellow-800 text-xs font-medium py-1 px-3 rounded transition-colors"
-          >
-            Recarregar página
-          </button>
         </div>
       </div>
     </div>
