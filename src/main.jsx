@@ -1,4 +1,5 @@
-// ARQUIVO COMPLETO E CORRIGIDO: src/main.jsx
+// ARQUIVO CORRIGIDO: src/main.jsx
+// Correção pontual: mover apenas HomePage para rotas protegidas
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
@@ -78,8 +79,7 @@ const router = createBrowserRouter([
     element: <App />,
     errorElement: <PublicErrorPage />,
     children: [
-      // -- Rotas Públicas (acessíveis por todos) --
-      { index: true, element: <HomePage /> },
+      // -- Rotas Públicas (limitadas) --
       { path: 'explore', element: <ExplorePage /> },
       { path: 'terms', element: <TermsPage /> },
       { path: 'posts/:postId', element: <PostDetailPage /> },
@@ -92,13 +92,13 @@ const router = createBrowserRouter([
       {
         element: <ProtectedRoute />, // O "guardião" das rotas abaixo
         children: [
-          // <<< CORREÇÃO APLICADA AQUI >>>
-          // A rota de perfil foi movida para dentro do bloco protegido.
-          { path: 'profile/:username', element: <ProfilePage /> },
+          // CORREÇÃO: HomePage agora protegida
+          { index: true, element: <HomePage /> },
 
+          { path: 'profile/:username', element: <ProfilePage /> },
           { path: 'marketplace', element: <MarketplacePage /> },
           { path: 'marketplace/criar', element: <CreateListingPage /> },
-          { path: 'profile', index: true, element: <ProfileRedirectPage /> },
+          { path: 'profile', element: <ProfileRedirectPage /> },
           { path: 'users', element: <UsersPage /> },
           { path: 'notifications', element: <NotificationsPage /> },
         ],
