@@ -16,10 +16,10 @@ import {
   sendPasswordResetEmail,
   signOut as firebaseSignOut,
   updateProfile,
-  sendEmailVerification,
   connectAuthEmulator,
 } from "firebase/auth";
-import { auth } from "./config";
+import { httpsCallable } from "firebase/functions";
+import { auth, functions } from "./config";
 
 // Constantes e configurações
 const AUTH_STORAGE_PREFIX = "OLLO_AUTH_";
@@ -165,7 +165,8 @@ class FirebaseAuthenticator {
       // Envia e-mail de verificação se configurado
       if (import.meta.env.VITE_EMAIL_VERIFICATION === 'true') {
         try {
-          await sendEmailVerification(user);
+          const sendCustomVerificationEmail = httpsCallable(functions, 'sendCustomVerificationEmail');
+          await sendCustomVerificationEmail();
         } catch (verificationError) {
           console.warn("[OLLO] Não foi possível enviar e-mail de verificação:", verificationError);
         }
