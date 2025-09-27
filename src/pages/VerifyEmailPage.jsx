@@ -1,10 +1,12 @@
 // ARQUIVO CORRIGIDO: src/pages/VerifyEmailPage.jsx
-// Versão otimizada para o novo fluxo de verificação
+// Remove redirecionamento problemático para login
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { toast, Toaster } from 'react-hot-toast';
+import { reload } from 'firebase/auth';
+import { auth } from '../firebase/config';
 import {
   EnvelopeSimple,
   SignOut,
@@ -15,8 +17,7 @@ import {
 } from '@phosphor-icons/react';
 
 const VerifyEmailPage = () => {
-  const { currentUser, logout, resendVerificationEmail, forceReloadUser } =
-    useAuth();
+  const { currentUser, logout, resendVerificationEmail } = useAuth();
   const navigate = useNavigate();
 
   // Estados locais
@@ -55,43 +56,46 @@ const VerifyEmailPage = () => {
       );
 
       try {
-        const refreshedUser = await forceReloadUser();
+        const user = auth.currentUser;
+        if (user) {
+          await reload(user);
 
-        if (isUnmountedRef.current) return false;
+          if (isUnmountedRef.current) return false;
 
-        if (refreshedUser?.emailVerified) {
-          console.log('[VerifyEmail] Email verificado com sucesso!');
-          cleanupTimers();
+          if (user.emailVerified) {
+            console.log('[VerifyEmail] Email verificado com sucesso!');
+            cleanupTimers();
 
-          toast.success('Email verificado com sucesso! Redirecionando...', {
-            duration: 3000,
-            style: {
-              background: '#10B981',
-              color: '#FFFFFF',
-              fontSize: '16px',
-              fontWeight: '600',
-            },
-          });
+            toast.success('Email verificado com sucesso! Redirecionando...', {
+              duration: 3000,
+              style: {
+                background: '#10B981',
+                color: '#FFFFFF',
+                fontSize: '16px',
+                fontWeight: '600',
+              },
+            });
 
-          // Delay antes de navegar
-          setTimeout(() => {
-            if (!isUnmountedRef.current) {
-              navigate('/', { replace: true });
-            }
-          }, 2000);
-
-          return true;
-        } else {
-          console.log('[VerifyEmail] Email ainda não verificado');
-          if (isManual) {
-            toast(
-              'Email ainda não verificado. Verifique sua caixa de entrada e spam.',
-              {
-                icon: '📧',
-                duration: 4000,
-                style: { fontSize: '14px' },
+            // Delay antes de navegar
+            setTimeout(() => {
+              if (!isUnmountedRef.current) {
+                navigate('/', { replace: true });
               }
-            );
+            }, 2000);
+
+            return true;
+          } else {
+            console.log('[VerifyEmail] Email ainda não verificado');
+            if (isManual) {
+              toast(
+                'Email ainda não verificado. Verifique sua caixa de entrada e spam.',
+                {
+                  icon: '📧',
+                  duration: 4000,
+                  style: { fontSize: '14px' },
+                }
+              );
+            }
           }
         }
       } catch (error) {
@@ -108,7 +112,7 @@ const VerifyEmailPage = () => {
 
       return false;
     },
-    [checkingEmail, checkCount, forceReloadUser, navigate, cleanupTimers]
+    [checkingEmail, checkCount, navigate, cleanupTimers]
   );
 
   // Gerenciar cooldown do reenvio
@@ -133,13 +137,14 @@ const VerifyEmailPage = () => {
     console.log('[VerifyEmail] Inicializando página de verificação');
     isUnmountedRef.current = false;
 
-    // Verificar redirecionamentos
+    // Se usuário já verificado, redirecionar
     if (currentUser?.emailVerified) {
       console.log('[VerifyEmail] Usuário já verificado, redirecionando');
       navigate('/', { replace: true });
       return;
     }
 
+    // Se não há usuário, redirecionar para login
     if (!currentUser) {
       console.log(
         '[VerifyEmail] Usuário não autenticado, redirecionando para login'
@@ -193,7 +198,7 @@ const VerifyEmailPage = () => {
       }
     } catch (error) {
       console.error('[VerifyEmail] Erro ao reenviar email:', error);
-      toast.error('Erro inesperado. Tente novamente mais tarde.');
+      toast.error('Erro ao reenviar email. Tente novamente.');
     } finally {
       setIsResending(false);
     }
@@ -205,173 +210,123 @@ const VerifyEmailPage = () => {
   ]);
 
   // Função para logout
-  const handleLogoutAndRedirect = useCallback(async () => {
+  const handleLogout = useCallback(async () => {
     console.log('[VerifyEmail] Fazendo logout');
     cleanupTimers();
-    isUnmountedRef.current = true;
-
-    try {
-      const result = await logout();
-      if (result?.success) {
-        toast.success('Logout realizado com sucesso');
-        navigate('/login', { replace: true });
-      } else {
-        toast.error('Erro ao fazer logout');
-      }
-    } catch (error) {
-      console.error('[VerifyEmail] Erro no logout:', error);
-      toast.error('Erro inesperado no logout');
-    }
+    await logout();
+    navigate('/login', { replace: true });
   }, [logout, navigate, cleanupTimers]);
 
-  // Função para verificação manual
-  const handleManualCheck = useCallback(() => {
-    if (!checkingEmail) {
-      console.log('[VerifyEmail] Verificação manual solicitada');
-      checkEmailVerification(true);
-    }
-  }, [checkingEmail, checkEmailVerification]);
-
-  // Voltar para home (mesmo sem verificar)
-  const handleGoBack = useCallback(() => {
-    navigate('/', { replace: true });
-  }, [navigate]);
-
-  // Loading se usuário não carregado
+  // Se não há usuário, mostrar loading (enquanto redireciona)
   if (!currentUser) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
-        <div className="flex flex-col items-center space-y-4">
-          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-gray-600 dark:text-gray-300">Carregando...</p>
-        </div>
+        <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <>
-      <Toaster
-        position="top-center"
-        reverseOrder={false}
-        toastOptions={{
-          style: { maxWidth: '500px' },
-          duration: 4000,
-        }}
-      />
-
-      <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900 font-sans text-gray-900 dark:text-gray-100 p-4">
-        <div className="max-w-md w-full p-8 space-y-6 bg-white dark:bg-gray-800 rounded-lg shadow-lg text-center border border-gray-200 dark:border-gray-700">
-          {/* Logo */}
-          <div className="relative">
-            <img
-              src="/images/logo_ollo.jpeg"
-              alt="OLLO Logo"
-              className="mx-auto h-16 w-auto"
-              onError={(e) => {
-                e.target.style.display = 'none';
-              }}
-            />
-            <div className="absolute -top-2 -right-2">
-              <Warning size={24} weight="fill" className="text-yellow-500" />
-            </div>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="flex justify-center">
+          <div className="w-16 h-16 bg-ollo-primary rounded-full flex items-center justify-center">
+            <span className="text-white font-bold text-xl">O</span>
           </div>
+        </div>
+        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
+          Verifique seu email
+        </h2>
+        <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
+          Enviamos um link de verificação para{' '}
+          <span className="font-medium text-ollo-primary">
+            {currentUser?.email}
+          </span>
+        </p>
+      </div>
 
-          {/* Título e descrição */}
-          <div className="space-y-3">
-            <h2 className="text-2xl font-bold">Confirme seu email</h2>
-            <p className="text-base leading-relaxed text-gray-600 dark:text-gray-300">
-              Um link de verificação foi enviado para seu email. Após confirmar,
-              você terá acesso completo ao OLLO.
-            </p>
-            <div className="text-sm font-medium bg-gray-100 dark:bg-gray-700 p-3 rounded-lg break-all">
-              📧 {currentUser?.email}
-            </div>
-          </div>
-
-          {/* Status de verificação */}
-          <div className="bg-blue-50 dark:bg-blue-900/30 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
-            <div className="flex items-center justify-center space-x-2 mb-2">
-              {checkingEmail ? (
-                <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-              ) : (
-                <Clock size={20} className="text-blue-500" />
-              )}
-              <span className="text-sm text-blue-700 dark:text-blue-300">
-                {checkingEmail ? 'Verificando...' : 'Aguardando verificação'}
-              </span>
-            </div>
-            <p className="text-xs text-blue-600 dark:text-blue-400">
-              Sistema verifica automaticamente
-            </p>
-            {checkCount > 0 && (
-              <p className="text-xs text-blue-500 mt-1">
-                Verificações: {checkCount}
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="bg-white dark:bg-gray-800 py-8 px-4 shadow sm:rounded-lg sm:px-10">
+          <div className="space-y-6">
+            <div className="text-center">
+              <EnvelopeSimple size={48} className="mx-auto text-ollo-primary" />
+              <p className="mt-4 text-sm text-gray-600 dark:text-gray-400">
+                Clique no link enviado para seu email para ativar sua conta.
+                Verifique também sua pasta de spam.
               </p>
-            )}
-          </div>
+            </div>
 
-          {/* Botões de ação */}
-          <div className="space-y-4">
-            {/* Verificação manual */}
-            <button
-              onClick={handleManualCheck}
-              disabled={checkingEmail}
-              className="w-full px-6 py-3 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 disabled:bg-gray-400 rounded-full flex items-center justify-center gap-2 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-            >
-              <CheckCircle size={20} weight="bold" />
-              {checkingEmail ? 'Verificando...' : 'Já verifiquei'}
-            </button>
+            <div className="text-center text-sm text-gray-500 dark:text-gray-400">
+              <Clock size={16} className="inline mr-1" />
+              Verificações realizadas: {checkCount}
+            </div>
 
-            {/* Linha de botões */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-3">
+              <button
+                onClick={() => checkEmailVerification(true)}
+                disabled={checkingEmail}
+                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {checkingEmail ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                    Verificando...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle size={16} className="mr-2" />
+                    Já verifiquei
+                  </>
+                )}
+              </button>
+
               <button
                 onClick={handleResendEmail}
                 disabled={isResending || resendCooldown > 0}
-                className="px-4 py-3 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-full flex items-center justify-center gap-2 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                className="w-full flex justify-center py-2 px-4 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ollo-primary disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <EnvelopeSimple size={18} weight="bold" />
-                {isResending
-                  ? 'Enviando...'
-                  : resendCooldown > 0
-                    ? `Aguarde ${resendCooldown}s`
-                    : 'Reenviar email'}
-              </button>
-
-              <button
-                onClick={handleLogoutAndRedirect}
-                className="px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-full flex items-center justify-center gap-2 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-              >
-                <SignOut size={18} weight="bold" />
-                Sair
+                {isResending ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-gray-600 border-t-transparent rounded-full animate-spin mr-2" />
+                    Reenviando...
+                  </>
+                ) : resendCooldown > 0 ? (
+                  <>
+                    <Warning size={16} className="mr-2" />
+                    Aguarde {resendCooldown}s
+                  </>
+                ) : (
+                  <>
+                    <EnvelopeSimple size={16} className="mr-2" />
+                    Reenviar email
+                  </>
+                )}
               </button>
             </div>
 
-            {/* Botão para voltar */}
-            <button
-              onClick={handleGoBack}
-              className="w-full px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 flex items-center justify-center gap-2 transition-colors duration-200"
-            >
-              <ArrowLeft size={16} />
-              Continuar sem verificar (não recomendado)
-            </button>
-          </div>
-
-          {/* Dicas */}
-          <div className="text-xs text-gray-500 dark:text-gray-400 space-y-2">
-            <div className="bg-yellow-50 dark:bg-yellow-900/20 p-3 rounded-lg border border-yellow-200 dark:border-yellow-800">
-              <p className="font-medium mb-2">📌 Instruções:</p>
-              <ul className="text-left space-y-1">
-                <li>• Verifique sua pasta de spam</li>
-                <li>• O link pode demorar alguns minutos</li>
-                <li>• Após clicar no link, volte aqui</li>
-                <li>• Use "Já verifiquei" para verificar</li>
-              </ul>
+            <div className="mt-6">
+              <button
+                onClick={handleLogout}
+                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 dark:bg-red-900 dark:text-red-200 dark:hover:bg-red-800"
+              >
+                <SignOut size={16} className="mr-2" />
+                Sair e usar outra conta
+              </button>
             </div>
           </div>
         </div>
       </div>
-    </>
+
+      <Toaster
+        position="top-center"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            maxWidth: '500px',
+          },
+        }}
+      />
+    </div>
   );
 };
 
