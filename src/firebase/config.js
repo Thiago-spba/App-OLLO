@@ -63,8 +63,7 @@ try {
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
-export const functions = getFunctions(app);
-
+export const functions = getFunctions(app, 'southamerica-east1');
 // Conexão com emuladores (sem alterações aqui)
 if (import.meta.env.DEV && import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true') {
   try {
