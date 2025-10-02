@@ -11,14 +11,14 @@ import React, {
 import {
   onAuthStateChanged,
   signOut,
-  sendEmailVerification,
   reload,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
 } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { auth, db } from '../firebase/config';
+import { httpsCallable } from 'firebase/functions';
+import { auth, db, functions } from '../firebase/config';
 import { toast } from 'react-hot-toast';
 
 const AuthContext = createContext(null);
@@ -78,7 +78,8 @@ export const AuthProvider = ({ children }) => {
         await createUserProfile(user, additionalData);
 
         // Enviar email de verificação
-        await sendEmailVerification(user);
+        const sendEmail = httpsCallable(functions, 'sendCustomVerificationEmail');
+        await sendEmail();
 
         toast.success('Conta criada! Verifique seu email para ativar.');
 
@@ -133,7 +134,8 @@ export const AuthProvider = ({ children }) => {
         throw new Error('Usuário não autenticado');
       }
 
-      await sendEmailVerification(auth.currentUser);
+      const sendEmail = httpsCallable(functions, 'sendCustomVerificationEmail');
+      await sendEmail();
       return { success: true };
     } catch (error) {
       console.error('[Auth] Erro ao reenviar email:', error);

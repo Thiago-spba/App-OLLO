@@ -3,7 +3,8 @@
 
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { sendEmailVerification } from 'firebase/auth';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '../../firebase/config';
 import { toast } from 'react-hot-toast';
 
 export default function EmailVerificationBanner() {
@@ -24,7 +25,8 @@ export default function EmailVerificationBanner() {
 
     try {
       console.log('[EmailVerificationBanner] Enviando email...');
-      await sendEmailVerification(currentUser);
+      const sendEmail = httpsCallable(functions, 'sendCustomVerificationEmail');
+      await sendEmail();
       toast.success('Email enviado! Verifique sua caixa de entrada.');
       setLastSent(Date.now());
     } catch (error) {

@@ -1,5 +1,5 @@
 // Lógica completa de autenticação, criação de perfil e verificação de email personalizada.
-// VERSÃO CORRIGIDA - Previne loops e duplicações
+// VERSÃO CORRIGIDA - URL sem www
 
 import * as admin from "firebase-admin";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
@@ -34,17 +34,14 @@ const SENDER_INFO = {
 async function generateUniqueUsername(email: string | undefined, uid: string): Promise<string> {
   const db = getFirestore();
   
-  // Username base
   let baseUsername = email 
     ? email.split("@")[0].replace(/[^a-zA-Z0-9]/g, '').toLowerCase()
     : `user${uid.substring(0, 8)}`;
   
-  // Limitar tamanho
   if (baseUsername.length > 15) {
     baseUsername = baseUsername.substring(0, 15);
   }
   
-  // Verificar se já existe
   let username = baseUsername;
   let counter = 0;
   let isUnique = false;
@@ -64,7 +61,6 @@ async function generateUniqueUsername(email: string | undefined, uid: string): P
     }
   }
   
-  // Se ainda não for único após 100 tentativas, adicionar timestamp
   if (!isUnique) {
     username = `${baseUsername}${Date.now()}`;
   }
@@ -93,7 +89,7 @@ async function userDocumentsExist(uid: string): Promise<{
 }
 
 // ===================================================================================
-// 📧 FUNÇÃO DE VERIFICAÇÃO DE EMAIL PERSONALIZADA - CORS CORRIGIDO
+// 📧 FUNÇÃO DE VERIFICAÇÃO DE EMAIL PERSONALIZADA - URL CORRIGIDA
 // ===================================================================================
 export const sendCustomVerificationEmail = functions
   .region("southamerica-east1")
@@ -102,7 +98,6 @@ export const sendCustomVerificationEmail = functions
     timeoutSeconds: 30
   })
   .https.onCall(async (data, context) => {
-    // Verificar autenticação
     if (!context.auth) {
       throw new functions.https.HttpsError('unauthenticated', 'Usuário não autenticado');
     }
@@ -116,7 +111,6 @@ export const sendCustomVerificationEmail = functions
     logger.info(`[VERIFICAÇÃO] Enviando email personalizado para: ${email}`);
 
     try {
-      // Verificar se já não foi enviado recentemente (anti-spam)
       const db = getFirestore();
       const userDoc = await db.collection("users").doc(uid).get();
       
@@ -126,7 +120,7 @@ export const sendCustomVerificationEmail = functions
         
         if (lastEmailSent) {
           const timeDiff = Date.now() - lastEmailSent.getTime();
-          const minInterval = 60000; // 1 minuto
+          const minInterval = 60000;
           
           if (timeDiff < minInterval) {
             throw new functions.https.HttpsError(
@@ -137,20 +131,20 @@ export const sendCustomVerificationEmail = functions
         }
       }
 
-      // Gerar link de verificação personalizado
+      // ✅ CORREÇÃO: URL sem www + continueUrl correto
       const actionCodeSettings = {
-        url: `https://olloapp.com.br/email-verified?email=${encodeURIComponent(email)}`,
-        handleCodeInApp: true,
+        url: 'https://olloapp.com.br/email-verified',
+        handleCodeInApp: false,
       };
 
       const verificationLink = await admin.auth().generateEmailVerificationLink(email, actionCodeSettings);
       
-      // Atualizar timestamp do último envio
+      logger.info(`[VERIFICAÇÃO] Link gerado: ${verificationLink}`);
+      
       await db.collection("users").doc(uid).update({
         lastVerificationEmailSent: FieldValue.serverTimestamp()
       });
       
-      // Enviar via Brevo com template personalizado
       const apiInstance = initBrevoApi();
       
       const sendSmtpEmail = new Brevo.SendSmtpEmail({
@@ -170,7 +164,7 @@ export const sendCustomVerificationEmail = functions
                           alt="OLLO Logo" style="width: 60px; height: auto; border-radius: 7px; display: block; margin-top: 2px;">
                       <div>
                           <h2 style="color: #17925c; font-size: 20px; margin: 2px 0 8px 0; font-weight: bold; letter-spacing: 0.5px;">
-                              Verifique seu email, ${context.auth.token.name || "usuário"}!</h2>
+                              Verifique seu email!</h2>
                           <div style="font-size: 15px; color: #444; line-height: 1.6; margin-bottom: 0;">
                               Para garantir a segurança da sua conta, precisamos verificar seu endereço de email.<br>
                               Clique no botão abaixo para ativar sua conta.
@@ -213,13 +207,13 @@ export const sendCustomVerificationEmail = functions
 
       const response = await apiInstance.sendTransacEmail(sendSmtpEmail);
       
-      logger.info(`[VERIFICAÇÃO] Email personalizado enviado com sucesso para ${email}`, {
+      logger.info(`[VERIFICAÇÃO] Email enviado com sucesso para ${email}`, {
         messageId: response.body?.messageId
       });
 
       return { 
         success: true, 
-        message: "Email de verificação personalizado enviado com sucesso!" 
+        message: "Email de verificação enviado com sucesso!" 
       };
 
     } catch (error) {
@@ -234,7 +228,7 @@ export const sendCustomVerificationEmail = functions
   });
 
 // ===================================================================================
-// 👤 FUNÇÃO ACIONADA NA CRIAÇÃO DE UM NOVO USUÁRIO - CORRIGIDA
+// 👤 FUNÇÃO ACIONADA NA CRIAÇÃO DE UM NOVO USUÁRIO
 // ===================================================================================
 export const onnewusercreated = functions
   .region("southamerica-east1")
@@ -250,25 +244,20 @@ export const onnewusercreated = functions
     const db = getFirestore();
     
     try {
-      // 1. VERIFICAR SE DOCUMENTOS JÁ EXISTEM (previne duplicação)
       const { privateExists, publicExists } = await userDocumentsExist(uid);
       
       if (privateExists && publicExists) {
         logger.info(`[NOVO USUÁRIO] Documentos já existem para ${uid}, pulando criação`);
-        // Ainda enviar email de boas-vindas se não foi enviado
         if (email && !emailVerified) {
           await sendWelcomeEmail(user);
         }
         return;
       }
       
-      // 2. GERAR USERNAME ÚNICO
       const username = await generateUniqueUsername(email, uid);
       logger.info(`[NOVO USUÁRIO] Username gerado: ${username} para ${uid}`);
       
-      // 3. USAR TRANSAÇÃO PARA GARANTIR ATOMICIDADE
       await db.runTransaction(async (transaction) => {
-        // Verificar novamente dentro da transação
         const privateRef = db.collection("users").doc(uid);
         const publicRef = db.collection("users_public").doc(uid);
         
@@ -277,7 +266,6 @@ export const onnewusercreated = functions
           transaction.get(publicRef)
         ]);
         
-        // Criar documento privado se não existir
         if (!privateSnap.exists) {
           const privateData = {
             email: email || "",
@@ -285,14 +273,13 @@ export const onnewusercreated = functions
             createdAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp(),
             emailVerified: emailVerified || false,
-            profileCreated: true, // Flag para indicar que foi processado
+            profileCreated: true,
             lastVerificationEmailSent: null
           };
           transaction.set(privateRef, privateData);
           logger.info(`[NOVO USUÁRIO] Documento privado criado para ${uid}`);
         }
         
-        // Criar documento público se não existir
         if (!publicSnap.exists) {
           const publicData = {
             userId: uid,
@@ -313,22 +300,17 @@ export const onnewusercreated = functions
       
       logger.info(`[NOVO USUÁRIO] Perfis criados com sucesso para ${uid}`);
       
-      // 4. ENVIAR EMAIL DE BOAS-VINDAS (fora da transação)
       if (email) {
         await sendWelcomeEmail(user);
       }
       
     } catch (error) {
-      // Log detalhado do erro
       logger.error(`[NOVO USUÁRIO] ERRO ao processar usuário ${uid}:`, {
         error: error instanceof Error ? error.message : error,
         stack: error instanceof Error ? error.stack : undefined,
         uid,
         email
       });
-      
-      // Não lançar erro para evitar retry infinito
-      // O usuário pode tentar fazer login novamente se necessário
     }
   });
 
@@ -344,7 +326,6 @@ async function sendWelcomeEmail(user: admin.auth.UserRecord): Promise<void> {
   const db = getFirestore();
   
   try {
-    // Verificar se já foi enviado
     const userDoc = await db.collection("users").doc(user.uid).get();
     if (userDoc.exists && userDoc.data()?.welcomeEmailSent) {
       logger.info(`[BOAS-VINDAS] Email já foi enviado para ${user.email}`);
@@ -428,7 +409,6 @@ async function sendWelcomeEmail(user: admin.auth.UserRecord): Promise<void> {
       messageId: brevoResponse.body?.messageId
     });
     
-    // Marcar como enviado
     await db.collection("users").doc(user.uid).update({
       welcomeEmailSent: true,
       welcomeEmailSentAt: FieldValue.serverTimestamp()
@@ -440,7 +420,6 @@ async function sendWelcomeEmail(user: admin.auth.UserRecord): Promise<void> {
       userId: user.uid,
       error: errorDetails,
     });
-    // Não lançar erro para não afetar o fluxo principal
   }
 }
 
@@ -458,12 +437,10 @@ export const onUserDelete = functions
     const db = getFirestore();
     
     try {
-      // Usar transação para garantir atomicidade
       await db.runTransaction(async (transaction) => {
         const privateRef = db.collection("users").doc(uid);
         const publicRef = db.collection("users_public").doc(uid);
         
-        // Verificar se existem antes de deletar
         const [privateSnap, publicSnap] = await Promise.all([
           transaction.get(privateRef),
           transaction.get(publicRef)
@@ -482,7 +459,6 @@ export const onUserDelete = functions
       
     } catch (error) {
       logger.error(`[EXCLUSÃO] Erro ao limpar dados do usuário ${uid}:`, error);
-      // Não lançar erro - cleanup é best effort
     }
   });
 
@@ -502,12 +478,10 @@ export const updateEmailVerificationStatus = functions
     try {
       const db = getFirestore();
       
-      // Usar transação para atualizar ambos os documentos
       await db.runTransaction(async (transaction) => {
         const privateRef = db.collection("users").doc(uid);
         const publicRef = db.collection("users_public").doc(uid);
         
-        // Verificar se existem
         const [privateSnap, publicSnap] = await Promise.all([
           transaction.get(privateRef),
           transaction.get(publicRef)
@@ -517,13 +491,11 @@ export const updateEmailVerificationStatus = functions
           throw new Error('Documentos do usuário não encontrados');
         }
         
-        // Atualizar documento privado
         transaction.update(privateRef, {
           emailVerified: true,
           updatedAt: FieldValue.serverTimestamp(),
         });
 
-        // Atualizar documento público
         transaction.update(publicRef, {
           verified: true,
         });
@@ -540,7 +512,7 @@ export const updateEmailVerificationStatus = functions
   });
 
 // ===================================================================================
-// 🔧 FUNÇÃO DE MANUTENÇÃO - Corrigir perfis existentes (executar uma vez)
+// 🔧 FUNÇÃO DE MANUTENÇÃO - Corrigir perfis existentes
 // ===================================================================================
 export const fixExistingProfiles = functions
   .region("southamerica-east1")
@@ -549,7 +521,6 @@ export const fixExistingProfiles = functions
     memory: '1GB'
   })
   .https.onRequest(async (req, res) => {
-    // Verificar autenticação básica ou token secreto
     const authToken = req.headers.authorization;
     if (authToken !== `Bearer ${process.env.ADMIN_SECRET_TOKEN}`) {
       res.status(401).send('Unauthorized');
@@ -561,7 +532,6 @@ export const fixExistingProfiles = functions
     let errors = 0;
 
     try {
-      // Buscar todos os usuários do Auth
       const listUsersResult = await admin.auth().listUsers(1000);
       
       for (const user of listUsersResult.users) {
@@ -571,10 +541,8 @@ export const fixExistingProfiles = functions
           if (!privateExists || !publicExists) {
             logger.info(`[FIX] Corrigindo perfil para ${user.uid}`);
             
-            // Gerar username único
             const username = await generateUniqueUsername(user.email, user.uid);
             
-            // Criar documentos faltantes
             await db.runTransaction(async (transaction) => {
               const privateRef = db.collection("users").doc(user.uid);
               const publicRef = db.collection("users_public").doc(user.uid);
