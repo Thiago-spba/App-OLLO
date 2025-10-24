@@ -4,5 +4,12 @@
       "source": "/(.*)",
       "destination": "/index.html"
     }
+  ],
+  "redirects": [
+    {
+      "source": "https://www.olloapp.com.br/:path*",
+      "destination": "https://olloapp.com.br/:path*",
+      "permanent": true
+    }
   ]
 }
