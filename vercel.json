@@ -7,7 +7,13 @@
   ],
   "redirects": [
     {
-      "source": "https://www.olloapp.com.br/:path*",
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.olloapp.com.br"
+        }
+      ],
       "destination": "https://olloapp.com.br/:path*",
       "permanent": true
     }
