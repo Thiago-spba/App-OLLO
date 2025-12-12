@@ -3,14 +3,17 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { toast, Toaster } from 'react-hot-toast';
+import { toast, Toaster } from 'react-hot-toast'; // Importação correta
 import {
   EyeIcon,
   EyeSlashIcon,
   ArrowPathIcon,
   ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
-import { parseAuthError, checkForCorsPotentialIssues } from '../utils/authErrorHandler';
+import {
+  parseAuthError,
+  checkForCorsPotentialIssues,
+} from '../utils/authErrorHandler';
 
 const LoginPage = () => {
   const [email, setEmail] = useState('');
@@ -25,7 +28,6 @@ const LoginPage = () => {
 
   const redirectedFrom = location.state?.redirectedFrom || '/';
 
-  // Verifica potenciais problemas de CORS ao carregar a página
   useEffect(() => {
     if (import.meta.env.DEV && checkForCorsPotentialIssues()) {
       setShowCorsWarning(true);
@@ -34,6 +36,9 @@ const LoginPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // MUDANÇA 1: Limpa toasts anteriores para evitar acumulo visual
+    toast.dismiss();
 
     if (!email || !password) {
       toast.error('Preencha todos os campos');
@@ -46,28 +51,51 @@ const LoginPage = () => {
       const result = await loginWithEmail(email, password);
 
       if (result && result.success && result.user) {
-        toast.success('Login bem-sucedido! Redirecionando...');
-        navigate(redirectedFrom, { replace: true });
+        toast.success('Bem-vindo de volta!');
+        // Pequeno delay para o usuário ler o sucesso antes de mudar de tela
+        setTimeout(() => {
+          navigate(redirectedFrom, { replace: true });
+        }, 500);
       } else {
-        // Usa o utilitário para análise de erros de autenticação
-        const errorInfo = parseAuthError(result.error);
-        
-        // Log detalhado do erro para depuração
-        console.error("[OLLO] Detalhes do erro de login:", result.error);
-        
-        // Se for um erro de CORS, exibe a mensagem especial
-        if (errorInfo.code === 'auth/cors-error' || 
-            errorInfo.code === 'auth/requests-from-referer-are-blocked' || 
-            errorInfo.code === 'auth/unauthorized-domain') {
-          setShowCorsWarning(true);
+        // CORREÇÃO DE ERRO: Tratamento específico para o erro genérico do Firebase
+        const errorCode = result.error?.code || result.error?.message || '';
+
+        // Log para debug (apenas em desenvolvimento)
+        console.error('[OLLO DEBUG] Erro Login:', result.error);
+
+        let displayMessage = '';
+
+        // MUDANÇA 2: Tradução manual forçada para os erros mais comuns
+        if (
+          errorCode.includes('auth/invalid-login-credentials') ||
+          errorCode.includes('auth/invalid-credential')
+        ) {
+          displayMessage = 'E-mail ou senha incorretos.';
+        } else if (errorCode.includes('auth/too-many-requests')) {
+          displayMessage =
+            'Muitas tentativas falhas. Tente novamente mais tarde.';
+        } else if (errorCode.includes('auth/user-not-found')) {
+          displayMessage = 'Usuário não encontrado. Crie uma conta.';
+        } else {
+          // Fallback para o seu utilitário existente se não for um dos acima
+          const errorInfo = parseAuthError(result.error);
+          displayMessage = errorInfo.message;
+
+          // Verificação de CORS
+          if (
+            errorInfo.code === 'auth/cors-error' ||
+            errorInfo.code === 'auth/requests-from-referer-are-blocked'
+          ) {
+            setShowCorsWarning(true);
+          }
         }
-        
-        toast.error(errorInfo.message);
+
+        toast.error(displayMessage);
       }
     } catch (error) {
-      const errorInfo = parseAuthError(error);
-      toast.error(errorInfo.message);
-      console.error("[OLLO] Erro inesperado durante login:", error);
+      // Catch genérico para erros de rede ou código
+      console.error('[OLLO] Erro Crítico:', error);
+      toast.error('Ocorreu um erro inesperado. Verifique sua conexão.');
     } finally {
       setIsLoading(false);
     }
@@ -75,15 +103,22 @@ const LoginPage = () => {
 
   return (
     <>
-      <Toaster position="top-center" />
+      <Toaster position="top-center" reverseOrder={false} />
       <div className="min-h-screen flex flex-col items-center justify-center px-4 bg-gray-50 dark:bg-gray-900">
         <div className="w-full max-w-md p-8 rounded-xl bg-white dark:bg-gray-800 shadow-lg border border-gray-200 dark:border-gray-700">
           <div className="text-center mb-8">
-            <img
-              src="/images/logo_ollo.jpeg"
-              alt="Logo OLLO"
-              className="h-16 w-16 mx-auto mb-3 rounded-full shadow"
-            />
+            {/* Logo placeholder se a imagem falhar */}
+            <div className="h-16 w-16 mx-auto mb-3 rounded-full shadow bg-gray-200 flex items-center justify-center overflow-hidden">
+              <img
+                src="/images/logo_ollo.jpeg"
+                alt="Logo OLLO"
+                className="h-full w-full object-cover"
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                  e.target.parentElement.innerText = 'OLLO';
+                }}
+              />
+            </div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
               Acesse sua conta
             </h1>
@@ -97,12 +132,12 @@ const LoginPage = () => {
               <div className="flex items-center">
                 <ExclamationTriangleIcon className="h-5 w-5 text-yellow-500 mr-2" />
                 <span className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
-                  Ambiente de desenvolvimento detectado
+                  Aviso de Desenvolvimento (CORS)
                 </span>
               </div>
               <p className="mt-1 text-xs text-yellow-700 dark:text-yellow-300">
-                Este domínio ({window.location.origin}) pode não estar autorizado para autenticação Firebase.
-                {import.meta.env.DEV && " Em produção, este aviso não será exibido."}
+                Se o login falhar, verifique se 'localhost' está autorizado no
+                Firebase Console.
               </p>
             </div>
           )}
@@ -119,7 +154,7 @@ const LoginPage = () => {
                 placeholder="voce@email.com"
                 required
                 autoComplete="email"
-                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-ollo-primary outline-none"
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-ollo-primary outline-none transition-colors"
               />
             </div>
 
@@ -134,33 +169,33 @@ const LoginPage = () => {
                 placeholder="••••••••"
                 required
                 autoComplete="current-password"
-                className="w-full px-4 py-3 pr-10 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-ollo-primary outline-none"
+                className="w-full px-4 py-3 pr-10 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-ollo-primary outline-none transition-colors"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute top-9 right-3"
+                className="absolute top-9 right-3 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
                 aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
               >
                 {showPassword ? (
-                  <EyeSlashIcon className="h-5 w-5 text-gray-500" />
+                  <EyeSlashIcon className="h-5 w-5" />
                 ) : (
-                  <EyeIcon className="h-5 w-5 text-gray-500" />
+                  <EyeIcon className="h-5 w-5" />
                 )}
               </button>
             </div>
 
             <div className="flex justify-between items-center">
-              <label className="flex items-center text-sm text-gray-700 dark:text-gray-300">
+              <label className="flex items-center text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
                 <input
                   type="checkbox"
-                  className="mr-2 h-4 w-4 text-ollo-primary focus:ring-ollo-primary border-gray-300 rounded"
+                  className="mr-2 h-4 w-4 text-ollo-primary focus:ring-ollo-primary border-gray-300 rounded cursor-pointer"
                 />
                 Lembrar-me
               </label>
               <Link
                 to="/forgot-password"
-                className="text-sm text-ollo-primary hover:underline dark:text-ollo-accent-light"
+                className="text-sm text-ollo-primary hover:underline dark:text-blue-400"
               >
                 Esqueceu a senha?
               </Link>
@@ -169,12 +204,12 @@ const LoginPage = () => {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full flex justify-center items-center py-3 px-4 rounded-lg bg-ollo-primary hover:bg-opacity-90 text-white font-semibold dark:bg-ollo-accent-light dark:text-gray-900 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full flex justify-center items-center py-3 px-4 rounded-lg bg-green-600 hover:bg-green-700 text-white font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
             >
               {isLoading ? (
                 <>
-                  <ArrowPathIcon className="animate-spin h-5 w-5 mr-2" />{' '}
-                  Entrando...
+                  <ArrowPathIcon className="animate-spin h-5 w-5 mr-2" />
+                  Verificando...
                 </>
               ) : (
                 'Entrar'
@@ -186,7 +221,7 @@ const LoginPage = () => {
             Novo no OLLO?{' '}
             <Link
               to="/register"
-              className="text-ollo-primary dark:text-ollo-accent-light font-medium hover:underline"
+              className="text-green-600 dark:text-green-400 font-medium hover:underline"
             >
               Criar uma conta
             </Link>
