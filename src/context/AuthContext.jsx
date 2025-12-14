@@ -1,5 +1,6 @@
 // src/context/AuthContext.jsx
-// VERSÃO COMPLETAMENTE CORRIGIDA - SEM DEPENDÊNCIAS EXTERNAS PROBLEMÁTICAS
+// VERSÃO DEFINITIVA - BYPASS DO PAINEL DO FIREBASE
+// Usa a função sendBrevoVerificationEmail diretamente.
 
 import React, {
   createContext,
@@ -68,18 +69,40 @@ export const AuthProvider = ({ children }) => {
       try {
         setLoading(true);
 
+        // 1. Criar Usuário no Auth
         const { user } = await createUserWithEmailAndPassword(
           auth,
           email,
           password
         );
 
-        // Criar perfil no Firestore
+        // 2. Criar perfil no Firestore
         await createUserProfile(user, additionalData);
 
-        // Enviar email de verificação
-        const sendEmail = httpsCallable(functions, 'sendCustomVerificationEmail');
-        await sendEmail();
+        // 3. ENVIAR EMAIL PERSONALIZADO (BREVO) - MUDANÇA AQUI
+        // Chamamos a função nova que criamos, passando o nome para o email ficar bonito.
+        try {
+          console.log('[Auth] Solicitando envio de email via Brevo...');
+          const sendBrevoEmail = httpsCallable(
+            functions,
+            'sendBrevoVerificationEmail'
+          );
+
+          await sendBrevoEmail({
+            email: user.email,
+            displayName:
+              additionalData.name || additionalData.username || 'Usuário',
+          });
+
+          console.log('[Auth] Email Brevo solicitado com sucesso');
+        } catch (emailError) {
+          // Se o email falhar, NÃO travamos o registro. O usuário foi criado.
+          console.error(
+            '[Auth] Aviso: Falha ao enviar email Brevo:',
+            emailError
+          );
+          // Opcional: toast.error('Conta criada, mas houve um erro ao enviar o email.');
+        }
 
         toast.success('Conta criada! Verifique seu email para ativar.');
 
@@ -134,8 +157,16 @@ export const AuthProvider = ({ children }) => {
         throw new Error('Usuário não autenticado');
       }
 
-      const sendEmail = httpsCallable(functions, 'sendCustomVerificationEmail');
-      await sendEmail();
+      // MUDANÇA AQUI TAMBÉM: Usar a função nova
+      const sendBrevoEmail = httpsCallable(
+        functions,
+        'sendBrevoVerificationEmail'
+      );
+
+      await sendBrevoEmail({
+        displayName: auth.currentUser.displayName || 'Usuário',
+      });
+
       return { success: true };
     } catch (error) {
       console.error('[Auth] Erro ao reenviar email:', error);
@@ -227,16 +258,12 @@ export const AuthProvider = ({ children }) => {
   const value = {
     currentUser,
     loading,
-
-    // Funções de autenticação
     registerWithEmail,
     loginWithEmail,
     logout,
     resendVerificationEmail,
     forgotPassword,
     forceReloadUser,
-
-    // Propriedades úteis
     isAuthenticated: !!currentUser,
     isEmailVerified: currentUser?.emailVerified || false,
   };

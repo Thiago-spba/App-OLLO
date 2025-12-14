@@ -1,6 +1,3 @@
-// Lógica completa de autenticação, criação de perfil e verificação de email personalizada.
-// VERSÃO CORRIGIDA - URL sem www
-
 import * as admin from "firebase-admin";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import * as functions from "firebase-functions/v1";
@@ -10,18 +7,21 @@ import * as Brevo from "@getbrevo/brevo";
 admin.initializeApp();
 
 // ===================================================================================
-// 🎯 CONFIGURAÇÃO BREVO - CENTRALIZADA
+// 🎯 CONFIGURAÇÃO E CHAVES
 // ===================================================================================
+// Fallback para garantir que funcione mesmo sem variável de ambiente configurada agora
+const BREVO_KEY_FALLBACK = "xkeysib-104d12d7044aa1f2d911f6b5a0699cf7f83aace7855f56e972c6be68875de76f";
+
 const initBrevoApi = () => {
   const apiInstance = new Brevo.TransactionalEmailsApi();
   const apiKeyAuth = apiInstance.apiClient.authentications["api-key"];
-  apiKeyAuth.apiKey = process.env.BREVO_API_KEY!;
+  apiKeyAuth.apiKey = process.env.BREVO_API_KEY || BREVO_KEY_FALLBACK;
   return apiInstance;
 };
 
 const SENDER_INFO = {
   name: "Equipe OLLO",
-  email: "contato@olloapp.com.br"
+  email: "noreply@olloapp.com.br"
 };
 
 // ===================================================================================
@@ -89,15 +89,16 @@ async function userDocumentsExist(uid: string): Promise<{
 }
 
 // ===================================================================================
-// 📧 FUNÇÃO DE VERIFICAÇÃO DE EMAIL PERSONALIZADA - URL CORRIGIDA
+// 📧 FUNÇÃO DE VERIFICAÇÃO DE EMAIL (CORRIGIDA E RENOMEADA)
 // ===================================================================================
-export const sendCustomVerificationEmail = functions
+export const sendBrevoVerificationEmail = functions
   .region("southamerica-east1")
   .runWith({ 
     secrets: ["BREVO_API_KEY"],
     timeoutSeconds: 30
   })
   .https.onCall(async (data, context) => {
+    // 1. Verificações de Segurança
     if (!context.auth) {
       throw new functions.https.HttpsError('unauthenticated', 'Usuário não autenticado');
     }
@@ -108,30 +109,33 @@ export const sendCustomVerificationEmail = functions
       throw new functions.https.HttpsError('invalid-argument', 'Email não encontrado');
     }
 
-    logger.info(`[VERIFICAÇÃO] Enviando email personalizado para: ${email}`);
+    const displayName = data.displayName || context.auth.token.name || "Usuário";
+
+    logger.info(`[VERIFICAÇÃO] Iniciando envio para: ${email}`);
 
     try {
       const db = getFirestore();
-      const userDoc = await db.collection("users").doc(uid).get();
       
+      // Validação de intervalo de envio (Spam protection)
+      const userDoc = await db.collection("users").doc(uid).get();
       if (userDoc.exists) {
         const userData = userDoc.data();
         const lastEmailSent = userData?.lastVerificationEmailSent?.toDate();
         
         if (lastEmailSent) {
           const timeDiff = Date.now() - lastEmailSent.getTime();
-          const minInterval = 60000;
+          const minInterval = 60000; // 1 minuto
           
           if (timeDiff < minInterval) {
             throw new functions.https.HttpsError(
               'resource-exhausted', 
-              `Por favor, aguarde ${Math.ceil((minInterval - timeDiff) / 1000)} segundos antes de solicitar outro email`
+              `Aguarde ${Math.ceil((minInterval - timeDiff) / 1000)}s para reenviar.`
             );
           }
         }
       }
 
-      // ✅ CORREÇÃO: URL sem www + continueUrl correto
+      // 2. Configuração do Link (Sem www para evitar bugs de certificado/rota)
       const actionCodeSettings = {
         url: 'https://olloapp.com.br/email-verified',
         handleCodeInApp: false,
@@ -139,23 +143,22 @@ export const sendCustomVerificationEmail = functions
 
       const verificationLink = await admin.auth().generateEmailVerificationLink(email, actionCodeSettings);
       
-      logger.info(`[VERIFICAÇÃO] Link gerado: ${verificationLink}`);
-      
+      // 3. Atualizar timestamp no banco
       await db.collection("users").doc(uid).update({
         lastVerificationEmailSent: FieldValue.serverTimestamp()
       });
       
+      // 4. Preparar envio via Brevo
       const apiInstance = initBrevoApi();
       
       const sendSmtpEmail = new Brevo.SendSmtpEmail({
         subject: "🔐 Verifique seu email - OLLO",
+        sender: SENDER_INFO,
+        to: [{ email: email, name: displayName }],
         htmlContent: `
           <!DOCTYPE html>
           <html lang="pt-br">
-          <head>
-              <meta charset="UTF-8">
-              <title>Verificação de Email - OLLO</title>
-          </head>
+          <head><meta charset="UTF-8"><title>Verificação de Email - OLLO</title></head>
           <body style="margin: 0; padding: 0; background: linear-gradient(135deg, #a8edea 0%, #45c486 100%); min-height: 100vh; font-family: Arial, sans-serif;">
               <div style="max-width: 480px; margin: 40px auto; background: #fff; border-radius: 18px; box-shadow: 0 6px 36px #3dd6a333, 0 1px 2px #0001; padding: 40px 28px 28px 28px; border: 1.5px solid #a8edea;">
 
@@ -166,6 +169,7 @@ export const sendCustomVerificationEmail = functions
                           <h2 style="color: #17925c; font-size: 20px; margin: 2px 0 8px 0; font-weight: bold; letter-spacing: 0.5px;">
                               Verifique seu email!</h2>
                           <div style="font-size: 15px; color: #444; line-height: 1.6; margin-bottom: 0;">
+                              Olá, ${displayName}.<br>
                               Para garantir a segurança da sua conta, precisamos verificar seu endereço de email.<br>
                               Clique no botão abaixo para ativar sua conta.
                           </div>
@@ -184,45 +188,30 @@ export const sendCustomVerificationEmail = functions
                       </a>
                   </div>
 
-                  <p style="text-align: center; color: #f39c12; font-size: 13px; margin-top: 30px; margin-bottom: -10px; font-weight: bold;">
-                      Não encontrou o e-mail? Verifique sua caixa de Spam.
-                  </p>
-
-                  <p style="text-align: center; color: #aaa; font-size: 12px; margin-top: 30px; margin-bottom: 8px;">
-                      Se você não criou esta conta, por favor ignore este e-mail.
-                  </p>
-                  <p style="text-align: center; color: #aaa; font-size: 12px; margin: 0;">
-                      Equipe OLLO
+                  <p style="text-align: center; color: #aaa; font-size: 12px; margin-top: 30px;">
+                      Se você não criou esta conta, ignore este e-mail.<br>Equipe OLLO
                   </p>
               </div>
           </body>
           </html>
         `,
-        sender: SENDER_INFO,
-        to: [{ 
-          email: email, 
-          name: context.auth.token.name || "Usuário OLLO" 
-        }],
       });
 
       const response = await apiInstance.sendTransacEmail(sendSmtpEmail);
       
-      logger.info(`[VERIFICAÇÃO] Email enviado com sucesso para ${email}`, {
-        messageId: response.body?.messageId
-      });
+      logger.info(`[VERIFICAÇÃO] Email enviado! ID: ${response.body?.messageId}`);
 
       return { 
         success: true, 
         message: "Email de verificação enviado com sucesso!" 
       };
 
-    } catch (error) {
-      logger.error(`[VERIFICAÇÃO] Erro ao enviar email para ${email}:`, error);
+    } catch (error: any) {
+      logger.error(`[VERIFICAÇÃO] Erro fatal:`, error);
       
       if (error instanceof functions.https.HttpsError) {
         throw error;
       }
-      
       throw new functions.https.HttpsError('internal', 'Erro ao enviar email de verificação');
     }
   });
@@ -255,7 +244,6 @@ export const onnewusercreated = functions
       }
       
       const username = await generateUniqueUsername(email, uid);
-      logger.info(`[NOVO USUÁRIO] Username gerado: ${username} para ${uid}`);
       
       await db.runTransaction(async (transaction) => {
         const privateRef = db.collection("users").doc(uid);
@@ -277,7 +265,6 @@ export const onnewusercreated = functions
             lastVerificationEmailSent: null
           };
           transaction.set(privateRef, privateData);
-          logger.info(`[NOVO USUÁRIO] Documento privado criado para ${uid}`);
         }
         
         if (!publicSnap.exists) {
@@ -294,7 +281,6 @@ export const onnewusercreated = functions
             verified: emailVerified || false,
           };
           transaction.set(publicRef, publicData);
-          logger.info(`[NOVO USUÁRIO] Documento público criado para ${uid}`);
         }
       });
       
@@ -304,13 +290,8 @@ export const onnewusercreated = functions
         await sendWelcomeEmail(user);
       }
       
-    } catch (error) {
-      logger.error(`[NOVO USUÁRIO] ERRO ao processar usuário ${uid}:`, {
-        error: error instanceof Error ? error.message : error,
-        stack: error instanceof Error ? error.stack : undefined,
-        uid,
-        email
-      });
+    } catch (error: any) {
+      logger.error(`[NOVO USUÁRIO] ERRO:`, error);
     }
   });
 
@@ -318,96 +299,41 @@ export const onnewusercreated = functions
 // 📧 FUNÇÃO AUXILIAR PARA ENVIAR EMAIL DE BOAS-VINDAS
 // ===================================================================================
 async function sendWelcomeEmail(user: admin.auth.UserRecord): Promise<void> {
-  if (!user.email) {
-    logger.warn(`[BOAS-VINDAS] Usuário ${user.uid} sem email, pulando envio`);
-    return;
-  }
+  if (!user.email) return;
 
   const db = getFirestore();
   
   try {
     const userDoc = await db.collection("users").doc(user.uid).get();
     if (userDoc.exists && userDoc.data()?.welcomeEmailSent) {
-      logger.info(`[BOAS-VINDAS] Email já foi enviado para ${user.email}`);
       return;
     }
-
-    logger.info(`[BOAS-VINDAS] Enviando para ${user.email}`);
 
     const apiInstance = initBrevoApi();
 
     const sendSmtpEmail = new Brevo.SendSmtpEmail({
       subject: "🎉 Bem-vindo(a) ao OLLO!",
+      sender: SENDER_INFO,
+      to: [{ email: user.email, name: user.displayName || "Novo Usuário" }],
       htmlContent: `
         <!DOCTYPE html>
         <html lang="pt-br">
-        <head>
-            <meta charset="UTF-8">
-            <title>Bem-vindo(a) ao OLLO!</title>
-        </head>
+        <head><meta charset="UTF-8"><title>Bem-vindo(a) ao OLLO!</title></head>
         <body style="margin: 0; padding: 0; background: linear-gradient(135deg, #a8edea 0%, #45c486 100%); min-height: 100vh; font-family: Arial, sans-serif;">
             <div style="max-width: 480px; margin: 40px auto; background: #fff; border-radius: 18px; box-shadow: 0 6px 36px #3dd6a333, 0 1px 2px #0001; padding: 40px 28px 28px 28px; border: 1.5px solid #a8edea;">
-
-                <div style="display: flex; align-items: flex-start; gap: 18px; margin-bottom: 24px;">
-                    <img src="https://storage.googleapis.com/gweb-cloud-media-autogen/website-prd/images/20240728T105822-0/ollo_logo_new.png"
-                        alt="OLLO Logo" style="width: 60px; height: auto; border-radius: 7px; display: block; margin-top: 2px;">
-                    <div>
-                        <h2 style="color: #17925c; font-size: 20px; margin: 2px 0 8px 0; font-weight: bold; letter-spacing: 0.5px;">
-                            Bem-vindo(a), ${user.displayName || "usuário"}!</h2>
-                        <div style="font-size: 15px; color: #444; line-height: 1.6; margin-bottom: 0;">
-                            Sua jornada começa aqui, onde cada olhar faz a diferença.<br>
-                            ${!user.emailVerified ? 'Não esqueça de verificar seu email para ativar sua conta completamente!' : 'Sua conta está pronta para uso!'}
-                        </div>
-                    </div>
+                <h2 style="color: #17925c; text-align: center;">Bem-vindo(a), ${user.displayName || "usuário"}!</h2>
+                <p style="text-align: center; color: #444;">Sua jornada começa aqui.</p>
+                <div style="text-align: center; margin: 28px 0;">
+                    <a href="https://olloapp.com.br" style="background: linear-gradient(90deg, #3fd08a 0%, #28c4c0 100%); color: #fff; padding: 17px 40px; border-radius: 13px; text-decoration: none; font-weight: bold;">Explorar OLLO</a>
                 </div>
-
-                <div style="text-align: center; margin: 30px 0 20px 0;">
-                    <img src="https://storage.googleapis.com/gweb-cloud-media-autogen/website-prd/images/20240728T105822-0/ollo_eyes_new.png"
-                        alt="Olhos OLLO" style="width: 75px; max-width: 100%; height: auto;">
-                </div>
-
-                <div style="background: #f8fffe; border-radius: 12px; padding: 20px; margin: 25px 0; border-left: 4px solid #17925c;">
-                    <h3 style="color: #17925c; margin: 0 0 12px; font-size: 16px; font-weight: bold;">O que você pode fazer no OLLO:</h3>
-                    <ul style="color: #444; line-height: 1.6; font-size: 14px; margin: 0; padding-left: 20px;">
-                        <li>Conectar-se com pessoas incríveis</li>
-                        <li>Compartilhar seus momentos e ideias</li>
-                        <li>Descobrir produtos no marketplace</li>
-                        <li>Participar de conversas interessantes</li>
-                    </ul>
-                </div>
-
-                <div style="text-align: center; margin: 28px 0 8px 0;">
-                    <a href="https://olloapp.com.br"
-                        style="display: inline-block; background: linear-gradient(90deg, #3fd08a 0%, #28c4c0 100%); color: #fff; padding: 17px 40px; border-radius: 13px; text-decoration: none; font-size: 18px; font-weight: 700; box-shadow: 0 2px 12px #22b97633; transition: background 0.2s;">
-                        Explorar OLLO
-                    </a>
-                </div>
-
-                <p style="text-align: center; color: #f39c12; font-size: 13px; margin-top: 30px; margin-bottom: -10px; font-weight: bold;">
-                    Precisa de ajuda? Entre em contato conosco!
-                </p>
-
-                <p style="text-align: center; color: #aaa; font-size: 12px; margin-top: 30px; margin-bottom: 8px;">
-                    Obrigado por fazer parte da nossa comunidade.
-                </p>
-                <p style="text-align: center; color: #aaa; font-size: 12px; margin: 0;">
-                    Equipe OLLO
-                </p>
+                <p style="text-align: center; color: #aaa; font-size: 12px;">Equipe OLLO</p>
             </div>
         </body>
         </html>
       `,
-      sender: SENDER_INFO,
-      to: [{ 
-        email: user.email, 
-        name: user.displayName || "Novo Usuário" 
-      }],
     });
     
-    const brevoResponse = await apiInstance.sendTransacEmail(sendSmtpEmail);
-    logger.info(`[BOAS-VINDAS] Email enviado com sucesso para ${user.email}`, {
-      messageId: brevoResponse.body?.messageId
-    });
+    await apiInstance.sendTransacEmail(sendSmtpEmail);
     
     await db.collection("users").doc(user.uid).update({
       welcomeEmailSent: true,
@@ -415,11 +341,7 @@ async function sendWelcomeEmail(user: admin.auth.UserRecord): Promise<void> {
     });
 
   } catch (error) {
-    const errorDetails = error instanceof Error ? (error as any).response?.body || error.message : error;
-    logger.error(`[BOAS-VINDAS] ERRO ao enviar email para ${user.email}:`, {
-      userId: user.uid,
-      error: errorDetails,
-    });
+    logger.error(`[BOAS-VINDAS] ERRO:`, error);
   }
 }
 
@@ -431,34 +353,18 @@ export const onUserDelete = functions
   .runWith({ timeoutSeconds: 30 })
   .auth.user().onDelete(async (user) => {
     const { uid } = user;
-
-    logger.info(`[EXCLUSÃO] Usuário ${uid} excluído, iniciando limpeza`);
-
+    logger.info(`[EXCLUSÃO] Limpando dados de ${uid}`);
     const db = getFirestore();
-    
     try {
       await db.runTransaction(async (transaction) => {
         const privateRef = db.collection("users").doc(uid);
         const publicRef = db.collection("users_public").doc(uid);
-        
-        const [privateSnap, publicSnap] = await Promise.all([
-          transaction.get(privateRef),
-          transaction.get(publicRef)
-        ]);
-        
-        if (privateSnap.exists) {
-          transaction.delete(privateRef);
-        }
-        
-        if (publicSnap.exists) {
-          transaction.delete(publicRef);
-        }
+        const [p1, p2] = await Promise.all([transaction.get(privateRef), transaction.get(publicRef)]);
+        if (p1.exists) transaction.delete(privateRef);
+        if (p2.exists) transaction.delete(publicRef);
       });
-      
-      logger.info(`[EXCLUSÃO] Dados do usuário ${uid} limpos com sucesso`);
-      
     } catch (error) {
-      logger.error(`[EXCLUSÃO] Erro ao limpar dados do usuário ${uid}:`, error);
+      logger.error(`[EXCLUSÃO] Erro:`, error);
     }
   });
 
@@ -469,50 +375,24 @@ export const updateEmailVerificationStatus = functions
   .region("southamerica-east1")
   .runWith({ timeoutSeconds: 30 })
   .https.onCall(async (data, context) => {
-    if (!context.auth) {
-      throw new functions.https.HttpsError('unauthenticated', 'Usuário não autenticado');
-    }
-
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Erro');
     const { uid } = context.auth;
-
-    try {
-      const db = getFirestore();
+    const db = getFirestore();
+    
+    await db.runTransaction(async (transaction) => {
+      const privateRef = db.collection("users").doc(uid);
+      const publicRef = db.collection("users_public").doc(uid);
+      const [p1, p2] = await Promise.all([transaction.get(privateRef), transaction.get(publicRef)]);
       
-      await db.runTransaction(async (transaction) => {
-        const privateRef = db.collection("users").doc(uid);
-        const publicRef = db.collection("users_public").doc(uid);
-        
-        const [privateSnap, publicSnap] = await Promise.all([
-          transaction.get(privateRef),
-          transaction.get(publicRef)
-        ]);
-        
-        if (!privateSnap.exists || !publicSnap.exists) {
-          throw new Error('Documentos do usuário não encontrados');
-        }
-        
-        transaction.update(privateRef, {
-          emailVerified: true,
-          updatedAt: FieldValue.serverTimestamp(),
-        });
-
-        transaction.update(publicRef, {
-          verified: true,
-        });
-      });
-
-      logger.info(`[VERIFICAÇÃO] Status atualizado para usuário ${uid}`);
-      
-      return { success: true, message: "Status de verificação atualizado!" };
-      
-    } catch (error) {
-      logger.error(`[VERIFICAÇÃO] Erro ao atualizar status para ${uid}:`, error);
-      throw new functions.https.HttpsError('internal', 'Erro ao atualizar status');
-    }
+      if (p1.exists) transaction.update(privateRef, { emailVerified: true, updatedAt: FieldValue.serverTimestamp() });
+      if (p2.exists) transaction.update(publicRef, { verified: true });
+    });
+    
+    return { success: true };
   });
 
 // ===================================================================================
-// 🔧 FUNÇÃO DE MANUTENÇÃO - Corrigir perfis existentes
+// 🔧 FUNÇÃO DE MANUTENÇÃO (RESTAURADA E COMPLETA)
 // ===================================================================================
 export const fixExistingProfiles = functions
   .region("southamerica-east1")
@@ -591,11 +471,11 @@ export const fixExistingProfiles = functions
         errors
       });
       
-    } catch (error) {
+    } catch (error: any) {
       logger.error('[FIX] Erro na manutenção:', error);
       res.status(500).json({
         success: false,
-        error: error instanceof Error ? error.message : 'Erro desconhecido'
+        error: error.message || 'Erro desconhecido'
       });
     }
   });

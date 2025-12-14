@@ -5,7 +5,7 @@ import { getStorage, connectStorageEmulator } from "firebase/storage";
 import { getFunctions } from "firebase/functions";
 import { setupDevEnvironment, applyCorsFix } from "./devConfig";
 
-// A função de validação continua a mesma, está perfeita.
+// --- 1. VALIDAÇÃO DE AMBIENTE ---
 function validateFirebaseEnv() {
   const requiredEnvVars = {
     VITE_FIREBASE_API_KEY: 'Chave API Firebase',
@@ -25,6 +25,7 @@ function validateFirebaseEnv() {
       key => `${key} (${requiredEnvVars[key]})`
     ).join(', ');
     
+    // Erro crítico se faltar variável
     throw new Error(`[OLLO] Configuração Firebase incompleta. Variáveis faltantes: ${errorDetails}`);
   }
 
@@ -33,15 +34,15 @@ function validateFirebaseEnv() {
   }
 }
 
+// Executa a validação antes de qualquer coisa
 validateFirebaseEnv();
 
+// --- 2. CONFIGURAÇÃO DO FIREBASE ---
 const firebaseConfig = {
-  // CORREÇÃO: Implementando a chave de API condicional para o emulador.
-  // Esta é a mudança principal para resolver o erro 400 Bad Request.
-  // Quando usamos emuladores, o SDK do Firebase ainda exige uma chave de API não vazia.
-  // Fornecer uma chave 'dummy' (fictícia) garante que a requisição seja sempre válida no ambiente de desenvolvimento local.
-  apiKey: import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true'
-    ? 'ollo-test-api-key' // Pode ser qualquer string não vazia.
+  // CORREÇÃO CRÍTICA: A chave de teste só é usada se estivermos em DEV *E* com emuladores ligados.
+  // Em produção (build), import.meta.env.DEV é false, então ele SEMPRE usará a chave real.
+  apiKey: (import.meta.env.DEV && import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true')
+    ? 'ollo-test-api-key' 
     : import.meta.env.VITE_FIREBASE_API_KEY,
 
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -51,20 +52,23 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-// Inicialização segura (sem alterações aqui)
+// --- 3. INICIALIZAÇÃO SEGURA (SINGLETON) ---
 let app;
 try {
+  // Evita reinicializar se já existir uma instância
   app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 } catch (error) {
   console.error('[OLLO] Erro na inicialização do Firebase:', error);
   throw new Error('Falha na configuração do Firebase. Verifique os logs do servidor.');
 }
 
+// Exportação dos serviços
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 export const functions = getFunctions(app, 'southamerica-east1');
-// Conexão com emuladores (sem alterações aqui)
+
+// --- 4. CONEXÃO COM EMULADORES (APENAS LOCAL) ---
 if (import.meta.env.DEV && import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true') {
   try {
     console.log('[OLLO] Conectando aos emuladores Firebase...');
@@ -77,8 +81,9 @@ if (import.meta.env.DEV && import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true
   }
 }
 
-// Configurações de desenvolvimento (sem alterações aqui)
+// --- 5. SETUP DE DESENVOLVIMENTO EXTRA ---
 if (import.meta.env.DEV) {
-  setupDevEnvironment();
-  applyCorsFix();
+  // Assumindo que essas funções lidam com erros se não existirem
+  if (typeof setupDevEnvironment === 'function') setupDevEnvironment();
+  if (typeof applyCorsFix === 'function') applyCorsFix();
 }
