@@ -3,6 +3,9 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { toast, Toaster } from 'react-hot-toast';
+// ADICIONADO: Importações necessárias para chamar a função nova
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '../firebase/config';
 
 // Ícones
 const EnvelopeIcon = () => (
@@ -38,8 +41,7 @@ const CheckIcon = () => (
 );
 
 const VerifyEmailPage = () => {
-  const { currentUser, logout, resendVerificationEmail, forceReloadUser } =
-    useAuth();
+  const { currentUser, logout, forceReloadUser } = useAuth();
   const navigate = useNavigate();
 
   const [isResending, setIsResending] = useState(false);
@@ -48,7 +50,6 @@ const VerifyEmailPage = () => {
 
   // --- LÓGICA DE VERIFICAÇÃO ---
 
-  // Função centralizada para checar status
   const checkStatus = useCallback(
     async (isManual = false) => {
       if (isManual) {
@@ -57,14 +58,12 @@ const VerifyEmailPage = () => {
       }
 
       try {
-        // Chama a função aprimorada do Contexto
         const updatedUser = await forceReloadUser();
 
         if (updatedUser?.emailVerified) {
           toast.success('Email confirmado com sucesso!', {
             id: 'verify-check',
           });
-          // Pequeno delay para o usuário ver o sucesso antes de sair
           setTimeout(() => {
             navigate('/', { replace: true });
           }, 1500);
@@ -83,49 +82,54 @@ const VerifyEmailPage = () => {
     [forceReloadUser, navigate]
   );
 
-  // Efeito 1: Monitoramento Automático
-  // Verifica a cada 5 segundos se o usuário já clicou no link na outra aba
   useEffect(() => {
-    // Se já estiver verificado, redireciona imediatamente
     if (currentUser?.emailVerified) {
       navigate('/', { replace: true });
       return;
     }
 
     const interval = setInterval(() => {
-      checkStatus(false); // check silencioso
+      checkStatus(false);
     }, 5000);
 
     return () => clearInterval(interval);
   }, [currentUser, checkStatus, navigate]);
 
-  // --- LÓGICA DE REENVIO ---
+  // --- LÓGICA DE REENVIO ATUALIZADA (CORREÇÃO BREVO) ---
 
   const handleResendEmail = async () => {
     if (isResending || resendCooldown > 0) return;
     setIsResending(true);
 
     try {
-      const result = await resendVerificationEmail();
-      if (result?.success) {
-        toast.success('Email reenviado!');
-        setResendCooldown(60);
+      // MUDANÇA AQUI: Chamando a função do Cloud Functions diretamente
+      console.log('Tentando enviar email via Brevo...');
 
-        // Countdown visual
-        const timer = setInterval(() => {
-          setResendCooldown((prev) => {
-            if (prev <= 1) {
-              clearInterval(timer);
-              return 0;
-            }
-            return prev - 1;
-          });
-        }, 1000);
-      } else {
-        toast.error('Erro ao reenviar.');
-      }
+      const sendEmailFn = httpsCallable(
+        functions,
+        'sendBrevoVerificationEmail'
+      );
+
+      await sendEmailFn({
+        email: currentUser.email,
+        displayName: currentUser.displayName || 'Usuário OLLO',
+      });
+
+      toast.success('Email reenviado! Cheque sua caixa de entrada.');
+      setResendCooldown(60);
+
+      const timer = setInterval(() => {
+        setResendCooldown((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
     } catch (e) {
-      toast.error('Falha ao reenviar.');
+      console.error('Erro no envio:', e);
+      toast.error('Erro ao enviar. Tente novamente mais tarde.');
     } finally {
       setIsResending(false);
     }
@@ -136,7 +140,6 @@ const VerifyEmailPage = () => {
     navigate('/login', { replace: true });
   };
 
-  // Se não houver usuário (logout forçado), redireciona
   if (!currentUser) {
     navigate('/login');
     return null;
@@ -191,7 +194,9 @@ const VerifyEmailPage = () => {
             >
               {resendCooldown > 0
                 ? `Aguarde ${resendCooldown}s`
-                : 'Reenviar e-mail'}
+                : isResending
+                  ? 'Enviando...'
+                  : 'Reenviar e-mail'}
             </button>
 
             <button
