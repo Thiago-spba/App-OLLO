@@ -70,7 +70,8 @@ export const sendBrevoVerificationEmail = onCall(
 
       // 5. Enviar para o Brevo via API (Usando Template ID e Params)
       // Usamos axios direto para garantir controle total sobre os parametros
-      const apiKey = process.env.BREVO_API_KEY || BREVO_KEY_FALLBACK;
+      // Forçando o uso da chave direta para teste
+const apiKey = BREVO_KEY_FALLBACK;
       
       await axios.post(
         "https://api.brevo.com/v3/smtp/email",
@@ -78,11 +79,12 @@ export const sendBrevoVerificationEmail = onCall(
           to: [{ email: email, name: displayName || "Usuário" }],
           templateId: BREVO_TEMPLATE_ID, // Usa o modelo visual configurado no site do Brevo
           params: {
+            // Mandamos com vários nomes para garantir que o Brevo pegue um deles
             NOME: displayName || "Usuário",
-            LINK_VERIFICACAO: verificationLink, // <--- A variável mágica que vai para o botão
+            LINK_VERIFICACAO: verificationLink,
+            LINK: verificationLink,
+            URL: verificationLink
           },
-        },
-        {
           headers: {
             "api-key": apiKey,
             "Content-Type": "application/json",

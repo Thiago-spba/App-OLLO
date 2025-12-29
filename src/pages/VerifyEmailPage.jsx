@@ -3,8 +3,10 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { toast, Toaster } from 'react-hot-toast';
-// ADICIONADO: Importações necessárias para chamar a função nova
-import { httpsCallable } from 'firebase/functions';
+
+// --- CORREÇÃO DO ERRO DE IMPORTAÇÃO ---
+// Voltamos a importar 'functions' (que existe) e pegamos 'getFunctions' do SDK
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { functions } from '../firebase/config';
 
 // Ícones
@@ -95,18 +97,25 @@ const VerifyEmailPage = () => {
     return () => clearInterval(interval);
   }, [currentUser, checkStatus, navigate]);
 
-  // --- LÓGICA DE REENVIO ATUALIZADA (CORREÇÃO BREVO) ---
+  // --- LÓGICA DE REENVIO CORRIGIDA (REGIÃO BRASIL) ---
 
   const handleResendEmail = async () => {
     if (isResending || resendCooldown > 0) return;
     setIsResending(true);
 
     try {
-      // MUDANÇA AQUI: Chamando a função do Cloud Functions diretamente
-      console.log('Tentando enviar email via Brevo...');
+      console.log('Tentando enviar email via Brevo (South America)...');
+
+      // -----------------------------------------------------------
+      // FIX PARA O BUILD: Pegamos o 'app' de dentro de 'functions'
+      // -----------------------------------------------------------
+      const firebaseApp = functions.app; // Extrai o app da instância existente
+
+      // Define a região correta (Brasil)
+      const functionsRegion = getFunctions(firebaseApp, 'southamerica-east1');
 
       const sendEmailFn = httpsCallable(
-        functions,
+        functionsRegion,
         'sendBrevoVerificationEmail'
       );
 
