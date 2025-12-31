@@ -12,7 +12,7 @@ import {
   createUserWithEmailAndPassword,
   signOut,
   sendPasswordResetEmail,
-  reload, // Importante para atualizar o token
+  reload,
 } from 'firebase/auth';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -58,6 +58,16 @@ export const AuthProvider = ({ children }) => {
 
   // Busca os dados do usuário no Firestore (users_public)
   const fetchUserProfile = useCallback(async (uid) => {
+    // [CORREÇÃO CRÍTICA]: Se o usuário não verificou o email,
+    // NÃO tenta ler o banco de dados. Isso evita o erro "Client is offline".
+    if (auth.currentUser && !auth.currentUser.emailVerified) {
+      console.log(
+        '[Auth] Usuário pendente de verificação. Leitura de perfil pausada.'
+      );
+      setUserProfile(null);
+      return;
+    }
+
     try {
       const userRef = doc(db, 'users_public', uid);
       const snapshot = await getDoc(userRef);
@@ -68,10 +78,9 @@ export const AuthProvider = ({ children }) => {
         console.warn('[Auth] Perfil não encontrado no Firestore.');
       }
     } catch (error) {
-      // MUDANÇA: Log mais discreto. Se falhar (ex: permissão negada por não ter email verificado),
-      // não queremos que o app quebre. O usuário ainda está autenticado.
+      // Log discreto para não sujar o console do usuário
       console.warn(
-        '[Auth] Não foi possível carregar o perfil completo (pode ser restrição de segurança):',
+        '[Auth] Leitura de perfil adiada (possível restrição de segurança):',
         error.code
       );
     }
@@ -90,13 +99,12 @@ export const AuthProvider = ({ children }) => {
           password
         );
 
-        // 2. Enviar Email via Backend (Cloud Function)
+        // 2. Tentar enviar e-mail (mas não travar se falhar)
         try {
           const sendBrevoEmail = httpsCallable(
             functions,
             'sendBrevoVerificationEmail'
           );
-          // Dispara e não espera muito (fire and forget para UX rápida)
           sendBrevoEmail({
             displayName:
               additionalData.name || additionalData.username || 'Usuário',
@@ -147,31 +155,29 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  // --- RECARREGAR USUÁRIO (Critical Fix para Loop de Verificação) ---
+  // --- RECARREGAR USUÁRIO ---
   const forceReloadUser = useCallback(async () => {
     try {
       const user = auth.currentUser;
       if (!user) return null;
 
-      // 1. Força atualização do token junto ao Firebase Auth
-      // Isso é o que faz o status 'emailVerified' mudar de false para true
+      // 1. Força atualização do token no Firebase Auth
       await reload(user);
 
-      // Atualiza o estado local do React imediatamente
+      // Atualiza estado local
       setCurrentUser({ ...user });
 
-      // 2. Se verificou agora, tenta atualizar o Firestore
+      // 2. Se verificou, tenta atualizar a flag no banco
       if (user.emailVerified) {
         console.log('[Auth] Verificação confirmada via Reload.');
 
-        // Tenta atualizar a flag no banco, mas não trava se falhar
         try {
           const userRef = doc(db, 'users_public', user.uid);
-          // Usamos updateDoc. Se o documento não existir ou regras bloquearem, cai no catch
-          await updateDoc(userRef, { verified: true });
+          // Tenta atualizar, mas ignora erro se o banco estiver restrito
+          await updateDoc(userRef, { verified: true }).catch(() => {});
         } catch (dbError) {
           console.warn(
-            '[Auth] Erro não-crítico ao atualizar flag verified no banco:',
+            '[Auth] Erro não-crítico ao atualizar flag no banco:',
             dbError
           );
         }
@@ -201,7 +207,8 @@ export const AuthProvider = ({ children }) => {
       return { success: true };
     } catch (error) {
       console.error('[Auth] Erro ao reenviar:', error);
-      return { success: false, error };
+      // Retorna o erro para a UI tratar
+      throw error;
     }
   }, [userProfile, currentUser]);
 
@@ -217,17 +224,16 @@ export const AuthProvider = ({ children }) => {
   // --- OBSERVADOR DE ESTADO ---
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      // 1. Define usuário básico (Auth)
       setCurrentUser(user);
 
       if (user) {
-        // 2. Tenta buscar perfil, mas garante que o app carregue mesmo se falhar
+        // Só busca perfil se o email estiver verificado ou se suas regras permitirem leitura pública
+        // Para segurança, blindamos aqui também
         await fetchUserProfile(user.uid);
       } else {
         setUserProfile(null);
       }
 
-      // 3. Libera o loading sempre
       setLoading(false);
     });
 

@@ -1,183 +1,144 @@
-import { onCall, HttpsError } from "firebase-functions/v2/https";
+// functions/src/index.ts
+import * as functions from "firebase-functions/v1"; // <--- CORREÇÃO: Importa V1 explicitamente
 import * as admin from "firebase-admin";
-import * as logger from "firebase-functions/logger";
-import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import axios from "axios";
-import * as functionsV1 from "firebase-functions/v1";
 
-// Inicializa o Admin SDK apenas uma vez
+// Inicialização única
 if (!admin.apps.length) {
   admin.initializeApp();
 }
 
-// CONFIGURAÇÃO GERAL
-const APP_URL = "https://olloapp.com.br";
-const BREVO_TEMPLATE_ID = 1; 
+const db = admin.firestore();
 
-// --- FUNÇÃO 1: Enviar E-mail de Verificação (Callable) ---
-// Esta função é chamada diretamente pelo seu Frontend (React)
-export const sendBrevoVerificationEmail = onCall(
-  { 
-    region: "southamerica-east1", 
-    timeoutSeconds: 30 
-  },
-  async (request) => {
-    // 1. Segurança: Só permite usuários logados
-    if (!request.auth) {
-      throw new HttpsError("unauthenticated", "Login necessário para solicitar verificação.");
+// --- FUNÇÃO 1: Enviar E-mail (V1) ---
+// Adicionado ': any' para resolver o erro de "implicitly has an 'any' type"
+export const sendBrevoVerificationEmail = functions.region("southamerica-east1").https.onCall(async (data: any, context: any) => {
+    // 1. Verificação de Segurança
+    if (!context.auth) {
+        throw new functions.https.HttpsError("unauthenticated", "Login necessário.");
     }
 
-    // 2. Recupera a chave de API do ambiente seguro do Firebase
-    // ATENÇÃO: Se der erro aqui, é porque faltou rodar o comando no terminal (veja abaixo)
-    const brevoKey = functionsV1.config().brevo?.key;
+    // 2. Leitura da Chave
+    const brevoKey = functions.config().brevo?.key;
     if (!brevoKey) {
-      logger.error("ERRO CRÍTICO: Chave do Brevo não configurada no ambiente.");
-      throw new HttpsError("internal", "Erro de configuração no servidor.");
+        console.error("ERRO CRÍTICO: Chave 'brevo.key' não encontrada no functions.config()");
+        throw new functions.https.HttpsError("internal", "Erro de configuração do servidor.");
     }
 
-    const { email, uid } = request.auth.token;
-    const displayName = (request.data && request.data.displayName) ? request.data.displayName : "Usuário";
+    const { email, uid } = context.auth.token;
+    const displayName = data.displayName || "Usuário";
 
-    if (!email) throw new HttpsError("invalid-argument", "O usuário não possui e-mail cadastrado.");
+    if (!email) {
+        throw new functions.https.HttpsError("invalid-argument", "Usuário sem e-mail.");
+    }
 
     try {
-      const db = getFirestore();
+        // 3. Gerar Link e Enviar
+        const actionCodeSettings = {
+            url: "https://olloapp.com.br/", 
+            handleCodeInApp: false,
+        };
 
-      // 3. Gera o link oficial de verificação do Firebase
-      const actionCodeSettings = {
-        url: `${APP_URL}/`,          // Para onde vai após clicar (Home)
-        handleCodeInApp: false,      // Deixa o Firebase lidar com a validação
-      };
+        const verificationLink = await admin.auth().generateEmailVerificationLink(email, actionCodeSettings);
 
-      const verificationLink = await admin.auth().generateEmailVerificationLink(email, actionCodeSettings);
-      
-      // 4. Registra no banco que enviamos (bom para evitar spam de cliques)
-      const userRef = db.collection("users").doc(uid);
-      await userRef.set(
-        { lastVerificationEmailSent: FieldValue.serverTimestamp() },
-        { merge: true }
-      );
+        // Salva log no banco
+        await db.collection("users").doc(uid).set(
+            { lastVerificationEmailSent: admin.firestore.FieldValue.serverTimestamp() },
+            { merge: true }
+        );
 
-      // 5. Envia o e-mail via API do Brevo
-      await axios.post(
-        "https://api.brevo.com/v3/smtp/email",
-        {
-          sender: { name: "Equipe OLLO", email: "no-reply@olloapp.com.br" },
-          to: [{ email: email, name: displayName }],
-          templateId: BREVO_TEMPLATE_ID,
-          params: {
-            NOME: displayName,
-            LINK: verificationLink, // O link mágico do Firebase
-            URL: verificationLink,
-          },
-        },
-        {
-          headers: {
-            "api-key": brevoKey, // Usa a variável segura
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-          },
-        }
-      );
+        // Envia via Brevo
+        await axios.post(
+            "https://api.brevo.com/v3/smtp/email",
+            {
+                sender: { name: "Equipe OLLO", email: "no-reply@olloapp.com.br" },
+                to: [{ email: email, name: displayName }],
+                templateId: 1, 
+                params: {
+                    NOME: displayName,
+                    LINK: verificationLink,
+                    URL: verificationLink,
+                },
+            },
+            {
+                headers: {
+                    "api-key": brevoKey,
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                },
+            }
+        );
 
-      logger.info(`E-mail de verificação enviado para ${email}`);
-      return { success: true };
+        return { success: true };
 
     } catch (error: any) {
-      logger.error("[ERRO] sendBrevoVerificationEmail", error);
-      // Retorna erro genérico para o cliente, mas loga o detalhe no servidor
-      throw new HttpsError("internal", "Não foi possível enviar o e-mail.");
+        console.error("Erro no envio de e-mail:", error.response?.data || error.message);
+        throw new functions.https.HttpsError("internal", "Falha ao enviar e-mail via provedor.");
     }
-  }
-);
+});
 
-// --- FUNÇÃO 2: Criar Usuário no Banco (Trigger) ---
-// Roda automaticamente quando alguém cria conta no Authentication
-export const onnewusercreated = functionsV1
-  .region("southamerica-east1")
-  .auth.user()
-  .onCreate(async (user) => {
+// --- FUNÇÃO 2: Criar Usuário no Banco (V1) ---
+export const onnewusercreated = functions.region("southamerica-east1").auth.user().onCreate(async (user: any) => {
     const { uid, email, displayName, emailVerified } = user;
-    const db = getFirestore();
     
     try {
-      // Gera um username único base
-      let base = email ? email.split("@")[0] : `user${uid.substring(0, 5)}`;
-      base = base.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
-      
-      // Verifica se já existe, se sim, adiciona timestamp
-      const query = await db.collection("users_public").where("username", "==", base).get();
-      const username = query.empty ? base : `${base}${Date.now().toString().slice(-4)}`;
+        let base = email ? email.split("@")[0] : `user${uid.substring(0, 5)}`;
+        base = base.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+        
+        const query = await db.collection("users_public").where("username", "==", base).get();
+        const username = query.empty ? base : `${base}${Date.now().toString().slice(-4)}`;
 
-      // Salva dados em duas coleções (Privada e Pública)
-      await db.runTransaction(async (t) => {
-        // Dados privados (só o usuário vê)
-        t.set(db.collection("users").doc(uid), {
-          email: email || "",
-          displayName: displayName || "",
-          createdAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp(),
-          emailVerified: emailVerified || false,
-          profileCreated: true,
+        await db.runTransaction(async (t) => {
+            const userRef = db.collection("users").doc(uid);
+            const publicRef = db.collection("users_public").doc(uid);
+
+            t.set(userRef, {
+                email: email || "",
+                displayName: displayName || "",
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                emailVerified: emailVerified || false,
+                profileCreated: true,
+            });
+
+            t.set(publicRef, {
+                userId: uid,
+                name: displayName || "Usuário OLLO",
+                username: username,
+                avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName || "O")}&background=0D4D44&color=fff&bold=true`,
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                verified: emailVerified || false,
+            });
         });
-
-        // Dados públicos (outros usuários veem)
-        t.set(db.collection("users_public").doc(uid), {
-          userId: uid,
-          name: displayName || "Usuário OLLO",
-          username: username,
-          avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName || "O")}&background=0D4D44&color=fff&bold=true`,
-          createdAt: FieldValue.serverTimestamp(),
-          verified: emailVerified || false,
-        });
-      });
     } catch (e) {
-      logger.error("Erro em onnewusercreated", e);
+        console.error("Erro ao criar usuário no banco:", e);
     }
-  });
+});
 
-// --- FUNÇÃO 3: Limpeza de Usuário (Trigger) ---
-// Roda automaticamente se o usuário for deletado do Auth
-export const onUserDelete = functionsV1
-  .region("southamerica-east1")
-  .auth.user()
-  .onDelete(async (user) => {
-    const db = getFirestore();
-    try {
-      await db.runTransaction(async (t) => {
-        t.delete(db.collection("users").doc(user.uid));
-        t.delete(db.collection("users_public").doc(user.uid));
-      });
-      logger.info(`Dados do usuário ${user.uid} deletados com sucesso.`);
-    } catch (e) {
-      logger.error("Erro em onUserDelete", e);
-    }
-  });
-
-// --- FUNÇÃO 4: Atualizar Status Manualmente (Opcional) ---
-// Pode ser usada caso precise forçar a atualização do status no banco
-export const updateEmailVerificationStatus = onCall(
-  { region: "southamerica-east1" },
-  async (request) => {
-    if (!request.auth) throw new HttpsError("unauthenticated", "Negado");
-    
-    const { uid } = request.auth;
-    const db = getFirestore();
-    
+// --- FUNÇÃO 3: Deletar Usuário (V1) ---
+export const onUserDelete = functions.region("southamerica-east1").auth.user().onDelete(async (user: any) => {
     try {
         await db.runTransaction(async (t) => {
+            t.delete(db.collection("users").doc(user.uid));
+            t.delete(db.collection("users_public").doc(user.uid));
+        });
+    } catch (e) {
+        console.error("Erro ao deletar usuário:", e);
+    }
+});
+
+// --- FUNÇÃO 4: Atualizar Status (V1) ---
+export const updateEmailVerificationStatus = functions.region("southamerica-east1").https.onCall(async (data: any, context: any) => {
+    if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Negado");
+    const uid = context.auth.uid;
+    
+    await db.runTransaction(async (t) => {
         t.update(db.collection("users").doc(uid), { emailVerified: true });
-        
         const pubRef = db.collection("users_public").doc(uid);
-        const pubDoc = await t.get(pubRef);
-        if (pubDoc.exists) {
+        const docSnap = await t.get(pubRef);
+        if (docSnap.exists) {
             t.update(pubRef, { verified: true });
         }
-        });
-        return { success: true };
-    } catch (e) {
-        logger.error("Erro ao atualizar status manual", e);
-        throw new HttpsError("internal", "Erro ao atualizar banco de dados");
-    }
-  }
-);
+    });
+    return { success: true };
+});
