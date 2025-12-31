@@ -1,12 +1,11 @@
+// src/firebase/config.js
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore'; // Voltamos para o import simples
+import { getFirestore } from 'firebase/firestore'; 
 import { getStorage } from 'firebase/storage';
 import { getFunctions } from 'firebase/functions';
 
-// ===============================================================
-// SUAS CHAVES (OLLO APP)
-// ===============================================================
+// SUAS CHAVES (OLLO APP) - Mantidas as originais
 const firebaseConfig = {
   apiKey: "AIzaSyDllOADsJ90lXOkV1k2BHMkeGisnkgLmRc",
   authDomain: "olloapp-egl2025.firebaseapp.com",
@@ -23,8 +22,8 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
 // 3. Inicializa Firestore (Banco de Dados)
-// MUDANÇA CRÍTICA: Removemos o cache complexo. 
-// Usar apenas getFirestore(app) resolve o erro de "Client Offline".
+// MUDANÇA: Usamos a inicialização padrão. O Firebase gerencia o cache offline automaticamente
+// sem travar a conexão inicial se as regras de segurança forem estritas.
 const db = getFirestore(app);
 
 // 4. Inicializa Storage

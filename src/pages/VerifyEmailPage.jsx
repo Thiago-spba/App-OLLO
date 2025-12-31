@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { toast, Toaster } from 'react-hot-toast';
 import { httpsCallable } from 'firebase/functions';
+import { getAuth } from 'firebase/auth'; // <--- O SEGREDO ESTÁ AQUI
 import { functions } from '../firebase/config';
 
 // --- ÍCONES ---
@@ -40,116 +41,99 @@ const CheckIcon = () => (
 );
 
 const VerifyEmailPage = () => {
-  const { currentUser, logout, forceReloadUser } = useAuth();
+  const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
 
   const [isResending, setIsResending] = useState(false);
   const [isCheckingManually, setIsCheckingManually] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
 
-  // MUDANÇA: Lógica blindada para evitar erros no Firestore
+  // --- LÓGICA BLINDADA (Direto na Fonte) ---
   const checkVerificationStatus = useCallback(async () => {
-    if (!currentUser) return false;
+    // AQUI ESTÁ A MUDANÇA: Não usamos o currentUser do contexto!
+    // Pegamos a instância direta do Firebase Auth.
+    const auth = getAuth();
+    const user = auth.currentUser;
+
+    if (!user) return false;
 
     try {
-      // 1. Pergunta apenas ao Auth do Firebase se o status mudou
-      await currentUser.reload();
+      // 1. Força o Firebase a bater no servidor e atualizar o token interno
+      await user.reload();
 
-      // 2. Verifica o status atualizado
-      const isVerified = currentUser.emailVerified;
+      // 2. Lê a propriedade direto do objeto atualizado do SDK (não do React)
+      const isVerified = user.emailVerified;
 
-      // CORREÇÃO CRÍTICA: Só tenta atualizar o contexto/banco SE estiver verificado
-      // Isso evita o erro "Client is offline" ou "Permission denied" no loop
       if (isVerified) {
-        console.log('E-mail verificado! Sincronizando perfil...');
-        await forceReloadUser();
-      }
+        console.log('Verificação detectada no SDK! Forçando entrada...');
+        toast.success('Confirmado! Entrando...', { duration: 2000 });
 
+        // --- O MARTELO FINAL ---
+        // Forçamos um recarregamento total da página.
+        // Isso limpa qualquer memória cache do React e obriga o AuthContext a baixar tudo novo.
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 1000);
+      }
       return isVerified;
     } catch (error) {
-      console.error('Erro ao verificar status (polling):', error);
+      console.error('Erro no polling:', error);
       return false;
     }
-  }, [currentUser, forceReloadUser]);
+  }, []);
 
-  // Botão manual
+  // Botão manual ("Já cliquei no link")
   const handleManualCheck = async () => {
     if (isCheckingManually) return;
-
     setIsCheckingManually(true);
-    toast.loading('Verificando com o servidor...', { id: 'manual-check' });
+    toast.loading('Verificando...', { id: 'check' });
 
     const isVerified = await checkVerificationStatus();
 
-    if (isVerified) {
-      toast.success('E-mail verificado! Entrando...', { id: 'manual-check' });
-      setTimeout(() => {
-        window.location.href = '/'; // REDIRECIONAMENTO FORÇADO
-      }, 1500);
-    } else {
-      toast.dismiss('manual-check');
-      toast('O sistema ainda consta como pendente.', {
-        icon: '⏳',
-        duration: 6000,
-      });
-      toast('Se já clicou no link, aguarde alguns segundos.', {
-        icon: 'ℹ️',
-        duration: 6000,
-      });
+    if (!isVerified) {
+      toast.error(
+        'Ainda consta como pendente. Aguarde uns segundos e tente de novo.',
+        { id: 'check' }
+      );
     }
-
+    // Se for verificado, o redirecionamento acontece dentro da função checkVerificationStatus
     setIsCheckingManually(false);
   };
 
-  // Polling automático
+  // Polling automático (Verifica sozinho a cada 3s)
   useEffect(() => {
     if (!currentUser) {
       navigate('/login');
       return;
     }
 
+    // Se por acaso o contexto já souber, sai daqui
     if (currentUser.emailVerified) {
       window.location.href = '/';
       return;
     }
 
-    // Intervalo de verificação
-    const interval = setInterval(async () => {
-      const isVerified = await checkVerificationStatus();
-
-      if (isVerified) {
-        clearInterval(interval);
-        toast.success(
-          'E-mail verificado automaticamente! Bem-vindo ao OLLO 🎉'
-        );
-        setTimeout(() => {
-          window.location.href = '/'; // REDIRECIONAMENTO FORÇADO
-        }, 1500);
-      }
-    }, 3000); // Verifica a cada 3 segundos
+    const interval = setInterval(() => {
+      checkVerificationStatus();
+    }, 3000);
 
     return () => clearInterval(interval);
-  }, [currentUser, checkVerificationStatus, navigate]);
+  }, [currentUser, navigate, checkVerificationStatus]);
 
   // Reenvio de e-mail
   const handleResendEmail = async () => {
     if (isResending || resendCooldown > 0) return;
-
     setIsResending(true);
-    toast.loading('Enviando novo link...', { id: 'resend' });
+    toast.loading('Enviando...', { id: 'resend' });
 
     try {
       const sendEmailFn = httpsCallable(
         functions,
         'sendBrevoVerificationEmail'
       );
-      await sendEmailFn({
-        displayName: currentUser.displayName || 'Usuário',
-      });
+      await sendEmailFn({ displayName: currentUser.displayName || 'Usuário' });
 
-      toast.success('Novo link enviado! Verifique spam/lixo eletrônico.', {
-        id: 'resend',
-      });
+      toast.success('Link enviado! Verifique o Spam.', { id: 'resend' });
 
       setResendCooldown(60);
       const timer = setInterval(() => {
@@ -162,10 +146,8 @@ const VerifyEmailPage = () => {
         });
       }, 1000);
     } catch (error) {
-      console.error('Erro ao reenviar:', error);
-      toast.error('Erro ao enviar. Tente novamente em alguns minutos.', {
-        id: 'resend',
-      });
+      console.error(error);
+      toast.error('Erro ao enviar. Tente novamente.', { id: 'resend' });
     } finally {
       setIsResending(false);
     }
@@ -179,7 +161,6 @@ const VerifyEmailPage = () => {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <Toaster position="top-center" />
-
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <h1 className="text-center text-3xl font-bold text-blue-600 mb-2">
           OLLO
@@ -200,8 +181,7 @@ const VerifyEmailPage = () => {
           <div className="text-center mb-6">
             <EnvelopeIcon />
             <p className="mt-4 text-sm text-gray-500">
-              Clique no link enviado para ativar sua conta. Verifique sua pasta
-              de spam.
+              Clique no link enviado para ativar sua conta.
             </p>
           </div>
 
@@ -209,7 +189,7 @@ const VerifyEmailPage = () => {
             <button
               onClick={handleManualCheck}
               disabled={isCheckingManually}
-              className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-70 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+              className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
             >
               {isCheckingManually ? (
                 'Verificando...'
@@ -223,27 +203,20 @@ const VerifyEmailPage = () => {
             <button
               onClick={handleResendEmail}
               disabled={isResending || resendCooldown > 0}
-              className="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 dark:bg-gray-700 dark:text-gray-200 transition-colors"
+              className="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200"
             >
               {resendCooldown > 0
                 ? `Aguarde ${resendCooldown}s`
-                : isResending
-                  ? 'Enviando...'
-                  : 'Reenviar e-mail de verificação'}
+                : 'Reenviar e-mail'}
             </button>
 
             <button
               onClick={handleLogout}
-              className="w-full flex justify-center py-2 px-4 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-md transition-colors"
+              className="w-full flex justify-center py-2 px-4 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-md"
             >
               Sair e usar outra conta
             </button>
           </div>
-
-          <p className="text-xs text-center text-gray-400 mt-6">
-            A página atualiza automaticamente assim que a verificação for
-            detectada.
-          </p>
         </div>
       </div>
     </div>
