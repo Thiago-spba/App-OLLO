@@ -13,6 +13,9 @@ import App from './App.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 
 // --- PÁGINAS ---
+// Nota: Importamos VerifySuccess do local onde você o salvou (dentro de components/pages)
+import VerifySuccess from './components/pages/VerifySuccess.jsx';
+
 import HomePage from './pages/HomePage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
@@ -70,8 +73,16 @@ const router = createBrowserRouter([
     path: '/verify-email',
     element: <VerifyEmailPage />,
     errorElement: <PublicErrorPage />,
-  }, // --- Rotas Principais com Layout (Sidebar, etc.) ---
+  },
 
+  // --- NOVA ROTA DE SUCESSO DE VERIFICAÇÃO ---
+  {
+    path: '/verify-success',
+    element: <VerifySuccess />,
+    errorElement: <PublicErrorPage />,
+  },
+
+  // --- Rotas Principais com Layout (Sidebar, etc.) ---
   {
     path: '/',
     element: <App />,
@@ -84,12 +95,12 @@ const router = createBrowserRouter([
       {
         path: 'marketplace/detalhes/:listingId',
         element: <ListingDetailPage />,
-      }, // -- Rotas Privadas (exigem login e e-mail verificado) --
+      },
 
+      // -- Rotas Privadas (exigem login e e-mail verificado) --
       {
         element: <ProtectedRoute />, // O "guardião" das rotas abaixo
         children: [
-          // CORREÇÃO: HomePage agora protegida
           { index: true, element: <HomePage /> },
 
           { path: 'profile/:username', element: <ProfilePage /> },
@@ -99,8 +110,9 @@ const router = createBrowserRouter([
           { path: 'users', element: <UsersPage /> },
           { path: 'notifications', element: <NotificationsPage /> },
         ],
-      }, // Rota coringa (catch-all) para URLs não encontradas
+      },
 
+      // Rota coringa (catch-all) para URLs não encontradas
       { path: '*', element: <NotFoundPage /> },
     ],
   },
@@ -109,24 +121,17 @@ const router = createBrowserRouter([
 // --- RENDERIZAÇÃO DA APLICAÇÃO ---
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-       {' '}
     <AuthProvider>
-           {' '}
       <ThemeProvider>
-                <RouterProvider router={router} />     {' '}
+        <RouterProvider router={router} />
       </ThemeProvider>
-         {' '}
     </AuthProvider>
-     {' '}
   </React.StrictMode>
 );
 
 // --- Service Worker ---
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    // CORREÇÃO PERMANENTE: Evita o 'SecurityError: ... behind a redirect'
-    // O navegador bloqueia o SW se ele for registrado em uma URL (www) que será redirecionada.
-    // Se o host começar com 'www.', tentamos desregistrar e abortamos o registro nesta URL.
     if (window.location.hostname.startsWith('www.')) {
       navigator.serviceWorker
         .getRegistrations()
@@ -140,7 +145,7 @@ if ('serviceWorker' in navigator) {
             'Service Worker: Desregistro forçado para evitar SecurityError no redirecionamento WWW.'
           );
         });
-      return; // Aborta o registro nesta URL de redirecionamento
+      return;
     }
     navigator.serviceWorker
       .register('/service-worker.js')

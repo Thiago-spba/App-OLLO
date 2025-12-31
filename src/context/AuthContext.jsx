@@ -2,59 +2,40 @@
 import React, {
   createContext,
   useContext,
-  useState,
   useEffect,
+  useState,
   useCallback,
 } from 'react';
 import {
   onAuthStateChanged,
-  signOut,
-  reload,
-  createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
   sendPasswordResetEmail,
+  reload, // Importante para atualizar o token
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { auth, db, functions } from '../firebase/config';
 import { toast } from 'react-hot-toast';
+
+// Importa configurações do firebase
+import { auth, db, functions } from '../firebase/config';
 
 const AuthContext = createContext(null);
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
+  if (!context)
     throw new Error('useAuth deve ser usado dentro de um AuthProvider');
-  }
   return context;
 };
 
 export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
   // --- FUNÇÕES AUXILIARES ---
-
-  // Cria ou atualiza o perfil no Firestore
-  const createUserProfile = async (user, additionalData = {}) => {
-    if (!user) return;
-    const userRef = doc(db, 'users_public', user.uid);
-
-    try {
-      const snapshot = await getDoc(userRef);
-      if (!snapshot.exists()) {
-        await setDoc(userRef, {
-          email: user.email,
-          uid: user.uid,
-          createdAt: new Date(),
-          emailVerified: user.emailVerified,
-          ...additionalData,
-        });
-      }
-    } catch (error) {
-      console.error('[Auth] Erro ao criar perfil:', error);
-    }
-  };
 
   const getErrorMessage = (errorCode) => {
     switch (errorCode) {
@@ -67,41 +48,63 @@ export const AuthProvider = ({ children }) => {
       case 'auth/invalid-email':
         return 'Email inválido';
       case 'auth/too-many-requests':
-        return 'Muitas tentativas. Tente novamente mais tarde';
+        return 'Muitas tentativas. Tente mais tarde';
+      case 'auth/network-request-failed':
+        return 'Erro de conexão. Verifique sua internet.';
       default:
         return 'Ocorreu um erro na autenticação';
     }
   };
 
+  // Busca os dados do usuário no Firestore (users_public)
+  const fetchUserProfile = useCallback(async (uid) => {
+    try {
+      const userRef = doc(db, 'users_public', uid);
+      const snapshot = await getDoc(userRef);
+
+      if (snapshot.exists()) {
+        setUserProfile(snapshot.data());
+      } else {
+        console.warn('[Auth] Perfil não encontrado no Firestore.');
+      }
+    } catch (error) {
+      // MUDANÇA: Log mais discreto. Se falhar (ex: permissão negada por não ter email verificado),
+      // não queremos que o app quebre. O usuário ainda está autenticado.
+      console.warn(
+        '[Auth] Não foi possível carregar o perfil completo (pode ser restrição de segurança):',
+        error.code
+      );
+    }
+  }, []);
+
   // --- AÇÕES PRINCIPAIS ---
 
   const registerWithEmail = useCallback(
     async (email, password, additionalData = {}) => {
+      setLoading(true);
       try {
-        setLoading(true);
-        // 1. Criar Auth
+        // 1. Criar Usuário no Auth
         const { user } = await createUserWithEmailAndPassword(
           auth,
           email,
           password
         );
 
-        // 2. Criar Firestore
-        await createUserProfile(user, additionalData);
-
-        // 3. Enviar Email (Brevo)
+        // 2. Enviar Email via Backend (Cloud Function)
         try {
           const sendBrevoEmail = httpsCallable(
             functions,
             'sendBrevoVerificationEmail'
           );
-          await sendBrevoEmail({
-            email: user.email,
+          // Dispara e não espera muito (fire and forget para UX rápida)
+          sendBrevoEmail({
             displayName:
               additionalData.name || additionalData.username || 'Usuário',
-          });
+          }).catch((err) =>
+            console.error('Falha silenciosa no envio de email:', err)
+          );
         } catch (emailError) {
-          console.error('[Auth] Falha no envio de e-mail:', emailError);
+          console.error('[Auth] Erro ao tentar enviar email:', emailError);
         }
 
         toast.success('Conta criada! Verifique seu email.');
@@ -118,8 +121,8 @@ export const AuthProvider = ({ children }) => {
   );
 
   const loginWithEmail = useCallback(async (email, password) => {
+    setLoading(true);
     try {
-      setLoading(true);
       const { user } = await signInWithEmailAndPassword(auth, email, password);
       toast.success('Bem-vindo de volta!');
       return { success: true, user };
@@ -135,6 +138,7 @@ export const AuthProvider = ({ children }) => {
     try {
       await signOut(auth);
       setCurrentUser(null);
+      setUserProfile(null);
       toast.success('Você saiu da conta.');
       return { success: true };
     } catch (error) {
@@ -143,32 +147,34 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  // --- SOLUÇÃO CRÍTICA PARA O LOOP DE VERIFICAÇÃO ---
+  // --- RECARREGAR USUÁRIO (Critical Fix para Loop de Verificação) ---
   const forceReloadUser = useCallback(async () => {
     try {
       const user = auth.currentUser;
       if (!user) return null;
 
-      // 1. Força o SDK a baixar o novo token do Google
+      // 1. Força atualização do token junto ao Firebase Auth
+      // Isso é o que faz o status 'emailVerified' mudar de false para true
       await reload(user);
 
-      // 2. Verifica se o status mudou para VERIFICADO
+      // Atualiza o estado local do React imediatamente
+      setCurrentUser({ ...user });
+
+      // 2. Se verificou agora, tenta atualizar o Firestore
       if (user.emailVerified) {
-        console.log('[Auth] Verificação detectada! Sincronizando...');
+        console.log('[Auth] Verificação confirmada via Reload.');
 
-        // 3. Atualiza o Firestore (Fonte da Verdade do Backend)
-        const userRef = doc(db, 'users_public', user.uid);
-        // Usamos updateDoc para não sobrescrever outros dados
-        await updateDoc(userRef, { emailVerified: true }).catch((err) =>
-          console.warn('Erro ao atualizar firestore (pode ser permissão):', err)
-        );
-
-        // 4. ATUALIZA O ESTADO DO REACT (Fonte da Verdade do Frontend)
-        // Isso força o re-render de toda a aplicação com o novo status
-        setCurrentUser((prev) => ({
-          ...prev,
-          emailVerified: true,
-        }));
+        // Tenta atualizar a flag no banco, mas não trava se falhar
+        try {
+          const userRef = doc(db, 'users_public', user.uid);
+          // Usamos updateDoc. Se o documento não existir ou regras bloquearem, cai no catch
+          await updateDoc(userRef, { verified: true });
+        } catch (dbError) {
+          console.warn(
+            '[Auth] Erro não-crítico ao atualizar flag verified no banco:',
+            dbError
+          );
+        }
 
         return { ...user, emailVerified: true };
       }
@@ -189,14 +195,15 @@ export const AuthProvider = ({ children }) => {
         'sendBrevoVerificationEmail'
       );
       await sendBrevoEmail({
-        displayName: auth.currentUser.displayName || 'Usuário',
+        displayName: userProfile?.name || currentUser?.displayName || 'Usuário',
       });
+
       return { success: true };
     } catch (error) {
       console.error('[Auth] Erro ao reenviar:', error);
       return { success: false, error };
     }
-  }, []);
+  }, [userProfile, currentUser]);
 
   const forgotPassword = useCallback(async (email) => {
     try {
@@ -210,42 +217,38 @@ export const AuthProvider = ({ children }) => {
   // --- OBSERVADOR DE ESTADO ---
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        try {
-          const userRef = doc(db, 'users_public', user.uid);
-          const userDoc = await getDoc(userRef);
+      // 1. Define usuário básico (Auth)
+      setCurrentUser(user);
 
-          if (userDoc.exists()) {
-            // Mescla dados do Auth com dados do Firestore
-            setCurrentUser({ ...user, ...userDoc.data() });
-          } else {
-            setCurrentUser(user);
-          }
-        } catch (error) {
-          console.error('[Auth] Erro ao carregar perfil:', error);
-          setCurrentUser(user);
-        }
+      if (user) {
+        // 2. Tenta buscar perfil, mas garante que o app carregue mesmo se falhar
+        await fetchUserProfile(user.uid);
       } else {
-        setCurrentUser(null);
+        setUserProfile(null);
       }
+
+      // 3. Libera o loading sempre
       setLoading(false);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [fetchUserProfile]);
 
   const value = {
     currentUser,
+    userProfile,
     loading,
     registerWithEmail,
     loginWithEmail,
     logout,
     resendVerificationEmail,
     forgotPassword,
-    forceReloadUser, // A Chave da Solução
+    forceReloadUser,
     isAuthenticated: !!currentUser,
     isEmailVerified: currentUser?.emailVerified || false,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
+
+export default AuthContext;

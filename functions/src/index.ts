@@ -1,237 +1,183 @@
-// functions/src/index.ts
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { onDocumentCreated, onDocumentDeleted } from "firebase-functions/v2/firestore";
 import * as admin from "firebase-admin";
 import * as logger from "firebase-functions/logger";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import axios from "axios";
+import * as functionsV1 from "firebase-functions/v1";
 
-// Inicializa o Admin SDK
+// Inicializa o Admin SDK apenas uma vez
 if (!admin.apps.length) {
   admin.initializeApp();
 }
 
-// ===================================================================================
-// 🎯 1. CONFIGURAÇÃO E CHAVES
-// ===================================================================================
-// Idealmente use o Google Secret Manager, mas mantendo sua chave aqui para facilitar o teste:
-const BREVO_KEY_FALLBACK = "xkeysib-104d12d7044aa1f2d911f6b5a0699cf7f83aace7855f56e972c6be68875de76f";
-const BREVO_TEMPLATE_ID = 1; // ID do template "Bem-vindo" ou "Verificação" no Brevo
-// URL do seu projeto (conforme logs de deploy anteriores)
-const APP_URL = "https://olloapp-egl2025.web.app"; 
+// CONFIGURAÇÃO GERAL
+const APP_URL = "https://olloapp.com.br";
+const BREVO_TEMPLATE_ID = 1; 
 
-// ===================================================================================
-// 📧 2. FUNÇÃO DE VERIFICAÇÃO DE EMAIL (A CORREÇÃO PRINCIPAL)
-// ===================================================================================
+// --- FUNÇÃO 1: Enviar E-mail de Verificação (Callable) ---
+// Esta função é chamada diretamente pelo seu Frontend (React)
 export const sendBrevoVerificationEmail = onCall(
-  { region: "southamerica-east1", timeoutSeconds: 30, secrets: ["BREVO_API_KEY"] },
+  { 
+    region: "southamerica-east1", 
+    timeoutSeconds: 30 
+  },
   async (request) => {
-    // 1. Validação de segurança
+    // 1. Segurança: Só permite usuários logados
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "Login necessário para solicitar verificação.");
     }
 
-    const { email, uid } = request.auth.token;
-    const { displayName } = request.data;
-
-    if (!email) {
-      throw new HttpsError("invalid-argument", "Email não encontrado no token.");
+    // 2. Recupera a chave de API do ambiente seguro do Firebase
+    // ATENÇÃO: Se der erro aqui, é porque faltou rodar o comando no terminal (veja abaixo)
+    const brevoKey = functionsV1.config().brevo?.key;
+    if (!brevoKey) {
+      logger.error("ERRO CRÍTICO: Chave do Brevo não configurada no ambiente.");
+      throw new HttpsError("internal", "Erro de configuração no servidor.");
     }
 
-    logger.info(`[VERIFICAÇÃO] Iniciando processo para: ${email}`);
+    const { email, uid } = request.auth.token;
+    const displayName = (request.data && request.data.displayName) ? request.data.displayName : "Usuário";
+
+    if (!email) throw new HttpsError("invalid-argument", "O usuário não possui e-mail cadastrado.");
 
     try {
-      // 2. Rate Limiting (Evitar spam de cliques)
       const db = getFirestore();
-      const userRef = db.collection("users").doc(uid);
-      const userDoc = await userRef.get();
 
-      if (userDoc.exists) {
-        const lastSent = userDoc.data()?.lastVerificationEmailSent?.toDate();
-        // Se enviou há menos de 1 minuto, bloqueia
-        if (lastSent && (Date.now() - lastSent.getTime() < 60000)) {
-          logger.warn(`[VERIFICAÇÃO] Bloqueado por rate limit: ${email}`);
-          throw new HttpsError("resource-exhausted", "Aguarde um minuto antes de reenviar.");
-        }
-      }
-
-      // 3. GERAR O LINK MÁGICO DO FIREBASE (CORREÇÃO DE REDIRECIONAMENTO)
-      // Isso garante que após clicar, o usuário volte para o app logado
+      // 3. Gera o link oficial de verificação do Firebase
       const actionCodeSettings = {
-        url: `${APP_URL}/`, // Redireciona para a Home após verificar
-        handleCodeInApp: true,
+        url: `${APP_URL}/`,          // Para onde vai após clicar (Home)
+        handleCodeInApp: false,      // Deixa o Firebase lidar com a validação
       };
 
       const verificationLink = await admin.auth().generateEmailVerificationLink(email, actionCodeSettings);
-      logger.info(`[VERIFICAÇÃO] Link gerado com sucesso.`);
-
-      // 4. Atualizar timestamp no banco
-      await userRef.set({ lastVerificationEmailSent: FieldValue.serverTimestamp() }, { merge: true });
-
-      // 5. Enviar para o Brevo via API (Usando Template ID e Params)
-      // Usamos axios direto para garantir controle total sobre os parametros
-      // Forçando o uso da chave direta para teste
-const apiKey = BREVO_KEY_FALLBACK;
       
+      // 4. Registra no banco que enviamos (bom para evitar spam de cliques)
+      const userRef = db.collection("users").doc(uid);
+      await userRef.set(
+        { lastVerificationEmailSent: FieldValue.serverTimestamp() },
+        { merge: true }
+      );
+
+      // 5. Envia o e-mail via API do Brevo
       await axios.post(
         "https://api.brevo.com/v3/smtp/email",
         {
-          to: [{ email: email, name: displayName || "Usuário" }],
-          templateId: BREVO_TEMPLATE_ID, // Usa o modelo visual configurado no site do Brevo
+          sender: { name: "Equipe OLLO", email: "no-reply@olloapp.com.br" },
+          to: [{ email: email, name: displayName }],
+          templateId: BREVO_TEMPLATE_ID,
           params: {
-            // Mandamos com vários nomes para garantir que o Brevo pegue um deles
-            NOME: displayName || "Usuário",
-            LINK_VERIFICACAO: verificationLink,
-            LINK: verificationLink,
-            URL: verificationLink
+            NOME: displayName,
+            LINK: verificationLink, // O link mágico do Firebase
+            URL: verificationLink,
           },
+        },
+        {
           headers: {
-            "api-key": apiKey,
+            "api-key": brevoKey, // Usa a variável segura
             "Content-Type": "application/json",
             "Accept": "application/json",
           },
         }
       );
 
+      logger.info(`E-mail de verificação enviado para ${email}`);
       return { success: true };
 
     } catch (error: any) {
-      logger.error(`[VERIFICAÇÃO] Erro crítico:`, error);
-      throw new HttpsError("internal", "Erro ao processar envio de e-mail.");
+      logger.error("[ERRO] sendBrevoVerificationEmail", error);
+      // Retorna erro genérico para o cliente, mas loga o detalhe no servidor
+      throw new HttpsError("internal", "Não foi possível enviar o e-mail.");
     }
   }
 );
 
-// ===================================================================================
-// 👤 3. TRIGGER: NOVO USUÁRIO CRIADO (Firestore Trigger V2)
-// ===================================================================================
-// Nota: Funções 'auth.user().onCreate' ainda são V1 na maioria dos projetos ou requerem Identity Platform.
-// Mantendo compatibilidade híbrida segura.
-import * as functionsV1 from "firebase-functions/v1";
-
+// --- FUNÇÃO 2: Criar Usuário no Banco (Trigger) ---
+// Roda automaticamente quando alguém cria conta no Authentication
 export const onnewusercreated = functionsV1
   .region("southamerica-east1")
-  .runWith({ secrets: ["BREVO_API_KEY"], timeoutSeconds: 60 })
-  .auth.user().onCreate(async (user) => {
+  .auth.user()
+  .onCreate(async (user) => {
     const { uid, email, displayName, emailVerified } = user;
     const db = getFirestore();
-
+    
     try {
-      // Verifica se documentos já existem para evitar duplicidade
-      const userRef = db.collection("users").doc(uid);
-      const publicRef = db.collection("users_public").doc(uid);
-      const [uDoc, pDoc] = await Promise.all([userRef.get(), publicRef.get()]);
+      // Gera um username único base
+      let base = email ? email.split("@")[0] : `user${uid.substring(0, 5)}`;
+      base = base.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+      
+      // Verifica se já existe, se sim, adiciona timestamp
+      const query = await db.collection("users_public").where("username", "==", base).get();
+      const username = query.empty ? base : `${base}${Date.now().toString().slice(-4)}`;
 
-      if (uDoc.exists && pDoc.exists) return;
-
-      const username = await generateUniqueUsername(email, uid);
-
-      // Criação dos perfis no Firestore
+      // Salva dados em duas coleções (Privada e Pública)
       await db.runTransaction(async (t) => {
-        if (!uDoc.exists) {
-          t.set(userRef, {
-            email: email || "",
-            displayName: displayName || "",
-            createdAt: FieldValue.serverTimestamp(),
-            updatedAt: FieldValue.serverTimestamp(),
-            emailVerified: emailVerified || false,
-            profileCreated: true,
-            lastVerificationEmailSent: null
-          });
-        }
-        
-        if (!pDoc.exists) {
-          t.set(publicRef, {
-            userId: uid,
-            name: displayName || "Usuário OLLO",
-            username: username,
-            avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName || 'O')}&background=0D4D44&color=fff&bold=true`,
-            bio: "Novo na comunidade OLLO! 🎉",
-            createdAt: FieldValue.serverTimestamp(),
-            postsCount: 0,
-            followersCount: 0,
-            followingCount: 0,
-            verified: emailVerified || false,
-          });
-        }
+        // Dados privados (só o usuário vê)
+        t.set(db.collection("users").doc(uid), {
+          email: email || "",
+          displayName: displayName || "",
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+          emailVerified: emailVerified || false,
+          profileCreated: true,
+        });
+
+        // Dados públicos (outros usuários veem)
+        t.set(db.collection("users_public").doc(uid), {
+          userId: uid,
+          name: displayName || "Usuário OLLO",
+          username: username,
+          avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName || "O")}&background=0D4D44&color=fff&bold=true`,
+          createdAt: FieldValue.serverTimestamp(),
+          verified: emailVerified || false,
+        });
       });
-
-      // Se tiver email, tenta enviar o de verificação automaticamente na criação
-      if (email && !emailVerified) {
-         // Chama a lógica de envio (reaproveitando lógica interna seria ideal, mas aqui chamamos via evento)
-         // Nota: O trigger onCreate não tem "context.auth" para chamar a função onCall.
-         // A verificação será pedida pelo Frontend no primeiro login.
-      }
-
-    } catch (error) {
-      logger.error(`[NOVO USUÁRIO] ERRO:`, error);
+    } catch (e) {
+      logger.error("Erro em onnewusercreated", e);
     }
   });
 
-// ===================================================================================
-// 🗑️ 4. TRIGGER: USUÁRIO DELETADO
-// ===================================================================================
+// --- FUNÇÃO 3: Limpeza de Usuário (Trigger) ---
+// Roda automaticamente se o usuário for deletado do Auth
 export const onUserDelete = functionsV1
   .region("southamerica-east1")
-  .auth.user().onDelete(async (user) => {
-    const { uid } = user;
+  .auth.user()
+  .onDelete(async (user) => {
     const db = getFirestore();
     try {
       await db.runTransaction(async (t) => {
-        const privateRef = db.collection("users").doc(uid);
-        const publicRef = db.collection("users_public").doc(uid);
-        t.delete(privateRef);
-        t.delete(publicRef);
+        t.delete(db.collection("users").doc(user.uid));
+        t.delete(db.collection("users_public").doc(user.uid));
       });
-      logger.info(`[DELETADO] Dados do usuário ${uid} removidos.`);
-    } catch (error) { logger.error(`[EXCLUSÃO] Erro:`, error); }
+      logger.info(`Dados do usuário ${user.uid} deletados com sucesso.`);
+    } catch (e) {
+      logger.error("Erro em onUserDelete", e);
+    }
   });
 
-// ===================================================================================
-// 🛠️ 5. FUNÇÕES UTILITÁRIAS (HELPERS)
-// ===================================================================================
-
+// --- FUNÇÃO 4: Atualizar Status Manualmente (Opcional) ---
+// Pode ser usada caso precise forçar a atualização do status no banco
 export const updateEmailVerificationStatus = onCall(
   { region: "southamerica-east1" },
   async (request) => {
-    if (!request.auth) throw new HttpsError("unauthenticated", "Login necessário");
+    if (!request.auth) throw new HttpsError("unauthenticated", "Negado");
     
     const { uid } = request.auth;
     const db = getFirestore();
     
-    await db.runTransaction(async (t) => {
-      const privateRef = db.collection("users").doc(uid);
-      const publicRef = db.collection("users_public").doc(uid);
-      
-      t.update(privateRef, { emailVerified: true, updatedAt: FieldValue.serverTimestamp() });
-      // Verifica se o doc público existe antes de atualizar
-      const pubDoc = await t.get(publicRef);
-      if (pubDoc.exists) {
-        t.update(publicRef, { verified: true });
-      }
-    });
-    return { success: true };
+    try {
+        await db.runTransaction(async (t) => {
+        t.update(db.collection("users").doc(uid), { emailVerified: true });
+        
+        const pubRef = db.collection("users_public").doc(uid);
+        const pubDoc = await t.get(pubRef);
+        if (pubDoc.exists) {
+            t.update(pubRef, { verified: true });
+        }
+        });
+        return { success: true };
+    } catch (e) {
+        logger.error("Erro ao atualizar status manual", e);
+        throw new HttpsError("internal", "Erro ao atualizar banco de dados");
+    }
   }
 );
-
-async function generateUniqueUsername(email: string | undefined, uid: string): Promise<string> {
-  const db = getFirestore();
-  let baseUsername = email 
-    ? email.split("@")[0].replace(/[^a-zA-Z0-9]/g, '').toLowerCase()
-    : `user${uid.substring(0, 8)}`;
-  
-  if (baseUsername.length > 15) baseUsername = baseUsername.substring(0, 15);
-  
-  let username = baseUsername;
-  let counter = 0;
-  let isUnique = false;
-  
-  while (!isUnique && counter < 100) {
-    const query = await db.collection("users_public").where("username", "==", username).limit(1).get();
-    if (query.empty) isUnique = true;
-    else { counter++; username = `${baseUsername}${counter}`; }
-  }
-  
-  if (!isUnique) username = `${baseUsername}${Date.now()}`;
-  return username;
-}
