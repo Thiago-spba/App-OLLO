@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { toast, Toaster } from 'react-hot-toast';
 import { httpsCallable } from 'firebase/functions';
-import { getAuth } from 'firebase/auth'; // <--- O SEGREDO ESTÁ AQUI
+import { getAuth } from 'firebase/auth';
 import { functions } from '../firebase/config';
 
 // --- ÍCONES ---
@@ -48,34 +48,35 @@ const VerifyEmailPage = () => {
   const [isCheckingManually, setIsCheckingManually] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
 
-  // --- LÓGICA BLINDADA (Direto na Fonte) ---
+  // --- LÓGICA BLINDADA ---
   const checkVerificationStatus = useCallback(async () => {
-    // AQUI ESTÁ A MUDANÇA: Não usamos o currentUser do contexto!
-    // Pegamos a instância direta do Firebase Auth.
+    // Bypass no React Context, vai direto no SDK
     const auth = getAuth();
     const user = auth.currentUser;
 
     if (!user) return false;
 
     try {
-      // 1. Força o Firebase a bater no servidor e atualizar o token interno
+      // 1. Força atualização do objeto User
       await user.reload();
 
-      // 2. Lê a propriedade direto do objeto atualizado do SDK (não do React)
-      const isVerified = user.emailVerified;
+      // 2. [NOVO] Força a renovação do TOKEN para garantir que claims sejam atualizadas
+      if (user.emailVerified) {
+        await user.getIdToken(true); // <--- O PULO DO GATO
 
-      if (isVerified) {
-        console.log('Verificação detectada no SDK! Forçando entrada...');
-        toast.success('Confirmado! Entrando...', { duration: 2000 });
+        console.log('Verificação confirmada! Token renovado.');
+        toast.success('Confirmado! Redirecionando...', { duration: 2000 });
 
-        // --- O MARTELO FINAL ---
-        // Forçamos um recarregamento total da página.
-        // Isso limpa qualquer memória cache do React e obriga o AuthContext a baixar tudo novo.
+        // Atraso curto para o usuário ver o toast
         setTimeout(() => {
+          // Hard Reload para limpar qualquer cache de estado do React
           window.location.href = '/';
-        }, 1000);
+        }, 1500);
+
+        return true;
       }
-      return isVerified;
+
+      return false;
     } catch (error) {
       console.error('Erro no polling:', error);
       return false;
@@ -92,11 +93,11 @@ const VerifyEmailPage = () => {
 
     if (!isVerified) {
       toast.error(
-        'Ainda consta como pendente. Aguarde uns segundos e tente de novo.',
+        'Ainda consta como pendente. Tente novamente em alguns segundos.',
         { id: 'check' }
       );
     }
-    // Se for verificado, o redirecionamento acontece dentro da função checkVerificationStatus
+    // Se for verificado, o redirecionamento acontece dentro do checkVerificationStatus
     setIsCheckingManually(false);
   };
 
@@ -107,7 +108,7 @@ const VerifyEmailPage = () => {
       return;
     }
 
-    // Se por acaso o contexto já souber, sai daqui
+    // Se o contexto já pegou a atualização
     if (currentUser.emailVerified) {
       window.location.href = '/';
       return;
@@ -120,20 +121,29 @@ const VerifyEmailPage = () => {
     return () => clearInterval(interval);
   }, [currentUser, navigate, checkVerificationStatus]);
 
-  // Reenvio de e-mail
+  // Reenvio de e-mail (Mantido igual)
   const handleResendEmail = async () => {
     if (isResending || resendCooldown > 0) return;
     setIsResending(true);
     toast.loading('Enviando...', { id: 'resend' });
 
     try {
-      const sendEmailFn = httpsCallable(
-        functions,
-        'sendBrevoVerificationEmail'
-      );
-      await sendEmailFn({ displayName: currentUser.displayName || 'Usuário' });
+      // Tenta usar a função Cloud, se falhar, usa o método nativo como fallback
+      try {
+        const sendEmailFn = httpsCallable(
+          functions,
+          'sendBrevoVerificationEmail'
+        );
+        await sendEmailFn({
+          displayName: currentUser.displayName || 'Usuário',
+        });
+      } catch (cloudError) {
+        console.warn('Falha na cloud function, tentando nativo...', cloudError);
+        const auth = getAuth();
+        if (auth.currentUser) await auth.currentUser.sendEmailVerification();
+      }
 
-      toast.success('Link enviado! Verifique o Spam.', { id: 'resend' });
+      toast.success('Link enviado! Verifique também o Spam.', { id: 'resend' });
 
       setResendCooldown(60);
       const timer = setInterval(() => {
@@ -162,15 +172,15 @@ const VerifyEmailPage = () => {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <Toaster position="top-center" />
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h1 className="text-center text-3xl font-bold text-blue-600 mb-2">
+        <h1 className="text-center text-3xl font-bold text-[#0D4D44] mb-2">
           OLLO
         </h1>
         <h2 className="text-center text-3xl font-extrabold text-gray-900 dark:text-white">
           Verifique seu e-mail
         </h2>
         <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
-          Enviamos um link para{' '}
-          <span className="font-medium text-blue-600">
+          Enviamos um link seguro para{' '}
+          <span className="font-medium text-[#0D4D44]">
             {currentUser?.email}
           </span>
         </p>
@@ -189,7 +199,7 @@ const VerifyEmailPage = () => {
             <button
               onClick={handleManualCheck}
               disabled={isCheckingManually}
-              className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+              className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#0D4D44] hover:bg-[#093630] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
             >
               {isCheckingManually ? (
                 'Verificando...'

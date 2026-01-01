@@ -1,92 +1,46 @@
-// ARQUIVO CORRIGIDO: src/components/RequireVerifiedEmail.jsx
-// Versão sincronizada com o novo useAuth
-
-import React, { useEffect, useState } from 'react';
+// src/components/RequireVerifiedEmail.jsx
+import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Navigate, useLocation, Outlet } from 'react-router-dom';
-import { toast } from 'react-hot-toast';
 
 /**
- * @fileoverview RequireVerifiedEmail - Guardião de Verificação OLLO
- *
- * Protege rotas que exigem email verificado.
- * Agora sincronizado corretamente com o useAuth atualizado.
+ * @fileoverview RequireVerifiedEmail - Guardião Simples
+ * * Função única: Verificar se o usuário está logado e verificado.
+ * Se não estiver, redireciona. Sem efeitos colaterais.
  */
 function RequireVerifiedEmail() {
-  const { currentUser, loading, forceReloadUser } = useAuth();
+  const { currentUser, loading } = useAuth();
   const location = useLocation();
-  const [verifyingStatus, setVerifyingStatus] = useState(false);
 
-  // Effect para verificar status quando componente monta
-  useEffect(() => {
-    // Se tem usuário carregado mas email não verificado, força uma verificação
-    if (!loading && currentUser && !currentUser.emailVerified) {
-      const checkEmailStatus = async () => {
-        console.log('[RequireVerifiedEmail] Verificando status do email...');
-        setVerifyingStatus(true);
-
-        try {
-          const updatedUser = await forceReloadUser();
-
-          if (updatedUser?.emailVerified) {
-            console.log('[RequireVerifiedEmail] Email verificado detectado!');
-            toast.success('Email verificado com sucesso! Bem-vindo ao OLLO!', {
-              duration: 4000,
-              style: {
-                background: '#10B981',
-                color: '#FFFFFF',
-                fontWeight: '600',
-              },
-            });
-          }
-        } catch (error) {
-          console.error(
-            '[RequireVerifiedEmail] Erro ao verificar email:',
-            error
-          );
-        } finally {
-          setVerifyingStatus(false);
-        }
-      };
-
-      // Verificar após um pequeno delay para evitar múltiplas verificações
-      const timeout = setTimeout(checkEmailStatus, 1000);
-      return () => clearTimeout(timeout);
-    }
-  }, [currentUser, loading, forceReloadUser]);
-
-  // Loading state
-  if (loading || verifyingStatus) {
+  // 1. Estado de Carregamento Global (Do Contexto)
+  if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh] bg-gray-50 dark:bg-gray-900">
+      <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
         <div className="flex flex-col items-center space-y-4">
-          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+          <div className="w-16 h-16 border-4 border-[#0D4D44] border-t-transparent rounded-full animate-spin" />
           <p className="text-gray-600 dark:text-gray-300 text-sm">
-            {verifyingStatus ? 'Verificando email...' : 'Carregando...'}
+            Carregando OLLO...
           </p>
         </div>
       </div>
     );
   }
 
-  // Não autenticado - redirecionar para login
+  // 2. Não autenticado -> Login
   if (!currentUser) {
-    console.log(
-      '[RequireVerifiedEmail] Usuário não autenticado, redirecionando para login'
-    );
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Email não verificado - redirecionar para verificação
+  // 3. Autenticado mas NÃO Verificado -> Verify Email
   if (!currentUser.emailVerified) {
-    console.log(
-      '[RequireVerifiedEmail] Email não verificado, redirecionando para verify-email'
-    );
+    // Evita loop se já estivermos na página de verificação (caso raro de uso incorreto do router)
+    if (location.pathname === '/verify-email') {
+      return <Outlet />;
+    }
     return <Navigate to="/verify-email" state={{ from: location }} replace />;
   }
 
-  // Tudo OK - permitir acesso
-  console.log('[RequireVerifiedEmail] Acesso liberado para usuário verificado');
+  // 4. Tudo OK -> Mostra o conteúdo (Feed, Profile, etc)
   return <Outlet />;
 }
 
