@@ -1,13 +1,12 @@
-// src/pages/VerifyEmailPage.jsx
-import React, { useEffect, useState, useCallback } from 'react';
+// ARQUIVO: src/pages/VerifyEmailPage.jsx
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { toast, Toaster } from 'react-hot-toast';
-import { httpsCallable } from 'firebase/functions';
-import { getAuth } from 'firebase/auth';
-import { functions } from '../firebase/config';
+// IMPORTANTE: Importamos a função solta do SDK
+import { getAuth, sendEmailVerification } from 'firebase/auth';
 
-// --- ÍCONES ---
+// --- ÍCONES (Restaurados do seu design original) ---
 const EnvelopeIcon = () => (
   <svg
     className="w-12 h-12 mx-auto text-blue-600"
@@ -41,125 +40,89 @@ const CheckIcon = () => (
 );
 
 const VerifyEmailPage = () => {
-  const { currentUser, logout } = useAuth();
+  const { currentUser, reloadCurrentUser, logout } = useAuth();
   const navigate = useNavigate();
-
-  const [isResending, setIsResending] = useState(false);
-  const [isCheckingManually, setIsCheckingManually] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
 
-  // --- LÓGICA BLINDADA ---
-  const checkVerificationStatus = useCallback(async () => {
-    // Bypass no React Context, vai direto no SDK
-    const auth = getAuth();
-    const user = auth.currentUser;
-
-    if (!user) return false;
-
-    try {
-      // 1. Força atualização do objeto User
-      await user.reload();
-
-      // 2. [NOVO] Força a renovação do TOKEN para garantir que claims sejam atualizadas
-      if (user.emailVerified) {
-        await user.getIdToken(true); // <--- O PULO DO GATO
-
-        console.log('Verificação confirmada! Token renovado.');
-        toast.success('Confirmado! Redirecionando...', { duration: 2000 });
-
-        // Atraso curto para o usuário ver o toast
-        setTimeout(() => {
-          // Hard Reload para limpar qualquer cache de estado do React
-          window.location.href = '/';
-        }, 1500);
-
-        return true;
-      }
-
-      return false;
-    } catch (error) {
-      console.error('Erro no polling:', error);
-      return false;
-    }
-  }, []);
-
-  // Botão manual ("Já cliquei no link")
+  // --- LÓGICA DE VERIFICAÇÃO ---
   const handleManualCheck = async () => {
-    if (isCheckingManually) return;
-    setIsCheckingManually(true);
-    toast.loading('Verificando...', { id: 'check' });
-
-    const isVerified = await checkVerificationStatus();
-
-    if (!isVerified) {
-      toast.error(
-        'Ainda consta como pendente. Tente novamente em alguns segundos.',
-        { id: 'check' }
-      );
-    }
-    // Se for verificado, o redirecionamento acontece dentro do checkVerificationStatus
-    setIsCheckingManually(false);
-  };
-
-  // Polling automático (Verifica sozinho a cada 3s)
-  useEffect(() => {
-    if (!currentUser) {
-      navigate('/login');
-      return;
-    }
-
-    // Se o contexto já pegou a atualização
-    if (currentUser.emailVerified) {
-      window.location.href = '/';
-      return;
-    }
-
-    const interval = setInterval(() => {
-      checkVerificationStatus();
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, [currentUser, navigate, checkVerificationStatus]);
-
-  // Reenvio de e-mail (Mantido igual)
-  const handleResendEmail = async () => {
-    if (isResending || resendCooldown > 0) return;
-    setIsResending(true);
-    toast.loading('Enviando...', { id: 'resend' });
+    setLoading(true);
+    const toastId = toast.loading('Consultando servidor...');
 
     try {
-      // Tenta usar a função Cloud, se falhar, usa o método nativo como fallback
-      try {
-        const sendEmailFn = httpsCallable(
-          functions,
-          'sendBrevoVerificationEmail'
-        );
-        await sendEmailFn({
-          displayName: currentUser.displayName || 'Usuário',
+      // Chama a função do AuthContext
+      const updatedUser = await reloadCurrentUser();
+
+      if (updatedUser?.emailVerified) {
+        toast.success('E-mail confirmado! Entrando...', { id: toastId });
+        setTimeout(() => (window.location.href = '/'), 1000);
+      } else {
+        toast.error('Ainda pendente. Verifique se clicou no link.', {
+          id: toastId,
         });
-      } catch (cloudError) {
-        console.warn('Falha na cloud function, tentando nativo...', cloudError);
-        const auth = getAuth();
-        if (auth.currentUser) await auth.currentUser.sendEmailVerification();
       }
-
-      toast.success('Link enviado! Verifique também o Spam.', { id: 'resend' });
-
-      setResendCooldown(60);
-      const timer = setInterval(() => {
-        setResendCooldown((prev) => {
-          if (prev <= 1) {
-            clearInterval(timer);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
     } catch (error) {
       console.error(error);
-      toast.error('Erro ao enviar. Tente novamente.', { id: 'resend' });
+      // Botão de emergência em caso de erro de rede
+      toast.error(
+        (t) => (
+          <div className="flex flex-col gap-2">
+            <span className="font-semibold">Erro de conexão.</span>
+            <button
+              onClick={async () => {
+                toast.dismiss(t.id);
+                await logout();
+                navigate('/login');
+              }}
+              className="bg-red-600 text-white px-3 py-1 rounded text-sm mt-1 hover:bg-red-700"
+            >
+              Clique aqui para validar via Login
+            </button>
+          </div>
+        ),
+        { id: toastId, duration: 8000 }
+      );
     } finally {
-      setIsResending(false);
+      setLoading(false);
+    }
+  };
+
+  // --- LÓGICA DE REENVIO (CORRIGIDA) ---
+  const handleResendEmail = async () => {
+    if (resendCooldown > 0) return;
+
+    const toastId = toast.loading('Enviando e-mail...');
+
+    try {
+      const auth = getAuth();
+      const user = auth.currentUser;
+
+      if (user) {
+        // [CORREÇÃO CRÍTICA]:
+        // Usamos a função importada 'sendEmailVerification(user)'
+        // Em vez de 'user.sendEmailVerification()'
+        await sendEmailVerification(user);
+
+        toast.success('Link enviado! Verifique o Spam.', { id: toastId });
+
+        // Cooldown
+        setResendCooldown(60);
+        const timer = setInterval(() => {
+          setResendCooldown((prev) => {
+            if (prev <= 1) {
+              clearInterval(timer);
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+      } else {
+        toast.error('Usuário não identificado.', { id: toastId });
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error('Erro ao enviar: ' + error.message, { id: toastId });
     }
   };
 
@@ -169,8 +132,10 @@ const VerifyEmailPage = () => {
   };
 
   return (
+    // Layout Restaurado
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <Toaster position="top-center" />
+
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <h1 className="text-center text-3xl font-bold text-[#0D4D44] mb-2">
           OLLO
@@ -190,7 +155,7 @@ const VerifyEmailPage = () => {
         <div className="bg-white dark:bg-gray-800 py-8 px-4 shadow sm:rounded-lg sm:px-10">
           <div className="text-center mb-6">
             <EnvelopeIcon />
-            <p className="mt-4 text-sm text-gray-500">
+            <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
               Clique no link enviado para ativar sua conta.
             </p>
           </div>
@@ -198,10 +163,10 @@ const VerifyEmailPage = () => {
           <div className="space-y-4">
             <button
               onClick={handleManualCheck}
-              disabled={isCheckingManually}
-              className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#0D4D44] hover:bg-[#093630] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+              disabled={loading}
+              className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#0D4D44] hover:bg-[#093630] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isCheckingManually ? (
+              {loading ? (
                 'Verificando...'
               ) : (
                 <>
@@ -212,8 +177,8 @@ const VerifyEmailPage = () => {
 
             <button
               onClick={handleResendEmail}
-              disabled={isResending || resendCooldown > 0}
-              className="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200"
+              disabled={resendCooldown > 0}
+              className="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {resendCooldown > 0
                 ? `Aguarde ${resendCooldown}s`
@@ -222,7 +187,7 @@ const VerifyEmailPage = () => {
 
             <button
               onClick={handleLogout}
-              className="w-full flex justify-center py-2 px-4 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-md"
+              className="w-full flex justify-center py-2 px-4 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 dark:bg-transparent dark:hover:bg-gray-700 rounded-md transition-colors"
             >
               Sair e usar outra conta
             </button>
