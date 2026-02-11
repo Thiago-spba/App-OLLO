@@ -31,7 +31,7 @@ export const AuthProvider = ({ children }) => {
   const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // --- BUSCA PERFIL ---
+  // Busca perfil no Firestore
   const fetchUserProfile = useCallback(async (uid) => {
     if (auth.currentUser && !auth.currentUser.emailVerified) {
       setUserProfile(null);
@@ -45,15 +45,14 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  // --- RELOAD MANUAL (CRUCIAL) ---
+  // Reload Manual
   const reloadCurrentUser = useCallback(async () => {
     try {
       const user = auth.currentUser;
       if (!user) return null;
 
-      console.log('[Auth] Atualizando status...');
       await reload(user);
-      await user.getIdToken(true);
+      const token = await user.getIdToken(true); // Força refresh do token
 
       const updatedUser = { ...auth.currentUser };
       setCurrentUser(updatedUser);
@@ -65,12 +64,11 @@ export const AuthProvider = ({ children }) => {
           });
           await fetchUserProfile(user.uid);
         } catch (e) {
-          /* ignora erro de banco */
+          /* ignore */
         }
       }
       return updatedUser;
     } catch (error) {
-      console.error('[Auth] Erro reload:', error);
       throw error;
     }
   }, [fetchUserProfile]);
@@ -87,24 +85,24 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  // --- REGISTRO COM CORREÇÃO DE LINK ---
+  // --- AQUI ESTAVA O ERRO ---
   const registerWithEmail = useCallback(async (email, password) => {
     setLoading(true);
     try {
-      // 1. Cria usuário
       const { user } = await createUserWithEmailAndPassword(
         auth,
         email,
         password
       );
 
-      // 2. [CORREÇÃO] Configura o link para voltar para o IP Local (ou Domínio atual)
+      // [CORREÇÃO CRUCIAL]
+      // Antes estava: url: window.location.origin (mandava para a Home)
+      // Agora mandamos direto para a página que lê o código:
       const actionCodeSettings = {
-        url: window.location.origin, // Pega automaticamente http://192.168.x.x:5173
+        url: `${window.location.origin}/verify-email`,
         handleCodeInApp: true,
       };
 
-      // 3. Envia o e-mail (Nativo por enquanto, para garantir que o link funcione)
       await sendEmailVerification(user, actionCodeSettings);
 
       return { success: true, user };

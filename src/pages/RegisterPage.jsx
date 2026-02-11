@@ -1,10 +1,7 @@
 // src/pages/RegisterPage.jsx
-// Versão COMPLETA, FINAL e CORRIGIDA. A lógica de tratamento de erro agora funciona corretamente.
-
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { useAuth } from '../context/AuthContext';
 import {
   EyeIcon,
   EyeSlashIcon,
@@ -12,9 +9,14 @@ import {
 } from '@heroicons/react/24/outline';
 import toast, { Toaster } from 'react-hot-toast';
 
+// MUDANÇA CRÍTICA: Importamos auth e db JÁ PRONTOS do nosso config
+// Isso resolve o erro "network-request-failed"
+import { auth, db } from '../firebase/config';
+import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
+
 const RegisterPage = () => {
   const navigate = useNavigate();
-  const { registerWithEmail } = useAuth();
   const {
     register,
     handleSubmit,
@@ -27,65 +29,70 @@ const RegisterPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // A sua função de tratamento de erros já está ótima, não precisa mudar.
   const getFriendlyError = (error) => {
     const errorCode = error?.code;
     switch (errorCode) {
       case 'auth/email-already-in-use':
-        return 'Este e-mail já está em uso. Tente outro.';
+        return 'Este e-mail já está em uso.';
       case 'auth/invalid-email':
         return 'Formato de e-mail inválido.';
       case 'auth/weak-password':
-        return 'Senha muito fraca. Use no mínimo 6 caracteres.';
+        return 'Senha muito fraca (min 6 caracteres).';
+      case 'auth/network-request-failed':
+        return 'Erro de conexão. Verifique sua internet.';
       default:
-        // Mensagem de fallback, caso o erro não seja reconhecido
-        return 'Ocorreu um erro inesperado. Por favor, tente novamente.';
+        return 'Erro ao criar conta. Tente novamente.';
     }
   };
 
   const onSubmit = async (data) => {
     setIsLoading(true);
+
     try {
+      // 1. CRIAR O USUÁRIO (Usando o auth importado e estável)
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        data.email,
+        data.password
+      );
+      const user = userCredential.user;
+
+      // 2. ATUALIZAR PERFIL
+      await updateProfile(user, {
+        displayName: `${data.firstName} ${data.lastName}`,
+      });
+
+      // 3. SALVAR NO FIRESTORE (Usando o db importado e estável)
       const additionalData = {
         name: `${data.firstName} ${data.lastName}`,
         username: data.username.toLowerCase(),
-        avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(
-          data.firstName + ' ' + data.lastName
-        )}&background=0D4D44&color=fff&bold=true`,
+        email: data.email,
+        avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(data.firstName + ' ' + data.lastName)}&background=0D4D44&color=fff&bold=true`,
         bio: 'Novo membro da comunidade OLLO!',
+        createdAt: new Date(),
       };
 
-      const result = await registerWithEmail(
-        data.email,
-        data.password,
-        additionalData
+      await setDoc(doc(db, 'users', user.uid), additionalData, { merge: true });
+
+      await setDoc(
+        doc(db, 'users_public', user.uid),
+        {
+          username: data.username.toLowerCase(),
+          name: additionalData.name,
+          avatarUrl: additionalData.avatarUrl,
+          userId: user.uid,
+        },
+        { merge: true }
       );
 
-      // ========================= AQUI ESTÁ A ÚNICA ALTERAÇÃO =========================
-      // Antes: "throw result.error;" que ia para o bloco catch
-      // Agora: Checamos se o 'result' falhou e, se sim, usamos diretamente
-      // a sua função getFriendlyError para mostrar a mensagem certa no toast.
-
-      if (result.success) {
-        toast.success(
-          'Conta criada! Um e-mail de verificação da OLLO foi enviado para você.',
-          { duration: 8000 }
-        );
-        reset();
-        navigate('/verify-email');
-      } else {
-        // Se a criação da conta falhou, obtemos a mensagem amigável e a exibimos.
-        const errorMessage = getFriendlyError(result.error);
-        toast.error(errorMessage, { duration: 7000 });
-      }
-      // ==============================================================================
+      // 4. SUCESSO
+      toast.success('Conta criada! Verifique seu e-mail.', { duration: 6000 });
+      reset();
+      navigate('/verify-email');
     } catch (error) {
-      // Este bloco catch agora serve para erros verdadeiramente inesperados,
-      // como problemas de rede, garantindo que o app não quebre.
-      console.error('Erro inesperado durante o registro:', error);
-      toast.error('Ocorreu um erro inesperado. Verifique sua conexão.', {
-        duration: 7000,
-      });
+      console.error('Erro no registro:', error);
+      const msg = getFriendlyError(error);
+      toast.error(msg, { duration: 5000 });
     } finally {
       setIsLoading(false);
     }
@@ -106,66 +113,53 @@ const RegisterPage = () => {
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-            {/* O RESTANTE DO SEU FORMULÁRIO PERMANECE IDÊNTICO, NENHUMA MUDANÇA É NECESSÁRIA AQUI. */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div>
-                {' '}
-                {/* First Name */}
                 <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
                   Nome
                 </label>
                 <input
                   {...register('firstName', {
-                    required: 'Nome é obrigatório',
-                    minLength: { value: 2, message: 'Mínimo 2 caracteres' },
+                    required: 'Obrigatório',
+                    minLength: 2,
                   })}
-                  className="w-full px-4 py-3 rounded-lg border dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 dark:focus:ring-ollo-accent-light outline-none"
-                  placeholder="Seu nome"
+                  className="w-full px-4 py-3 rounded-lg border dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-[#0D4D44]"
+                  placeholder="Nome"
                 />
                 {errors.firstName && (
-                  <p className="text-sm text-red-500 mt-1">
-                    {errors.firstName.message}
-                  </p>
+                  <p className="text-sm text-red-500 mt-1">Inválido</p>
                 )}
               </div>
               <div>
-                {' '}
-                {/* Last Name */}
                 <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
                   Sobrenome
                 </label>
                 <input
                   {...register('lastName', {
-                    required: 'Sobrenome é obrigatório',
-                    minLength: { value: 2, message: 'Mínimo 2 caracteres' },
+                    required: 'Obrigatório',
+                    minLength: 2,
                   })}
-                  className="w-full px-4 py-3 rounded-lg border dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 dark:focus:ring-ollo-accent-light outline-none"
-                  placeholder="Seu sobrenome"
+                  className="w-full px-4 py-3 rounded-lg border dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-[#0D4D44]"
+                  placeholder="Sobrenome"
                 />
-                {errors.lastName && (
-                  <p className="text-sm text-red-500 mt-1">
-                    {errors.lastName.message}
-                  </p>
-                )}
               </div>
             </div>
+
             <div>
-              {' '}
-              {/* Username */}
               <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
                 Nome de usuário
               </label>
               <input
                 {...register('username', {
-                  required: 'Nome de usuário é obrigatório',
+                  required: 'Obrigatório',
                   pattern: {
                     value: /^[a-z0-9_.]+$/,
-                    message: 'Apenas letras minúsculas, números, . ou _',
+                    message: 'Letras minúsculas, números, . ou _',
                   },
-                  minLength: { value: 3, message: 'Mínimo 3 caracteres' },
-                  maxLength: { value: 20, message: 'Máximo 20 caracteres' },
+                  minLength: 3,
+                  maxLength: 20,
                 })}
-                className="w-full px-4 py-3 rounded-lg border dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 dark:focus:ring-ollo-accent-light outline-none"
+                className="w-full px-4 py-3 rounded-lg border dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-[#0D4D44]"
                 placeholder="ex: ana.silva"
               />
               {errors.username && (
@@ -174,33 +168,26 @@ const RegisterPage = () => {
                 </p>
               )}
             </div>
+
             <div>
-              {' '}
-              {/* Email */}
               <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
                 E-mail
               </label>
               <input
                 type="email"
                 {...register('email', {
-                  required: 'E-mail é obrigatório',
-                  pattern: {
-                    value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                    message: 'Formato de e-mail inválido',
-                  },
+                  required: 'Obrigatório',
+                  pattern: { value: /^\S+@\S+$/i, message: 'Inválido' },
                 })}
-                className="w-full px-4 py-3 rounded-lg border dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 dark:focus:ring-ollo-accent-light outline-none"
+                className="w-full px-4 py-3 rounded-lg border dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-[#0D4D44]"
                 placeholder="email@exemplo.com"
               />
               {errors.email && (
-                <p className="text-sm text-red-500 mt-1">
-                  {errors.email.message}
-                </p>
+                <p className="text-sm text-red-500 mt-1">Inválido</p>
               )}
             </div>
+
             <div>
-              {' '}
-              {/* Password */}
               <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
                 Senha
               </label>
@@ -208,16 +195,16 @@ const RegisterPage = () => {
                 <input
                   type={showPassword ? 'text' : 'password'}
                   {...register('password', {
-                    required: 'Senha é obrigatória',
+                    required: 'Obrigatório',
                     minLength: { value: 6, message: 'Mínimo 6 caracteres' },
                   })}
-                  className="w-full px-4 py-3 pr-10 rounded-lg border dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 dark:focus:ring-ollo-accent-light outline-none"
+                  className="w-full px-4 py-3 pr-10 rounded-lg border dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-[#0D4D44]"
                   placeholder="••••••••"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                  className="absolute right-3 text-gray-500"
                 >
                   {showPassword ? (
                     <EyeSlashIcon className="h-5 w-5" />
@@ -232,9 +219,8 @@ const RegisterPage = () => {
                 </p>
               )}
             </div>
+
             <div>
-              {' '}
-              {/* Confirm Password */}
               <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
                 Confirmar Senha
               </label>
@@ -242,17 +228,17 @@ const RegisterPage = () => {
                 <input
                   type={showConfirmPassword ? 'text' : 'password'}
                   {...register('confirmPassword', {
-                    required: 'Confirme sua senha',
-                    validate: (value) =>
-                      value === watch('password') || 'As senhas não coincidem',
+                    required: 'Obrigatório',
+                    validate: (val) =>
+                      val === watch('password') || 'As senhas não coincidem',
                   })}
-                  className="w-full px-4 py-3 pr-10 rounded-lg border dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 dark:focus:ring-ollo-accent-light outline-none"
+                  className="w-full px-4 py-3 pr-10 rounded-lg border dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-[#0D4D44]"
                   placeholder="••••••••"
                 />
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-3 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                  className="absolute right-3 text-gray-500"
                 >
                   {showConfirmPassword ? (
                     <EyeSlashIcon className="h-5 w-5" />
@@ -267,10 +253,11 @@ const RegisterPage = () => {
                 </p>
               )}
             </div>
+
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3 px-4 rounded-lg bg-ollo-deep dark:bg-ollo-accent-light text-white dark:text-gray-900 font-semibold hover:bg-opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center"
+              className="w-full py-3 px-4 rounded-lg bg-[#0D4D44] text-white font-semibold hover:bg-[#093630] transition disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center shadow-md"
             >
               {isLoading ? (
                 <>
@@ -288,7 +275,7 @@ const RegisterPage = () => {
               Já tem uma conta?{' '}
               <Link
                 to="/login"
-                className="font-medium text-ollo-deep dark:text-ollo-accent-light hover:underline"
+                className="font-medium text-[#0D4D44] hover:underline"
               >
                 Fazer login
               </Link>
