@@ -1,4 +1,4 @@
-// ARQUIVO COMPLETO: src/App.jsx
+// src/App.jsx
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom'; // Adicionado useNavigate
@@ -47,47 +47,58 @@ export default function App() {
   // Ref para garantir que a verificação rode apenas uma vez por load
   const verificationProcessed = useRef(false);
 
-  // --- 🔴 INTERCEPTADOR DE LINK DE E-MAIL (NOVO CÓDIGO) ---
+  // --- 🔴 INTERCEPTADOR DE LINK DE E-MAIL (CORRIGIDO PARA SUPORTAR SENHA) ---
   useEffect(() => {
-    // Verifica se existe o código 'oobCode' na URL atual
+    // Verifica se existe o código 'oobCode' e o 'mode' na URL atual
     const params = new URLSearchParams(window.location.search);
     const oobCode = params.get('oobCode');
-    const mode = params.get('mode'); // O Firebase envia mode=verifyEmail
+    const mode = params.get('mode'); // Pode ser 'verifyEmail' ou 'resetPassword'
 
     // Se houver código e ainda não processamos
     if (oobCode && !verificationProcessed.current) {
       verificationProcessed.current = true; // Trava para não rodar 2x
 
-      const handleGlobalVerify = async () => {
-        const toastId = toast.loading('Processando verificação de e-mail...');
+      // CASO 1: É RECUPERAÇÃO DE SENHA?
+      if (mode === 'resetPassword') {
+        // MUDANÇA: Não validamos aqui. Redirecionamos para a página de troca de senha.
+        // O código (oobCode) vai junto na URL para a página usar.
+        navigate(`/reset-password?oobCode=${oobCode}`);
+        return; // Encerra aqui, não executa o resto
+      }
 
-        try {
-          const auth = getAuth();
-          // 1. Aplica o código no Firebase (Isso valida a conta)
-          await applyActionCode(auth, oobCode);
+      // CASO 2: É VERIFICAÇÃO DE E-MAIL? (Mantém sua lógica original)
+      if (mode === 'verifyEmail') {
+        const handleGlobalVerify = async () => {
+          const toastId = toast.loading('Processando verificação de e-mail...');
 
-          // 2. Força a atualização do usuário local para saber que virou "verified: true"
-          if (reloadCurrentUser) {
-            await reloadCurrentUser();
+          try {
+            const auth = getAuth();
+            // 1. Aplica o código no Firebase (Isso valida a conta)
+            await applyActionCode(auth, oobCode);
+
+            // 2. Força a atualização do usuário local para saber que virou "verified: true"
+            if (reloadCurrentUser) {
+              await reloadCurrentUser();
+            }
+
+            toast.success('E-mail verificado com sucesso!', { id: toastId });
+
+            // 3. Limpa a URL e manda para a Home limpa
+            navigate('/', { replace: true });
+          } catch (error) {
+            console.error('Erro na verificação automática:', error);
+
+            let msg = 'Erro ao verificar link.';
+            if (error.code === 'auth/invalid-action-code') {
+              msg = 'Este link já foi usado ou expirou.';
+            }
+            // Se der erro, avisa e deixa o usuário ciente
+            toast.error(msg, { id: toastId });
           }
+        };
 
-          toast.success('E-mail verificado com sucesso!', { id: toastId });
-
-          // 3. Limpa a URL e manda para a Home limpa
-          navigate('/', { replace: true });
-        } catch (error) {
-          console.error('Erro na verificação automática:', error);
-
-          let msg = 'Erro ao verificar link.';
-          if (error.code === 'auth/invalid-action-code') {
-            msg = 'Este link já foi usado ou expirou.';
-          }
-          // Se der erro, avisa e deixa o usuário na tela atual (provavelmente verify-email)
-          toast.error(msg, { id: toastId });
-        }
-      };
-
-      handleGlobalVerify();
+        handleGlobalVerify();
+      }
     }
   }, [navigate, reloadCurrentUser]);
   // -----------------------------------------------------------
