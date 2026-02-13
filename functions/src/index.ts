@@ -1,125 +1,162 @@
-// functions/src/index.ts
+// ARQUIVO: functions/src/index.ts
+// Design Dark Mode
+
 import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
 import * as nodemailer from "nodemailer";
 
+// Inicialização do Admin
 if (!admin.apps.length) {
     admin.initializeApp();
 }
 
 const db = admin.firestore();
 
-// --- CONFIGURAÇÃO SMTP (ZOHO) ---
+// --- CONFIGURAÇÃO SMTP (Lendo do .env) ---
 const transporter = nodemailer.createTransport({
     host: "smtp.zoho.com",
     port: 465,
     secure: true,
     auth: {
-        user: functions.config().smtp.email,
-        pass: functions.config().smtp.password
+        user: process.env.SMTP_EMAIL, 
+        pass: process.env.SMTP_PASSWORD
     }
 });
 
+// Configurações do Site
+const APP_URL = "https://olloapp.com.br"; 
+const DOMAIN_TO_REPLACE = "olloapp-egl2025.web.app"; 
+
 const actionCodeSettings = {
-   url: "https://olloapp-egl2025.web.app", 
+   url: `${APP_URL}/login`, 
    handleCodeInApp: false,
 };
 
-// --- CONFIGURAÇÃO DE IMAGENS (YAHOO COMPATÍVEL) ---
-const brand = {
-    color: "#0D4D44",
-    paper: "#FFFCF5",
-    text: "#1f2937",
-    // URLs públicas do seu site para evitar bloqueio no Yahoo
-    logo: "https://olloapp-egl2025.web.app/images/android-chrome-512x512.png",
-    eyes: "https://olloapp-egl2025.web.app/images/default-avatar.png" 
-};
+// --- IMAGENS ---
+const IMG_LOGO = `${APP_URL}/images/logo_ollo.jpeg`;
+const IMG_EYES = `${APP_URL}/images/android-chrome-512x512.png`;
 
-// --- TEMPLATE DE E-MAIL PERSONALIZADO ---
-const getUniversalTemplate = (title: string, message: string, buttonText: string, link: string, userName: string) => {
+// --- TEMPLATE DE E-MAIL (DESIGN DARK MODE - Igual ao Print) ---
+// Fundo escuro (#111827), Card escuro (#1f2937) com borda verde no topo.
+const getOlloHtmlTemplate = (title: string, messageHtml: string, buttonText: string, link: string, footerNote?: string) => {       
     return `
-    <!DOCTYPE html>
-    <html>
-    <head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /></head>
-    <body style="margin: 0; padding: 0; background-color: #f3f4f6; font-family: Arial, sans-serif;">
-        <center>
-            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f3f4f6; padding: 20px;">
-                <tr>
-                    <td align="center">
-                        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: ${brand.paper}; border-radius: 8px; border: 1px solid #e5e7eb; overflow: hidden;">
-                            <tr>
-                                <td align="center" style="background-color: ${brand.color}; padding: 30px;">
-                                    <img src="${brand.logo}" alt="OLLO" width="80" style="display: block; border: 0;">
-                                </td>
-                            </tr>
-                            <tr>
-                                <td align="center" style="padding: 40px 30px;">
-                                    <h1 style="color: ${brand.color}; font-size: 24px; margin: 0 0 10px 0;">Olá, ${userName}!</h1>
-                                    <p style="color: #d97706; font-size: 12px; text-transform: uppercase; font-weight: bold; margin: 0 0 20px 0;">${title}</p>
-                                    <p style="color: ${brand.text}; font-size: 16px; line-height: 1.6; margin: 0 0 25px 0;">${message}</p>
-                                    <table border="0" cellspacing="0" cellpadding="0">
-                                        <tr>
-                                            <td align="center" bgcolor="${brand.color}" style="border-radius: 50px;">
-                                                <a href="${link}" target="_blank" style="font-size: 16px; font-weight: bold; color: #ffffff; text-decoration: none; padding: 18px 45px; display: inline-block;">${buttonText}</a>
-                                            </td>
-                                        </tr>
-                                    </table>
-                                    <div style="margin-top: 30px;"><img src="${brand.eyes}" alt="OLLO" width="60"></div>
-                                </td>
-                            </tr>
-                        </table>
-                    </td>
-                </tr>
-            </table>
-        </center>
-    </body>
-    </html>`;
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>${title}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #111827; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">
+    
+    <div style="max-width: 500px; margin: 40px auto; background: #1f2937; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.3); border-top: 4px solid #10b981;">
+
+        <div style="background-color: #1f2937; padding: 40px 0 20px 0; text-align: center;">
+            <img src="${IMG_LOGO}" alt="OLLO" style="width: 90px; height: 90px; display: block; margin: 0 auto; border-radius: 50%; border: 2px solid #374151; object-fit: cover;">
+        </div>
+
+        <div style="padding: 0 40px 40px 40px; text-align: center;">
+            
+            <h2 style="color: #f9fafb; font-size: 24px; margin: 0 0 10px 0; font-weight: 700;">
+                ${title}
+            </h2>
+
+            <p style="color: #fbbf24; font-size: 12px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; margin: 0 0 30px 0;">
+                EXPLORE. CONECTE. NEGOCIE.
+            </p>
+            
+            <div style="font-size: 16px; color: #d1d5db; line-height: 1.6; margin-bottom: 30px;">
+                ${messageHtml}
+            </div>
+
+            <div style="margin-bottom: 30px;">
+                <img src="${IMG_EYES}" alt="OLLO Eyes" style="width: 100px; height: auto;">
+            </div>
+
+            <div style="margin-bottom: 30px;">
+                <a href="${link}"
+                    style="display: inline-block; background-color: #047857; color: #ffffff !important; padding: 16px 40px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: bold; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);">
+                    ${buttonText}
+                </a>
+            </div>
+
+            <div style="border-top: 1px solid #374151; padding-top: 20px; margin-top: 20px;">
+                <p style="color: #9ca3af; font-size: 12px; margin-top: 5px;">
+                    Equipe OLLO &bull; Segurança em primeiro lugar
+                </p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>`;
 };
 
-// 1. GATILHO DE NOVO USUÁRIO (Cria docs no banco e envia Boas-vindas)
-export const onnewusercreated = functions.region("southamerica-east1").auth.user().onCreate(async (user) => {
+// ==========================================
+// 1. GATILHO: NOVO USUÁRIO (Corrigido para usar Nome)
+// ==========================================
+export const onnewusercreated = functions.region("southamerica-east1").auth.user().onCreate(async (user: admin.auth.UserRecord) => {
     const { uid, email, displayName } = user;
     const nameToUse = displayName || "Viajante";
 
     try {
-        // Lógica de Banco de Dados (Mantendo o que funcionava)
-        let base = email ? email.split("@")[0] : `user${uid.substring(0, 5)}`;
-        base = base.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
-        const username = `${base}${Date.now().toString().slice(-4)}`;
-
+        // Cria docs no Firestore
         await db.runTransaction(async (t) => {
             t.set(db.collection("users").doc(uid), {
                 email, displayName: nameToUse, createdAt: admin.firestore.FieldValue.serverTimestamp(), profileCreated: true
             });
+            let base = email ? email.split("@")[0] : `user${uid.substring(0, 5)}`;
+            base = base.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+            const username = `${base}${Date.now().toString().slice(-4)}`;
+
             t.set(db.collection("users_public").doc(uid), {
                 userId: uid, name: nameToUse, username: username, verified: false
             });
         });
 
-        // Envio do E-mail Personalizado
-        const link = await admin.auth().generateEmailVerificationLink(email!, actionCodeSettings);
-        const html = getUniversalTemplate("CONFIRME SUA CONTA", "Sua conta é a chave para um universo completo. Confirme seu acesso abaixo.", "Ativar Minha Conta", link, nameToUse);
-        
-        await transporter.sendMail({
-            from: '"OLLO Oficial" <contato@olloapp.com.br>',
-            to: email,
-            subject: "Bem-vindo ao OLLO! Confirme seu e-mail",
-            html: html
-        });
+        if (email) {
+            let link = await admin.auth().generateEmailVerificationLink(email, actionCodeSettings);
+            link = link.replace(DOMAIN_TO_REPLACE, "olloapp.com.br");
+
+            // CORREÇÃO: Pega o primeiro nome para não chamar de "Viajante" se tiver nome disponível
+            const firstName = nameToUse.split(' ')[0];
+            
+            const message = "Sua conta é a chave para um universo completo.<br>Confirme seu acesso abaixo e descubra uma nova forma de interagir.";
+            const html = getOlloHtmlTemplate(`Olá, ${firstName}!`, message, "Confirmar meu E-mail", link);
+            
+            await transporter.sendMail({
+                from: '"OLLO Oficial" <contato@olloapp.com.br>',
+                to: email,
+                subject: "Bem-vindo ao OLLO! Confirme sua conta",
+                html: html
+            });
+        }
     } catch (e) { console.error("Erro no cadastro:", e); }
 });
 
-// 2. RECUPERAÇÃO DE SENHA (Resolvendo Erro Internal e Personalizando Nome)
-export const sendPasswordResetEmail = functions.region("southamerica-east1").https.onCall(async (data) => {
+// ==========================================
+// 2. FUNÇÃO: RESET DE SENHA (Design Atualizado)
+// ==========================================
+export const sendBrevoPasswordResetEmail = functions.region("southamerica-east1").https.onCall(async (data: any, context: functions.https.CallableContext) => {
     const { email } = data;
     if (!email) throw new functions.https.HttpsError("invalid-argument", "E-mail obrigatório.");
 
     try {
-        const userDoc = await db.collection("users").where("email", "==", email).limit(1).get();
-        const userName = userDoc.empty ? "Viajante" : (userDoc.docs[0].data().displayName || "Viajante");
+        let userName = "Viajante";
+        try {
+            // Tenta pegar o nome mais atualizado possível
+            const userRecord = await admin.auth().getUserByEmail(email);
+            if (userRecord.displayName) userName = userRecord.displayName;
+            else {
+                const userQuery = await db.collection("users").where("email", "==", email).limit(1).get();
+                if (!userQuery.empty) userName = userQuery.docs[0].data().displayName || "Viajante";
+            }
+        } catch (e) { console.log("Erro ao buscar nome."); }
 
-        const link = await admin.auth().generatePasswordResetLink(email, actionCodeSettings);
-        const html = getUniversalTemplate("REDEFINIÇÃO DE SENHA", "Recebemos um pedido para alterar sua senha. Se não foi você, ignore este e-mail.", "Criar Nova Senha", link, userName);
+        const firstName = userName.split(' ')[0];
+        let link = await admin.auth().generatePasswordResetLink(email, actionCodeSettings);
+        link = link.replace(DOMAIN_TO_REPLACE, "olloapp.com.br");
+
+        const message = "Recebemos um pedido para alterar sua senha.<br>Se não foi você, ignore este e-mail.";
+        const html = getOlloHtmlTemplate(`Recuperar Acesso`, `Olá, ${firstName}.<br>${message}`, "Redefinir Senha", link);
 
         await transporter.sendMail({
             from: '"Suporte OLLO" <contato@olloapp.com.br>',
@@ -127,25 +164,21 @@ export const sendPasswordResetEmail = functions.region("southamerica-east1").htt
             subject: "Recuperar Senha - OLLO",
             html: html
         });
+
         return { success: true };
-    } catch (error: any) { throw new functions.https.HttpsError("internal", error.message); }
+    } catch (error: any) { 
+        console.error("Erro no envio:", error);
+        throw new functions.https.HttpsError("internal", "Erro ao enviar e-mail."); 
+    }
 });
 
-// Outras funções necessárias para o funcionamento do sistema
-export const sendBrevoVerificationEmail = functions.region("southamerica-east1").https.onCall(async (data, context) => {
-    if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Login necessário.");
-    const link = await admin.auth().generateEmailVerificationLink(context.auth.token.email!, actionCodeSettings);
-    const html = getUniversalTemplate("REENVIO DE LINK", "Aqui está o seu link de ativação.", "Ativar Conta", link, context.auth.token.name || "Usuário");
-    await transporter.sendMail({ from: '"OLLO" <contato@olloapp.com.br>', to: context.auth.token.email, subject: "Link de Acesso OLLO", html });
-    return { success: true };
-});
-
-export const onUserDelete = functions.region("southamerica-east1").auth.user().onDelete(async (user) => {
+// 3. AUXILIARES
+export const onUserDelete = functions.region("southamerica-east1").auth.user().onDelete(async (user: admin.auth.UserRecord) => {
     await db.collection("users").doc(user.uid).delete();
     await db.collection("users_public").doc(user.uid).delete();
 });
 
-export const updateEmailVerificationStatus = functions.region("southamerica-east1").https.onCall(async (data, context) => {
+export const updateEmailVerificationStatus = functions.region("southamerica-east1").https.onCall(async (data: any, context: functions.https.CallableContext) => {  
     if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Negado");
     await db.collection("users").doc(context.auth.uid).update({ emailVerified: true });
     await db.collection("users_public").doc(context.auth.uid).update({ verified: true });

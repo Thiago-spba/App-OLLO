@@ -1,7 +1,7 @@
 // src/firebase/config.js
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore'; 
+import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getFunctions } from 'firebase/functions';
 
@@ -22,5 +22,6 @@ const storage = getStorage(app);
 // Força a região correta para evitar erro "Internal"
 const functions = getFunctions(app, 'southamerica-east1');
 
-export { auth, db, storage, functions };
+// MUDANÇA: Adicionei 'app' nesta lista para o import funcionar corretamente
+export { app, auth, db, storage, functions };
 export default app;

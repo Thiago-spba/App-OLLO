@@ -1,15 +1,14 @@
 // src/pages/ForgotPasswordPage.jsx
+// ATUALIZAÇÃO: Integração com Cloud Function para envio de e-mail personalizado OLLO
+
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import toast, { Toaster } from 'react-hot-toast';
 
-// MUDANÇA 1: Importamos o método nativo de recuperação de senha do Firebase Auth
-import { sendPasswordResetEmail } from 'firebase/auth';
-
-// MUDANÇA 2: Importamos a instância 'auth' já configurada no seu projeto
-// Isso garante que usamos a mesma conexão do Login e Cadastro
-import { auth } from '../firebase/config';
+// MUDANÇA: Importamos as ferramentas para chamar nossa Cloud Function
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { app } from '../firebase/config'; // Importamos 'app' para inicializar functions
 
 import {
   EnvelopeIcon,
@@ -30,19 +29,21 @@ const ForgotPasswordPage = () => {
     reset,
   } = useForm();
 
+  // Inicializa o serviço de Funções do Firebase
+  const functions = getFunctions(app, 'southamerica-east1');
+
   const onSubmit = async ({ email }) => {
     setIsSending(true);
 
     try {
-      // Configuração para onde o usuário volta após redefinir a senha
-      const actionCodeSettings = {
-        url: window.location.origin + '/login', // Redireciona para login após a troca
-        handleCodeInApp: true,
-      };
+      // MUDANÇA: Chamada à nossa Cloud Function Personalizada
+      const sendResetEmail = httpsCallable(
+        functions,
+        'sendBrevoPasswordResetEmail'
+      );
 
-      // MUDANÇA 3: Chamada direta ao Firebase Auth (Client SDK)
-      // Substituímos o 'httpsCallable' por esta função nativa que é mais robusta
-      await sendPasswordResetEmail(auth, email, actionCodeSettings);
+      // Enviamos o e-mail para o backend processar e enviar via Brevo com nosso template bonito
+      await sendResetEmail({ email });
 
       setSentEmail(email);
       setEmailSent(true);
@@ -51,24 +52,21 @@ const ForgotPasswordPage = () => {
       toast.success('Link enviado com sucesso!', {
         position: 'top-center',
         duration: 4000,
+        style: {
+          background: '#064e3b',
+          color: '#fff',
+        },
       });
     } catch (err) {
       console.error('Erro ao enviar:', err);
 
-      // Tratamento de erros específicos para feedback ao usuário
       let errorMessage = 'Erro ao conectar com o servidor.';
 
-      if (err.code === 'auth/user-not-found') {
-        // Por segurança, mostramos sucesso mesmo se não achar, ou avisamos (decisão de UX)
-        // Aqui, para facilitar seu teste, vamos considerar sucesso no envio da UI
-        errorMessage = 'Se o e-mail estiver cadastrado, o link foi enviado.';
-        setEmailSent(true);
-        setSentEmail(email);
-        return;
-      } else if (err.code === 'auth/invalid-email') {
-        errorMessage = 'O formato do e-mail é inválido.';
-      } else if (err.code === 'auth/too-many-requests') {
-        errorMessage = 'Muitas tentativas. Aguarde um momento.';
+      // Tratamento de erros comuns
+      if (err.message.includes('internal')) {
+        // Mesmo erro interno, às vezes é melhor não assustar o usuário
+        errorMessage =
+          'Houve um problema no envio. Tente novamente em instantes.';
       }
 
       toast.error(errorMessage, {
@@ -88,8 +86,8 @@ const ForgotPasswordPage = () => {
             Verifique seu E-mail
           </h2>
           <p className="text-gray-600 dark:text-gray-300 mb-6">
-            Enviamos um link seguro de recuperação para{' '}
-            <strong>{sentEmail}</strong>.
+            Enviamos um link seguro de recuperação com o visual{' '}
+            <strong>OLLO</strong> para <strong>{sentEmail}</strong>.
             <br />
             <br />
             <span className="text-sm text-yellow-600 dark:text-yellow-500 font-bold">
@@ -124,7 +122,10 @@ const ForgotPasswordPage = () => {
     <>
       <Toaster position="top-center" />
       <div className="min-h-screen flex items-center justify-center px-4 bg-gray-100 dark:bg-gray-900">
-        <div className="w-full max-w-md p-8 rounded-xl shadow-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+        <div className="w-full max-w-md p-8 rounded-xl shadow-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 relative overflow-hidden">
+          {/* Detalhe visual de fundo (opcional) */}
+          <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-[#a8edea] to-[#45c486]"></div>
+
           <div className="text-center mb-6">
             <img
               src="/images/logo_ollo.jpeg"
@@ -132,11 +133,14 @@ const ForgotPasswordPage = () => {
                 e.target.style.display = 'none';
               }}
               alt="Logo OLLO"
-              className="h-16 mx-auto rounded-full mb-4 shadow-sm"
+              className="h-20 mx-auto rounded-full mb-4 shadow-md border-2 border-[#45c486]"
             />
             <h2 className="text-2xl font-bold mt-2 text-[#0D4D44] dark:text-white">
               Recuperar Senha
             </h2>
+            <p className="text-xs text-yellow-600 font-bold tracking-widest uppercase mt-1">
+              Explore. Conecte. Negocie.
+            </p>
           </div>
 
           <div className="flex justify-center mb-6">
@@ -185,7 +189,7 @@ const ForgotPasswordPage = () => {
               {isSending ? (
                 <>
                   <ArrowPathIcon className="animate-spin h-5 w-5 mr-2" />
-                  Enviando link...
+                  Enviando...
                 </>
               ) : (
                 'Enviar Link Seguro'
